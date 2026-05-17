@@ -1,7 +1,101 @@
 -- ══════════════════════════════════════════════════════════
 --  NEXUS HUB VISUAL TRADE
 -- ══════════════════════════════════════════════════════════
+-- ══════════════════════════════════════════════════════════
+--  KEY SYSTEM - Place this at the VERY TOP
+-- ══════════════════════════════════════════════════════════
 
+local KEY_URL = "https://raw.githubusercontent.com/luaporl/files/refs/heads/main/key_verification" -- CHANGE THIS
+local USER_KEY = getgenv().KINGVISUALS_KEY or _G.KINGVISUALS_KEY or "SecretPass"
+
+-- Get HWID
+local function GetHWID()
+    local success, hwid = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    if success then return hwid end
+    
+    -- Fallback HWID methods
+    if gethwid then return gethwid() end
+    if syn and syn.fingerprint then return syn.fingerprint() end
+    if identifyexecutor then
+        local name, version = identifyexecutor()
+        return game.Players.LocalPlayer.UserId .. "_" .. name .. "_" .. version
+    end
+    return tostring(game.Players.LocalPlayer.UserId) .. "_FALLBACK"
+end
+
+-- Verify Key
+local function VerifyKey(key)
+    local success, response = pcall(function()
+        return game:HttpGet(KEY_URL)
+    end)
+    
+    if not success then
+        return false, "Failed to connect to key server. Check your internet."
+    end
+    
+    local AuthorizedKeys = loadstring(response)()
+    if not AuthorizedKeys then
+        return false, "Key server returned invalid data."
+    end
+    
+    local keyData = AuthorizedKeys[key]
+    if not keyData then
+        return false, "Invalid key. Purchase at [YOUR LINK]"
+    end
+    
+    local hwid = GetHWID()
+    
+    -- First execution: Lock to this HWID
+    if not keyData.hwid then
+        keyData.hwid = hwid
+        warn("[AUTH] Key locked to HWID: " .. hwid)
+        return true, "Key activated! Welcome, " .. keyData.user
+    end
+    
+    -- Subsequent executions: Verify HWID matches
+    if keyData.hwid == hwid then
+        return true, "Authenticated. Welcome back, " .. keyData.user
+    else
+        return false, "HWID mismatch. Key locked to another device."
+    end
+end
+
+-- Execute verification
+if USER_KEY == "" then
+    warn("════════════════════════════════════════")
+    warn("NO KEY DETECTED")
+    warn("════════════════════════════════════════")
+    warn("Purchase a key at: [YOUR DISCORD/WEBSITE]")
+    warn("Then execute: getgenv().KINGVISUALS_KEY = \"YOUR-KEY-HERE\"")
+    warn("════════════════════════════════════════")
+    return
+end
+
+local success, message = VerifyKey(USER_KEY)
+if not success then
+    warn("════════════════════════════════════════")
+    warn("AUTHENTICATION FAILED")
+    warn("════════════════════════════════════════")
+    warn(message)
+    warn("════════════════════════════════════════")
+    return
+end
+
+print("✓ " .. message)
+
+-- ══════════════════════════════════════════════════════════
+--  YOUR MAIN SCRIPT STARTS HERE (keep everything below this)
+-- ══════════════════════════════════════════════════════════
+
+-- wait for the place to finish initial load before running anything;
+-- prevents missing services / unstreamed instances on early-injection.
+if not game:IsLoaded() then
+    repeat task.wait() until game:IsLoaded()
+end
+
+-- ... (rest of your 8000+ line script continues here)
 -- wait for the place to finish initial load before running anything;
 -- prevents missing services / unstreamed instances on early-injection.
 if not game:IsLoaded() then
