@@ -1,0 +1,7 @@
+local AuthorizedKeys = {
+    ["1OYTPBv6UofDEHKM"] = {user = "Demo User", hwid = nil}, -- No HWID lock yet
+    ["iIxcsdh6X2EburjK"] = {user = "Customer1", hwid = "HWID_ABC123"},
+    -- Add more keys here when you sell
+}
+
+return AuthorizedKeys
