@@ -1,7 +1,129 @@
 -- ══════════════════════════════════════════════════════════
---  NEXUS HUB VISUAL TRADE
+--  NEXUS HUB — MODULAR ENTRY (execute this file)
+--  Premium UI: NexusHub/modules + NexusHub/ui
 -- ══════════════════════════════════════════════════════════
-loadstring(game:HttpGet("https://pastebin.com/raw/8QxRtX67"))()
+-- ══════════════════════════════════════════════════════════
+--  KEY SYSTEM - Place this at the VERY TOP
+-- ══════════════════════════════════════════════════════════
+
+local KEY_URL = "https://raw.githubusercontent.com/luaporl/files/refs/heads/main/key_verification" -- CHANGE THIS
+
+local USER_KEY = getgenv().KINGVISUALS_KEY or _G.KINGVISUALS_KEY or "SecretPass"
+
+-- Get HWID
+local function GetHWID()
+    local success, hwid = pcall(function()
+        return game:GetService("RbxAnalyticsService"):GetClientId()
+    end)
+    if success then return hwid end
+    
+    -- Fallback HWID methods
+    if gethwid then return gethwid() end
+    if syn and syn.fingerprint then return syn.fingerprint() end
+    if identifyexecutor then
+        local name, version = identifyexecutor()
+        return game.Players.LocalPlayer.UserId .. "_" .. name .. "_" .. version
+    end
+    return tostring(game.Players.LocalPlayer.UserId) .. "_FALLBACK"
+end
+
+-- Verify Key
+local function VerifyKey(key)
+    local success, response = pcall(function()
+        return game:HttpGet(KEY_URL)
+    end)
+    
+    if not success then
+        return false, "Failed to connect to key server. Check your internet."
+    end
+    
+    local AuthorizedKeys = loadstring(response)()
+    if not AuthorizedKeys then
+        return false, "Key server returned invalid data."
+    end
+    
+    local keyData = AuthorizedKeys[key]
+    if not keyData then
+        return false, "Invalid key. Purchase at [YOUR LINK]"
+    end
+    
+    local hwid = GetHWID()
+    
+    -- First execution: Lock to this HWID
+    if not keyData.hwid then
+        keyData.hwid = hwid
+        warn("[AUTH] Key locked to HWID: " .. hwid)
+        return true, "Key activated! Welcome, " .. keyData.user
+    end
+    
+    -- Subsequent executions: Verify HWID matches
+    if keyData.hwid == hwid then
+        return true, "Authenticated. Welcome back, " .. keyData.user
+    else
+        return false, "HWID mismatch. Key locked to another device."
+    end
+end
+
+-- Execute verification
+if USER_KEY == "" then
+    warn("════════════════════════════════════════")
+    warn("NO KEY DETECTED")
+    warn("════════════════════════════════════════")
+    warn("Purchase a key at: https://discord.gg/tPuz3dkh")
+    warn("Then execute: getgenv().KINGVISUALS_KEY = \"YOUR-KEY-HERE\"")
+    warn("════════════════════════════════════════")
+    return
+end
+
+local success, message = VerifyKey(USER_KEY)
+if not success then
+    warn("════════════════════════════════════════")
+    warn("AUTHENTICATION FAILED")
+    warn("════════════════════════════════════════")
+    warn(message)
+    warn("════════════════════════════════════════")
+    return
+end
+
+print("✓ " .. message)
+
+-- ══════════════════════════════════════════════════════════
+--  NEXUSHUB MODULAR PREMIUM LAYER (UI · themes · HUD · plugins)
+-- ══════════════════════════════════════════════════════════
+local NEXUS_ROOT = (isfolder and isfolder("modules")) and "" or "NexusHub/"
+local Nexus = getgenv().__NEXUS_HUB or { _registry = {} }
+getgenv().__NEXUS_HUB = Nexus
+
+if readfile and not Nexus._bootstrapped then
+	local function loadModule(path)
+		local full = NEXUS_ROOT .. path
+		if not isfile(full) then return end
+		local chunk = loadstring(readfile(full), "@" .. full)
+		if setfenv then
+			setfenv(chunk, setmetatable({ Nexus = Nexus }, { __index = getfenv() }))
+		end
+		local factory = chunk()
+		if type(factory) == "function" then factory(Nexus) end
+		Nexus._registry[path] = true
+	end
+	local ORDER = {
+		"modules/Util.lua", "modules/ThemeManager.lua", "modules/Animations.lua",
+		"modules/ConfigManager.lua", "modules/Protections.lua", "modules/Notifications.lua",
+		"modules/Console.lua", "modules/PerformanceHUD.lua", "modules/PluginManager.lua",
+		"ui/Components.lua", "ui/Loading.lua", "ui/Shell.lua",
+	}
+	for _, p in ipairs(ORDER) do pcall(function() loadModule(p) end) end
+	if Nexus.Protections then Nexus.Protections.WrapGlobals() end
+	if Nexus.Config then Nexus.Config.AutoRestore() end
+	Nexus._bootstrapped = true
+end
+
+local function NHTheme(key, fallback)
+	if Nexus.Theme and Nexus.Theme.Get() and Nexus.Theme.Get()[key] then
+		return Nexus.Theme.Get()[key]
+	end
+	return fallback
+end
 
 -- ══════════════════════════════════════════════════════════
 --  YOUR MAIN SCRIPT STARTS HERE (keep everything below this)
@@ -60,17 +182,22 @@ local function GetSafeParent()
     return CoreGui
 end
 
--- ── THEME ────────────────────────────────────────────────
-local BG      = Color3.fromRGB(18,18,22)
-local SURFACE = Color3.fromRGB(24,24,30)
-local ACCENT  = Color3.fromRGB(108,92,231)
-local BORDER  = Color3.fromRGB(50,45,80)
-local TEXT    = Color3.fromRGB(230,230,240)
-local SUBTEXT = Color3.fromRGB(130,125,160)
-local ITEMHOV = Color3.fromRGB(30,28,42)
-local ITEMSEL = Color3.fromRGB(50,42,100)
-local BTNRED  = Color3.fromRGB(180,50,50)
-local BTNGRN  = Color3.fromRGB(50,170,90)
+-- ── THEME (synced with NexusHub ThemeManager when loaded) ─
+local BG      = NHTheme("BG",      Color3.fromRGB(8,10,18))
+local SURFACE = NHTheme("Surface", Color3.fromRGB(14,18,32))
+local SURFACE2= NHTheme("Surface2",Color3.fromRGB(22,28,48))
+local ACCENT  = NHTheme("Accent",  Color3.fromRGB(0,214,255))
+local ACCENT2 = NHTheme("Accent2", Color3.fromRGB(124,77,255))
+local BORDER  = NHTheme("Border",  Color3.fromRGB(56,72,110))
+local TEXT    = NHTheme("Text",    Color3.fromRGB(236,244,255))
+local SUBTEXT = NHTheme("Subtext", Color3.fromRGB(148,162,190))
+local ITEMHOV = NHTheme("Surface2",Color3.fromRGB(22,28,48))
+local ITEMSEL = NHTheme("Accent",  Color3.fromRGB(0,214,255))
+local BTNRED  = NHTheme("Error",   Color3.fromRGB(255,92,122))
+local BTNGRN  = NHTheme("Success", Color3.fromRGB(72,220,140))
+local UI_RADIUS    = (Nexus.Theme and Nexus.Theme.Get() and Nexus.Theme.Get().Radius) or 14
+local UI_RADIUS_SM = (Nexus.Theme and Nexus.Theme.Get() and Nexus.Theme.Get().RadiusSm) or 10
+local TITLE_H      = 48
 
 local RARITY_COLORS = {
     Common              = Color3.fromRGB(0,171,40),
@@ -239,20 +366,25 @@ local function Corner(p,r)
 end
 local function MakeDraggable(frame,handle)
     handle=handle or frame
-    local drag,ds,sp
+    pcall(function() handle.Active=true end)
+    local drag,ds,sp,activeInput
+    local function isDrag(t) return t==Enum.UserInputType.MouseButton1 or t==Enum.UserInputType.Touch end
     handle.InputBegan:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 then
-            drag=true; ds=i.Position; sp=frame.Position
-        end
+        if isDrag(i.UserInputType) then drag=true; activeInput=i; ds=i.Position; sp=frame.Position end
     end)
     handle.InputEnded:Connect(function(i)
-        if i.UserInputType==Enum.UserInputType.MouseButton1 then drag=false end
+        if activeInput and i==activeInput then drag=false; activeInput=nil
+        elseif isDrag(i.UserInputType) then drag=false; activeInput=nil end
     end)
     UserInputService.InputChanged:Connect(function(i)
-        if drag and i.UserInputType==Enum.UserInputType.MouseMovement then
+        if not drag then return end
+        if isDrag(i.UserInputType) or i.UserInputType==Enum.UserInputType.MouseMovement then
             local d=i.Position-ds
             frame.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
         end
+    end)
+    UserInputService.InputEnded:Connect(function(i)
+        if activeInput and i==activeInput then drag=false; activeInput=nil end
     end)
 end
 local function SectionHeader(parent,text,yPos)
@@ -3144,30 +3276,35 @@ pcall(function()
     workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(_refreshScale)
 end)
 
--- ── MAIN WINDOW ──────────────────────────────────────────
-local WIN_W = 400
+-- ── MAIN WINDOW (premium glass) ───────────────────────────
+local WIN_W = 460
 local win = New("Frame", {
-    Size=UDim2.new(0,WIN_W,0,514),
+    Size=UDim2.new(0,WIN_W,0,540),
     Position=UDim2.new(0,20,0,200),
     BackgroundColor3=BG,
     BorderSizePixel=0, Active=true, Parent=sg,
     ClipsDescendants=false,
 })
-Corner(win, 8)
-Stroke(win, Color3.fromRGB(50,45,80), 1, 0.2)
--- title bar
+Corner(win, UI_RADIUS)
+Stroke(win, BORDER, 1, 0.12)
+if Nexus.Theme then Nexus.Theme.Gradient(win, SURFACE, BG, 40) end
+-- title bar (drag — mouse + touch)
 local tbar = New("Frame", {
-    Size=UDim2.new(1,0,0,36),
-    BackgroundColor3=Color3.fromRGB(30,28,42),
-    BorderSizePixel=0, Parent=win,
+    Size=UDim2.new(1,0,0,TITLE_H),
+    BackgroundColor3=SURFACE,
+    BorderSizePixel=0, Active=true, Parent=win,
 })
-Corner(tbar, 8)
-New("Frame", {Size=UDim2.new(1,0,0.5,0), Position=UDim2.new(0,0,0.5,0), BackgroundColor3=Color3.fromRGB(30,28,42), BorderSizePixel=0, Parent=tbar})
+Corner(tbar, UI_RADIUS)
+New("Frame", {Size=UDim2.new(1,0,0.5,0), Position=UDim2.new(0,0,0.5,0), BackgroundColor3=SURFACE, BorderSizePixel=0, Parent=tbar})
+New("Frame", {
+    Size=UDim2.new(1,-24,0,1), Position=UDim2.new(0,12,1,-1),
+    BackgroundColor3=ACCENT, BackgroundTransparency=0.5, BorderSizePixel=0, Parent=tbar,
+})
 New("TextLabel", {
-    Size=UDim2.new(1,-20,1,0), Position=UDim2.new(0,10,0,0),
-    Text="NEXUS HUB VISUAL TRADE",
-    TextColor3=Color3.fromRGB(230,230,240), Font=Enum.Font.GothamSemibold,
-    TextSize=10, BackgroundTransparency=1,
+    Size=UDim2.new(1,-24,1,0), Position=UDim2.new(0,14,0,0),
+    Text="NEXUS HUB  ·  VISUAL TRADE",
+    TextColor3=TEXT, Font=Enum.Font.GothamMedium,
+    TextSize=11, BackgroundTransparency=1,
     TextXAlignment=Enum.TextXAlignment.Left, Parent=tbar,
 })
 MakeDraggable(win, tbar)
@@ -3197,12 +3334,12 @@ end
 
 local contentVisible = true
 local mainContent = New("Frame", {
-    Size=UDim2.new(1,0,0,0), Position=UDim2.new(0,0,0,36),
+    Size=UDim2.new(1,0,0,0), Position=UDim2.new(0,0,0,TITLE_H),
     BackgroundTransparency=1, BorderSizePixel=0, Parent=win,
     AutomaticSize=Enum.AutomaticSize.Y,
 })
 win.AutomaticSize = Enum.AutomaticSize.Y
-win.Size = UDim2.new(0,WIN_W,0,36)
+win.Size = UDim2.new(0,WIN_W,0,TITLE_H)
 
 
 
@@ -3220,7 +3357,7 @@ do
     if ul2 then
         ul2:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             if contentVisible then
-                win.Size = UDim2.new(0,WIN_W,0,36+ul2.AbsoluteContentSize.Y+20)
+                win.Size = UDim2.new(0,WIN_W,0,TITLE_H+ul2.AbsoluteContentSize.Y+24)
             end
         end)
     end
@@ -3344,6 +3481,24 @@ tabBrainrots.Activated:Connect(function() SetTab("Brainrots") end)
 tabTrading.Activated:Connect(function()   SetTab("Trading")   end)
 tabBase.Activated:Connect(function()      SetTab("Base")      end)
 tabMisc.Activated:Connect(function()      SetTab("Misc")      end)
+
+-- Premium shell: sidebar · search · HUD · live console
+task.defer(function()
+    local N = getgenv().__NEXUS_HUB
+    if not N then return end
+    if N.Console then N.Console.Log("Core UI initialized", "system") end
+    if N.Shell and N.Shell.Attach then N.Shell.Attach(sg, win, { setTab = SetTab }) end
+    if N.Console and miscPage then
+        N._consoleFrame = N.Console.Build(miscPage)
+        if N.Config and N.Config.Get("showConsole", true) == false then
+            N._consoleFrame.Visible = false
+        end
+    end
+    if N.PerformanceHUD and (not N.Config or N.Config.Get("showPerfHUD", true)) then
+        N.PerformanceHUD.Init()
+    end
+    if N.Notifications then N.Notifications.Success("NexusHub", "Premium interface active") end
+end)
 
 -- ── TRADING PAGE CONTENT ──────────────────────────────────
 
@@ -6765,6 +6920,49 @@ do
         end
     end)
 
+    -- NexusHub premium (themes · HUD · presets)
+    pcall(function()
+        local N = getgenv().__NEXUS_HUB
+        if not N or not N.UI then return end
+        local prem = MakeMiscSection("NexusHub Premium", 50, true)
+        N.UI.Toggle({
+            parent = prem, label = "Performance HUD",
+            default = N.Config and N.Config.Get("showPerfHUD", true),
+            onChange = function(on)
+                if N.PerformanceHUD then
+                    if on then N.PerformanceHUD.Init() end
+                    N.PerformanceHUD.SetEnabled(on)
+                end
+            end,
+        })
+        N.UI.Toggle({
+            parent = prem, label = "Activity Console",
+            default = N.Config and N.Config.Get("showConsole", true),
+            onChange = function(on)
+                if N.Config then N.Config.Set("showConsole", on) end
+                if N._consoleFrame then N._consoleFrame.Visible = on end
+            end,
+        })
+        N.UI.Dropdown({
+            parent = prem,
+            options = { "Neon Void", "Midnight Gold", "Arctic Glass" },
+            onSelect = function(opt)
+                local map = { ["Neon Void"]="NeonVoid", ["Midnight Gold"]="MidnightGold", ["Arctic Glass"]="ArcticGlass" }
+                if N.Theme and map[opt] then N.Theme.Apply(map[opt]) end
+            end,
+        })
+        local saveBtn = New("TextButton", {
+            Size = UDim2.new(1, 0, 0, 36), BackgroundColor3 = ACCENT,
+            Text = "Save Preset", TextColor3 = Color3.fromRGB(8, 12, 20),
+            Font = Enum.Font.GothamBold, TextSize = 11, AutoButtonColor = false,
+            LayoutOrder = 10, Parent = prem,
+        })
+        Corner(saveBtn, UI_RADIUS_SM)
+        saveBtn.Activated:Connect(function()
+            if N.Config then N.Config.SavePreset("default") end
+        end)
+    end)
+
     -- auto-restore on script start, if enabled and we loaded a config.
     -- wait until the plot AND its podium prompts have actually streamed in
     -- before spawning, otherwise the prompt-wiring branch in DoSpawn finds
@@ -10169,4 +10367,28 @@ task.spawn(function()
 end)
 
 end
-_buildAndRun()
+
+-- Startup: loading sequence → core UI
+local function _launchCore()
+    if Nexus.Console then Nexus.Console.Log("Launching spawner core", "system") end
+    _buildAndRun()
+end
+
+if Nexus.Loading then
+    Nexus.Loading.Run({
+        { label = "Initializing services", delay = 0.15 },
+        { label = "Loading theme & config", fn = function()
+            if Nexus.Config then Nexus.Config.AutoRestore() end
+        end },
+        { label = "Starting plugins", fn = function()
+            if Nexus.PluginManager then Nexus.PluginManager.Init() end
+        end },
+        { label = "Building interface", fn = _launchCore },
+    }, function()
+        if Nexus.Notifications then
+            Nexus.Notifications.Success("NexusHub", "All systems operational")
+        end
+    end)
+else
+    _launchCore()
+end
