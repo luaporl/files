@@ -1,5 +1,6 @@
 local AuthorizedKeys = {
     ["2BjoI5dCyy7SBRN7"] = {user = "Demo User", hwid = nil}, -- No HWID lock yet
+    ["8dqQBIcZE193AVoU"] = {user = "Demo User", hwid = nil}, -- No HWID lock yet
     ["ClMk1dOrUa6RGJkW"] = {user = "Demo User", hwid = nil}, -- No HWID lock yet
     ["i03Yff6k9blKWfhS"] = {user = "Demo User", hwid = nil}, -- No HWID lock yet
     ["iIxcsdh6X2EburjK"] = {user = "Customer1", hwid = "HWID_ABC123"},
