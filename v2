@@ -1,4 +1,4 @@
-
+task.spawn(function()
 -- ══════════════════════════════════════════════════════════
 --  NEXUSHUB MODULAR PREMIUM LAYER (UI · themes · HUD · plugins)
 -- ══════════════════════════════════════════════════════════
@@ -14102,3 +14102,4 @@ task.spawn(function()
 end)
 end
 _buildUI()
+end)
