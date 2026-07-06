@@ -142,6 +142,7 @@ local State = {
     noCamCollisionEnabled=false, noCamCollisionConn=nil, noCamTransparencyTracker={},
 
     playerESPEnabled=false, espConnections={}, espHighlight={}, espBillboards={}, espBoxes={},
+    espDrawings={},
     hardHitRingEnabled=false,
     autoMedusaEnabled=false,
     instaResetOnMedusaEnabled=false,
@@ -1388,6 +1389,10 @@ local function removePlayerESP(plr)
     if State.espHighlight[plr] then pcall(function() State.espHighlight[plr]:Destroy() end); State.espHighlight[plr] = nil end
     if State.espBillboards[plr] then pcall(function() State.espBillboards[plr]:Destroy() end); State.espBillboards[plr] = nil end
     if State.espBoxes[plr] then pcall(function() State.espBoxes[plr]:Destroy() end); State.espBoxes[plr] = nil end
+    if State.espDrawings[plr] then
+        for _, d in pairs(State.espDrawings[plr]) do pcall(function() d:Remove() end) end
+        State.espDrawings[plr] = nil
+    end
 end
 
 local function setupPlayerESP(plr)
@@ -1431,6 +1436,27 @@ local function setupPlayerESP(plr)
         distLabel.TextStrokeTransparency = 0.4; distLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
         bb.Parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
         State.espBillboards[plr] = bb
+        -- Drawing-based 2D box, tracer, health bar
+        local drawings = {}
+        drawings.box = Drawing.new("Square")
+        drawings.box.Visible = false
+        drawings.box.Color = Color3.fromRGB(255, 255, 255)
+        drawings.box.Thickness = 1.5
+        drawings.box.Filled = false
+        drawings.box.Transparency = 1
+        drawings.tracer = Drawing.new("Line")
+        drawings.tracer.Visible = false
+        drawings.tracer.Color = Color3.fromRGB(255, 255, 255)
+        drawings.tracer.Thickness = 1
+        drawings.tracer.Transparency = 1
+        drawings.distText = Drawing.new("Text")
+        drawings.distText.Visible = false
+        drawings.distText.Color = Color3.fromRGB(255, 255, 255)
+        drawings.distText.Size = 12
+        drawings.distText.Center = true
+        drawings.distText.Outline = true
+        drawings.distText.Font = 0
+        State.espDrawings[plr] = drawings
     end
     if plr.Character then setup(plr.Character) end
     plr.CharacterAdded:Connect(function(char)
@@ -1468,6 +1494,47 @@ enablePlayerESP = function()
                 if tr then box.CFrame = tr.CFrame end
             elseif box then pcall(function() box:Destroy() end); State.espBoxes[plr] = nil end
         end
+        -- Drawing-based ESP update (every frame for smooth tracers/boxes)
+        local cam = workspace.CurrentCamera
+        local myChar = LP.Character
+        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+        for plr, drawings in pairs(State.espDrawings) do
+            local char = plr.Character
+            local head = char and char:FindFirstChild("Head")
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+            if not head or not hrp or not hum or hum.Health <= 0 then
+                for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
+            else
+                local headPos, headOn = cam:WorldToViewportPoint(head.Position)
+                local hrpPos = cam:WorldToViewportPoint(hrp.Position)
+                if not headOn then
+                    for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
+                else
+                    local boxH = math.abs(headPos.Y - hrpPos.Y) * 1.8
+                    local boxW = boxH * 0.65
+                    local boxX = headPos.X - boxW / 2
+                    local boxY = headPos.Y - boxH * 0.05
+                    if drawings.box then
+                        drawings.box.Visible = true
+                        drawings.box.Position = Vector2.new(boxX, boxY)
+                        drawings.box.Size = Vector2.new(boxW, boxH)
+                    end
+                    if drawings.tracer then
+                        drawings.tracer.Visible = true
+                        drawings.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
+                        drawings.tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
+                    end
+                    if drawings.distText then
+                        local myPos = myRoot and myRoot.Position or Vector3.new(0, 0, 0)
+                        local dist = math.floor((hrp.Position - myPos).Magnitude)
+                        drawings.distText.Visible = true
+                        drawings.distText.Position = Vector2.new(headPos.X, boxY - 16)
+                        drawings.distText.Text = dist .. "m"
+                    end
+                end
+            end
+        end
     end)
 end
 
@@ -1480,7 +1547,8 @@ disablePlayerESP = function()
     for plr, _ in pairs(State.espHighlight) do removePlayerESP(plr) end
     for plr, _ in pairs(State.espBillboards) do removePlayerESP(plr) end
     for plr, _ in pairs(State.espBoxes) do removePlayerESP(plr) end
-    State.espHighlight = {}; State.espBillboards = {}; State.espBoxes = {}
+    for plr, _ in pairs(State.espDrawings) do removePlayerESP(plr) end
+    State.espHighlight = {}; State.espBillboards = {}; State.espBoxes = {}; State.espDrawings = {}
 end
 
 -- ============================================================
