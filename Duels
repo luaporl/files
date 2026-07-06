@@ -142,7 +142,6 @@ local State = {
     noCamCollisionEnabled=false, noCamCollisionConn=nil, noCamTransparencyTracker={},
 
     playerESPEnabled=false, espConnections={}, espHighlight={}, espBillboards={}, espBoxes={},
-    espDrawings={},
     hardHitRingEnabled=false,
     autoMedusaEnabled=false,
     instaResetOnMedusaEnabled=false,
@@ -719,7 +718,7 @@ startAutoRight = function()
 end
 
 -- ============================================================
--- BAT AIMBOT (AceDuels exact replica)
+-- BAT AIMBOT (Ace duels style + Revolt swing + Funny Hub unwalk)
 -- ============================================================
 local BAT_LIST = {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
 local function findBat()
@@ -732,7 +731,11 @@ local function findBat()
     if bp then for _, ch in ipairs(bp:GetChildren()) do if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then return ch end end end
     return nil
 end
+local _batSwingCD=0
+local _batSwingCDTime=0.28
 local AUTO_BAT_SPEED,AUTO_BAT_VERT_SPEED,AUTO_BAT_DIST,AUTO_BAT_HEIGHT,AUTO_BAT_V_OFF,AUTO_BAT_TURN_SPEED,AUTO_BAT_MAX_TURN_RATE = 58,52,-2.8,4.75,1,285,28
+local _savedAnimate=nil
+do
 local _autoBatTarget=nil
 local _autoBatLastScan=0
 local function getAutoBatTarget()
@@ -758,12 +761,38 @@ local function getAutoBatTarget()
     _autoBatTarget=closest
     return _autoBatTarget
 end
+local function startUnwalk()
+    local char=LP.Character; if not char then return end
+    local hum=char:FindFirstChildOfClass("Humanoid"); if not hum then return end
+    for _,t in ipairs(hum:GetPlayingAnimationTracks()) do t:Stop() end
+    local anim=char:FindFirstChild("Animate")
+    if anim then _savedAnimate=anim:Clone(); anim:Destroy() end
+end
+local function stopUnwalk()
+    local char=LP.Character; if not char then return end
+    if _savedAnimate then _savedAnimate.Parent=char;_savedAnimate.Disabled=false;_savedAnimate=nil end
+end
+local function tryBatSwing()
+    if _batSwingCD then return end
+    _batSwingCD=true
+    local char=LP.Character; if not char then task.delay(_batSwingCDTime,function() _batSwingCD=false end); return end
+    local bat=findBat()
+    if bat then
+        local hum=char:FindFirstChildOfClass("Humanoid")
+        if hum and bat.Parent~=char then pcall(function() hum:EquipTool(bat) end) end
+        local remote=bat:FindFirstChildOfClass("RemoteEvent")
+        if remote then pcall(function() remote:FireServer() end)
+        else pcall(function() bat:Activate() end) end
+    end
+    task.delay(_batSwingCDTime,function() _batSwingCD=false end)
+end
 resetAutoBatMotion=function()
     local char=LP.Character
     local hrp=char and char:FindFirstChild("HumanoidRootPart")
     local hum=char and char:FindFirstChildOfClass("Humanoid")
     if hrp then hrp.AssemblyLinearVelocity=hrp.AssemblyLinearVelocity*0.3;hrp.AssemblyAngularVelocity=Vector3.zero end
     if hum then hum.AutoRotate=true end
+    stopUnwalk()
 end
 local _autoTPWasEnabled=false
 enableAutoBat=function()
@@ -772,6 +801,7 @@ enableAutoBat=function()
     if State.autoTPEnabled then _autoTPWasEnabled=true;State.autoTPEnabled=false;stopAutoTP() else _autoTPWasEnabled=false end
     State.autoBatEquippedThisRun=false
     State.autoBatEnabled=true
+    startUnwalk()
 end
 disableAutoBat=function()
     State.autoBatEnabled=false
@@ -787,12 +817,10 @@ Conns.autoBat=RunService.Heartbeat:Connect(function()
     local hum=char and char:FindFirstChildOfClass("Humanoid")
     local root=char and char:FindFirstChild("HumanoidRootPart")
     if not root or not hum then return end
-    if not State.autoBatEquippedThisRun then
-        State.autoBatEquippedThisRun=true
-        if not char:FindFirstChildOfClass("Tool") then
-            local bat=findBat()
-            if bat then pcall(function() hum:EquipTool(bat) end) end
-        end
+    local batInHand=char:FindFirstChildOfClass("Tool")
+    if not batInHand then
+        local bat=findBat()
+        if bat then pcall(function() hum:EquipTool(bat) end) end
     end
     local target=getAutoBatTarget()
     if target then
@@ -822,17 +850,13 @@ Conns.autoBat=RunService.Heartbeat:Connect(function()
         local vVel=math.abs(moveDir.Y)>0.1 and Vector3.new(0,math.sign(moveDir.Y)*AUTO_BAT_VERT_SPEED,0) or Vector3.new(0,-2,0)
         root.AssemblyLinearVelocity=hVel+vVel
         if hDir.Magnitude>0.5 then hum:Move(hDir.Unit,false) end
+        if State.autoSwingEnabled and look.Magnitude<=8 then tryBatSwing() end
     else
         hum.AutoRotate=true
         root.AssemblyAngularVelocity=Vector3.zero
     end
-    if State.autoSwingEnabled then
-        local bat=findBat()
-        if bat and bat.Parent==char and bat:IsA("Tool") then
-            pcall(function() bat:Activate() end)
-        end
-    end
 end)
+end
 
 -- ============================================================
 -- BAT COUNTER
@@ -1364,10 +1388,6 @@ local function removePlayerESP(plr)
     if State.espHighlight[plr] then pcall(function() State.espHighlight[plr]:Destroy() end); State.espHighlight[plr] = nil end
     if State.espBillboards[plr] then pcall(function() State.espBillboards[plr]:Destroy() end); State.espBillboards[plr] = nil end
     if State.espBoxes[plr] then pcall(function() State.espBoxes[plr]:Destroy() end); State.espBoxes[plr] = nil end
-    if State.espDrawings[plr] then
-        for _, d in pairs(State.espDrawings[plr]) do pcall(function() d:Remove() end) end
-        State.espDrawings[plr] = nil
-    end
 end
 
 local function setupPlayerESP(plr)
@@ -1411,27 +1431,6 @@ local function setupPlayerESP(plr)
         distLabel.TextStrokeTransparency = 0.4; distLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
         bb.Parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
         State.espBillboards[plr] = bb
-        -- Drawing-based 2D box, tracer, health bar
-        local drawings = {}
-        drawings.box = Drawing.new("Square")
-        drawings.box.Visible = false
-        drawings.box.Color = Color3.fromRGB(255, 255, 255)
-        drawings.box.Thickness = 1.5
-        drawings.box.Filled = false
-        drawings.box.Transparency = 1
-        drawings.tracer = Drawing.new("Line")
-        drawings.tracer.Visible = false
-        drawings.tracer.Color = Color3.fromRGB(255, 255, 255)
-        drawings.tracer.Thickness = 1
-        drawings.tracer.Transparency = 1
-        drawings.distText = Drawing.new("Text")
-        drawings.distText.Visible = false
-        drawings.distText.Color = Color3.fromRGB(255, 255, 255)
-        drawings.distText.Size = 12
-        drawings.distText.Center = true
-        drawings.distText.Outline = true
-        drawings.distText.Font = 0
-        State.espDrawings[plr] = drawings
     end
     if plr.Character then setup(plr.Character) end
     plr.CharacterAdded:Connect(function(char)
@@ -1469,47 +1468,6 @@ enablePlayerESP = function()
                 if tr then box.CFrame = tr.CFrame end
             elseif box then pcall(function() box:Destroy() end); State.espBoxes[plr] = nil end
         end
-        -- Drawing-based ESP update (every frame for smooth tracers/boxes)
-        local cam = workspace.CurrentCamera
-        local myChar = LP.Character
-        local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
-        for plr, drawings in pairs(State.espDrawings) do
-            local char = plr.Character
-            local head = char and char:FindFirstChild("Head")
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local hum = char and char:FindFirstChildOfClass("Humanoid")
-            if not head or not hrp or not hum or hum.Health <= 0 then
-                for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
-            else
-                local headPos, headOn = cam:WorldToViewportPoint(head.Position)
-                local hrpPos = cam:WorldToViewportPoint(hrp.Position)
-                if not headOn then
-                    for _, d in pairs(drawings) do pcall(function() d.Visible = false end) end
-                else
-                    local boxH = math.abs(headPos.Y - hrpPos.Y) * 1.8
-                    local boxW = boxH * 0.65
-                    local boxX = headPos.X - boxW / 2
-                    local boxY = headPos.Y - boxH * 0.05
-                    if drawings.box then
-                        drawings.box.Visible = true
-                        drawings.box.Position = Vector2.new(boxX, boxY)
-                        drawings.box.Size = Vector2.new(boxW, boxH)
-                    end
-                    if drawings.tracer then
-                        drawings.tracer.Visible = true
-                        drawings.tracer.From = Vector2.new(cam.ViewportSize.X / 2, cam.ViewportSize.Y)
-                        drawings.tracer.To = Vector2.new(hrpPos.X, hrpPos.Y)
-                    end
-                    if drawings.distText then
-                        local myPos = myRoot and myRoot.Position or Vector3.new(0, 0, 0)
-                        local dist = math.floor((hrp.Position - myPos).Magnitude)
-                        drawings.distText.Visible = true
-                        drawings.distText.Position = Vector2.new(headPos.X, boxY - 16)
-                        drawings.distText.Text = dist .. "m"
-                    end
-                end
-            end
-        end
     end)
 end
 
@@ -1522,8 +1480,7 @@ disablePlayerESP = function()
     for plr, _ in pairs(State.espHighlight) do removePlayerESP(plr) end
     for plr, _ in pairs(State.espBillboards) do removePlayerESP(plr) end
     for plr, _ in pairs(State.espBoxes) do removePlayerESP(plr) end
-    for plr, _ in pairs(State.espDrawings) do removePlayerESP(plr) end
-    State.espHighlight = {}; State.espBillboards = {}; State.espBoxes = {}; State.espDrawings = {}
+    State.espHighlight = {}; State.espBillboards = {}; State.espBoxes = {}
 end
 
 -- ============================================================
