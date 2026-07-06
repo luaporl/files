@@ -718,7 +718,7 @@ startAutoRight = function()
 end
 
 -- ============================================================
--- BAT AIMBOT (Ace duels style + Revolt swing + Funny Hub unwalk)
+-- BAT AIMBOT (AceDuels exact replica)
 -- ============================================================
 local BAT_LIST = {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
 local function findBat()
@@ -731,11 +731,7 @@ local function findBat()
     if bp then for _, ch in ipairs(bp:GetChildren()) do if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then return ch end end end
     return nil
 end
-local _batSwingCD=0
-local _batSwingCDTime=0.28
 local AUTO_BAT_SPEED,AUTO_BAT_VERT_SPEED,AUTO_BAT_DIST,AUTO_BAT_HEIGHT,AUTO_BAT_V_OFF,AUTO_BAT_TURN_SPEED,AUTO_BAT_MAX_TURN_RATE = 58,52,-2.8,4.75,1,285,28
-local _savedAnimate=nil
-do
 local _autoBatTarget=nil
 local _autoBatLastScan=0
 local function getAutoBatTarget()
@@ -761,38 +757,12 @@ local function getAutoBatTarget()
     _autoBatTarget=closest
     return _autoBatTarget
 end
-local function startUnwalk()
-    local char=LP.Character; if not char then return end
-    local hum=char:FindFirstChildOfClass("Humanoid"); if not hum then return end
-    for _,t in ipairs(hum:GetPlayingAnimationTracks()) do t:Stop() end
-    local anim=char:FindFirstChild("Animate")
-    if anim then _savedAnimate=anim:Clone(); anim:Destroy() end
-end
-local function stopUnwalk()
-    local char=LP.Character; if not char then return end
-    if _savedAnimate then _savedAnimate.Parent=char;_savedAnimate.Disabled=false;_savedAnimate=nil end
-end
-local function tryBatSwing()
-    if _batSwingCD then return end
-    _batSwingCD=true
-    local char=LP.Character; if not char then task.delay(_batSwingCDTime,function() _batSwingCD=false end); return end
-    local bat=findBat()
-    if bat then
-        local hum=char:FindFirstChildOfClass("Humanoid")
-        if hum and bat.Parent~=char then pcall(function() hum:EquipTool(bat) end) end
-        local remote=bat:FindFirstChildOfClass("RemoteEvent")
-        if remote then pcall(function() remote:FireServer() end)
-        else pcall(function() bat:Activate() end) end
-    end
-    task.delay(_batSwingCDTime,function() _batSwingCD=false end)
-end
 resetAutoBatMotion=function()
     local char=LP.Character
     local hrp=char and char:FindFirstChild("HumanoidRootPart")
     local hum=char and char:FindFirstChildOfClass("Humanoid")
     if hrp then hrp.AssemblyLinearVelocity=hrp.AssemblyLinearVelocity*0.3;hrp.AssemblyAngularVelocity=Vector3.zero end
     if hum then hum.AutoRotate=true end
-    stopUnwalk()
 end
 local _autoTPWasEnabled=false
 enableAutoBat=function()
@@ -801,7 +771,6 @@ enableAutoBat=function()
     if State.autoTPEnabled then _autoTPWasEnabled=true;State.autoTPEnabled=false;stopAutoTP() else _autoTPWasEnabled=false end
     State.autoBatEquippedThisRun=false
     State.autoBatEnabled=true
-    startUnwalk()
 end
 disableAutoBat=function()
     State.autoBatEnabled=false
@@ -817,10 +786,12 @@ Conns.autoBat=RunService.Heartbeat:Connect(function()
     local hum=char and char:FindFirstChildOfClass("Humanoid")
     local root=char and char:FindFirstChild("HumanoidRootPart")
     if not root or not hum then return end
-    local batInHand=char:FindFirstChildOfClass("Tool")
-    if not batInHand then
-        local bat=findBat()
-        if bat then pcall(function() hum:EquipTool(bat) end) end
+    if not State.autoBatEquippedThisRun then
+        State.autoBatEquippedThisRun=true
+        if not char:FindFirstChildOfClass("Tool") then
+            local bat=findBat()
+            if bat then pcall(function() hum:EquipTool(bat) end) end
+        end
     end
     local target=getAutoBatTarget()
     if target then
@@ -850,13 +821,17 @@ Conns.autoBat=RunService.Heartbeat:Connect(function()
         local vVel=math.abs(moveDir.Y)>0.1 and Vector3.new(0,math.sign(moveDir.Y)*AUTO_BAT_VERT_SPEED,0) or Vector3.new(0,-2,0)
         root.AssemblyLinearVelocity=hVel+vVel
         if hDir.Magnitude>0.5 then hum:Move(hDir.Unit,false) end
-        if State.autoSwingEnabled and look.Magnitude<=8 then tryBatSwing() end
     else
         hum.AutoRotate=true
         root.AssemblyAngularVelocity=Vector3.zero
     end
+    if State.autoSwingEnabled then
+        local bat=findBat()
+        if bat and bat.Parent==char and bat:IsA("Tool") then
+            pcall(function() bat:Activate() end)
+        end
+    end
 end)
-end
 
 -- ============================================================
 -- BAT COUNTER
