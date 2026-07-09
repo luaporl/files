@@ -22,6 +22,7 @@ local _isfile = isfile or (syn and syn.isfile) or function() return false end
 local _readfile = readfile or (syn and syn.readfile) or function() return nil end
 local _writefile = writefile or (syn and syn.writefile) or function() end
 local getconnections = getconnections or get_signal_cons
+local HasDrawing = type(Drawing) == "table" and type(Drawing.new) == "function"
 
 if not fireproximityprompt then
     fireproximityprompt = function(prompt)
@@ -1533,29 +1534,36 @@ local function setupPlayerESP(plr)
         distLabel.BackgroundTransparency = 1; distLabel.Text = "";         distLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         distLabel.Font = Enum.Font.Gotham; distLabel.TextSize = 11
         distLabel.TextStrokeTransparency = 0.4; distLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
-        bb.Parent = LP:FindFirstChild("PlayerGui") or game:GetService("CoreGui")
+        bb.Parent = LP:FindFirstChild("PlayerGui") or (function() local ok, cg = pcall(function() return game:GetService("CoreGui") end); return ok and cg or nil end)()
         State.espBillboards[plr] = bb
-        -- Drawing-based 2D box, tracer, health bar
-        local drawings = {}
-        drawings.box = Drawing.new("Square")
-        drawings.box.Visible = false
-        drawings.box.Color = Color3.fromRGB(255, 255, 255)
-        drawings.box.Thickness = 1.5
-        drawings.box.Filled = false
-        drawings.box.Transparency = 1
-        drawings.tracer = Drawing.new("Line")
-        drawings.tracer.Visible = false
-        drawings.tracer.Color = Color3.fromRGB(255, 255, 255)
-        drawings.tracer.Thickness = 1
-        drawings.tracer.Transparency = 1
-        drawings.distText = Drawing.new("Text")
-        drawings.distText.Visible = false
-        drawings.distText.Color = Color3.fromRGB(255, 255, 255)
-        drawings.distText.Size = 12
-        drawings.distText.Center = true
-        drawings.distText.Outline = true
-        drawings.distText.Font = 0
-        State.espDrawings[plr] = drawings
+        -- Drawing-based 2D box, tracer, health bar (only on executors that support Drawing API)
+        if HasDrawing then
+            local ok, drawings = pcall(function()
+                local d = {}
+                d.box = Drawing.new("Square")
+                d.box.Visible = false
+                d.box.Color = Color3.fromRGB(255, 255, 255)
+                d.box.Thickness = 1.5
+                d.box.Filled = false
+                d.box.Transparency = 1
+                d.tracer = Drawing.new("Line")
+                d.tracer.Visible = false
+                d.tracer.Color = Color3.fromRGB(255, 255, 255)
+                d.tracer.Thickness = 1
+                d.tracer.Transparency = 1
+                d.distText = Drawing.new("Text")
+                d.distText.Visible = false
+                d.distText.Color = Color3.fromRGB(255, 255, 255)
+                d.distText.Size = 12
+                d.distText.Center = true
+                d.distText.Outline = true
+                d.distText.Font = 0
+                return d
+            end)
+            if ok and drawings then
+                State.espDrawings[plr] = drawings
+            end
+        end
     end
     if plr.Character then setup(plr.Character) end
     plr.CharacterAdded:Connect(function(char)
@@ -1926,8 +1934,8 @@ end
 -- LAGGER PANEL (simple ON/OFF with keybind + controller)
 -- ============================================================
 createLaggerPanel = function()
-    local guiParent = game:GetService("CoreGui")
-    pcall(function() if not guiParent then guiParent = LP:FindFirstChild("PlayerGui") end end)
+    local ok, guiParent = pcall(function() return game:GetService("CoreGui") end)
+    if not ok or not guiParent then guiParent = LP:FindFirstChild("PlayerGui") end
     if State.laggerGui then pcall(function() State.laggerGui:Destroy() end) end
 
     local sg = Instance.new("ScreenGui")
