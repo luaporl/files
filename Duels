@@ -123,6 +123,7 @@ local State = {
     guiVisible=true, uiLocked=false,
     isGrabbing=false, stealStartTime=nil,
     autoLeftEnabled=false, autoRightEnabled=false,
+    showWaypoints=false,
     autoLeftPhase=1, autoRightPhase=1,
     medusaLastUsed=0, medusaDebounce=false, medusaCounterEnabled=false,
     autoSwingEnabled=true,
@@ -142,7 +143,7 @@ local State = {
     
     autoBatEnabled=false, autoBatEquippedThisRun=false,
     bypassAimEnabled=false,
-    speedBoostEnabled=false,
+    -- speedBoostEnabled removed
     potatoGraphicsEnabled=false, potatoConn=nil,
     customFovEnabled=false, customFovValue=70, customFovConn=nil,
     removeAccessoriesEnabled=false, removeAccConn=nil,
@@ -165,8 +166,10 @@ local State = {
     laggerIntensity=7, laggerLockGui=false,
     laggerIntensityBinds={low=nil, mid=nil, high=Enum.KeyCode.V, insane=nil},
     laggerModeDisplay="Off",
+    antiLagbackEnabled=false, antiLagbackBP=nil, antiLagbackConn=nil,
     antiBatDefEnabled=false, antiBatDefConn=nil,
     antiCollisionEnabled=false, antiCollisionConn=nil,
+    stickAfterHitEnabled=false, _stickRunning=false, _stickWasRagdolled=false,
     autoGrabRadius=60,
     uiScaleValue=1,
     laggerUIScale=nil,
@@ -206,7 +209,7 @@ local Conns = {antiRag=nil,aimbot=nil,anchor={},progress=nil,batCounter=nil,auto
 local alConn, arConn = nil, nil
 local _autoSpheres = {}
 local startAutoLeft, stopAutoLeft, startAutoRight, stopAutoRight
-local showAutoSpheres, clearAutoSpheres
+local showAutoSpheres, clearAutoSpheres, showAllWaypoints, clearAutoSpheresNoRefresh
 local enableAutoBat, disableAutoBat, startBatCounter, stopBatCounter
 local startAntiRagdoll, stopAntiRagdoll
 local startAntiDie, stopAntiDie
@@ -232,60 +235,35 @@ local normalBox, carryBox, laggerBox, laggerCarryBox, uiScaleBox, autoTPHeightBo
 -- COLORS (Silver theme)
 -- ============================================================
 local Theme = {
-    MainBG = Color3.fromRGB(18, 18, 22),
-    SidebarBG = Color3.fromRGB(14, 14, 18),
-    ContentBG = Color3.fromRGB(20, 20, 25),
-    Accent = Color3.fromRGB(160, 160, 170),
-    TitleColor = Color3.fromRGB(180, 180, 185),
-    TextMain = Color3.fromRGB(220, 220, 225),
-    TextDark = Color3.fromRGB(120, 120, 130),
-    Border = Color3.fromRGB(38, 38, 45),
-    RowBG = Color3.fromRGB(22, 22, 28),
-    ToggleOn = Color3.fromRGB(170, 170, 180),
-    ToggleOff = Color3.fromRGB(40, 40, 48),
+    MainBG = Color3.fromRGB(10, 10, 14),
+    SidebarBG = Color3.fromRGB(8, 8, 12),
+    ContentBG = Color3.fromRGB(12, 12, 16),
+    Accent = Color3.fromRGB(160, 160, 175),
+    TitleColor = Color3.fromRGB(250, 250, 255),
+    TextMain = Color3.fromRGB(240, 240, 245),
+    TextDark = Color3.fromRGB(120, 120, 135),
+    Border = Color3.fromRGB(28, 28, 38),
+    RowBG = Color3.fromRGB(14, 14, 19),
+    ToggleOn = Color3.fromRGB(160, 160, 175),
+    ToggleOff = Color3.fromRGB(38, 40, 48),
     BGGradient = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(25, 25, 30)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(14, 14, 18)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(14, 14, 19)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 12)),
     }),
     SilverGradient = ColorSequence.new({
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(140, 140, 150)),
-        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(180, 180, 190)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(140, 140, 150)),
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(180, 180, 190)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 190)),
     }),
     Font = Enum.Font.GothamBold,
 }
 
-local C = {
-    winBg=Color3.fromRGB(18,18,22), winBg2=Color3.fromRGB(22,22,27),
-    winBorder=Color3.fromRGB(42,42,50),
-    topBg=Color3.fromRGB(12,12,16), topTitle=Color3.fromRGB(220,220,225), topSub=Color3.fromRGB(130,130,140),
-    topBtn=Color3.fromRGB(38,38,45), topBtnHov=Color3.fromRGB(48,48,55),
-    topDivider=Color3.fromRGB(38,38,45),
-    tabBarBg=Color3.fromRGB(12,12,16), tabBarDiv=Color3.fromRGB(38,38,45),
-    tabIdle=Color3.fromRGB(130,130,140), tabIdleHov=Color3.fromRGB(170,170,178),
-    tabActive=Color3.fromRGB(230,230,235), tabActiveBg=Color3.fromRGB(20,20,25), tabUnderline=Color3.fromRGB(120,120,135),
-    sectionTxt=Color3.fromRGB(130,130,140), sectionDiv=Color3.fromRGB(38,38,45),
-    rowBg=Color3.fromRGB(20,20,25), rowBorder=Color3.fromRGB(38,38,45), rowLabel=Color3.fromRGB(220,220,225),
-    rowSub=Color3.fromRGB(110,110,120), rowValue=Color3.fromRGB(180,180,188), rowHov=Color3.fromRGB(26,26,32),
-    inputBg=Color3.fromRGB(42,42,50), inputBorder=Color3.fromRGB(50,50,58), inputFocus=Color3.fromRGB(55,55,63),
-    inputTxt=Color3.fromRGB(220,220,225),
-    pillOff=Color3.fromRGB(38,38,45), pillOn=Color3.fromRGB(120,120,135), dotOff=Color3.fromRGB(75,75,82),
-    dotOn=Color3.fromRGB(230,230,235), pillBorder=Color3.fromRGB(42,42,50),
-    modeBtnBg=Color3.fromRGB(12,12,16), modeBtnBrd=Color3.fromRGB(38,38,45), modeBtnTxt=Color3.fromRGB(130,130,140),
-    modeBtnActBg=Color3.fromRGB(48,48,55), modeBtnActTx=Color3.fromRGB(230,230,235),
-    chipBg=Color3.fromRGB(12,12,16), chipBorder=Color3.fromRGB(38,38,45), chipTxt=Color3.fromRGB(130,130,140),
-    btnBg=Color3.fromRGB(42,42,50), btnBorder=Color3.fromRGB(50,50,58), btnTxt=Color3.fromRGB(220,220,225),
-    btnHov=Color3.fromRGB(55,55,63),
-    stackBg=Color3.fromRGB(20,20,25), stackBrd=Color3.fromRGB(38,38,45), stackTxt=Color3.fromRGB(130,130,140),
-    stackActBg=Color3.fromRGB(48,48,55), stackActBrd=Color3.fromRGB(55,55,63), stackActTxt=Color3.fromRGB(230,230,235),
-    accent=Color3.fromRGB(120,120,135), accentDim=Color3.fromRGB(38,38,45),
-    presetBg=Color3.fromRGB(20,20,25), presetBrd=Color3.fromRGB(38,38,45), presetLoad=Color3.fromRGB(120,120,135),
-    presetDel=Color3.fromRGB(100,35,35), delBrd=Color3.fromRGB(130,45,45),
-}
+
 
 -- ============================================================
 -- TRYARD ANIMATION PACK
 -- ============================================================
+;(function()
 local TryardAnims = {
     idle1="rbxassetid://133806214992291", idle2="rbxassetid://94970088341563",
     walk="rbxassetid://707897309", run="rbxassetid://707861613",
@@ -295,7 +273,7 @@ local TryardAnims = {
 }
 local tryardHeartbeatConn, originalTryardAnims = nil, nil
 local function isTryardPackAnim(id) for _,v in pairs(TryardAnims) do if v==id then return true end end return false end
-local function saveOriginalTryardAnims(char)
+saveOriginalTryardAnims = function(char)
     local animate = char:FindFirstChild("Animate")
     if not animate then return end
     local function g(obj) return obj and obj.AnimationId or nil end
@@ -308,7 +286,7 @@ local function saveOriginalTryardAnims(char)
     }
     if not isTryardPackAnim(ids.walk) then originalTryardAnims = ids end
 end
-local function applyTryardAnimPack(char)
+applyTryardAnimPack = function(char)
     local animate = char:FindFirstChild("Animate")
     if not animate then return end
     local function s(obj,id) if obj then obj.AnimationId=id end end
@@ -322,7 +300,7 @@ local function applyTryardAnimPack(char)
     s(animate.swim and animate.swim.Swim, TryardAnims.swim)
     s(animate.swimidle and animate.swimidle.SwimIdle, TryardAnims.swimidle)
 end
-local function stopTryardAnim()
+stopTryardAnim = function()
     if tryardHeartbeatConn then tryardHeartbeatConn:Disconnect(); tryardHeartbeatConn=nil end
     if originalTryardAnims and LP.Character then
         local animate = LP.Character:FindFirstChild("Animate")
@@ -340,7 +318,7 @@ local function stopTryardAnim()
         end
     end
 end
-local function startTryardAnim()
+startTryardAnim = function()
     if tryardHeartbeatConn then tryardHeartbeatConn:Disconnect() end
     local char = LP.Character
     if char then saveOriginalTryardAnims(char); applyTryardAnimPack(char)
@@ -357,6 +335,7 @@ local function startTryardAnim()
         end
     end)
 end
+end)()
 
 -- ============================================================
 -- AUTO TP (teleport down when above height)
@@ -447,6 +426,7 @@ task.spawn(function() task.wait(0.5); startAntiDie() end)
 -- ============================================================
 -- ANTI-RAGDOLL (latest undetected)
 -- ============================================================
+;(function()
 local cached = {}
 local function cacheCharacter()
     local char = LP.Character; if not char then return false end
@@ -516,6 +496,7 @@ end
 stopAntiRagdoll = function()
     if Conns.antiRag then Conns.antiRag:Disconnect(); Conns.antiRag = nil end
 end
+end)()
 
 -- ============================================================
 -- RAGDOLL COUNTDOWN TIMER (shows 3-2-1 above head on ragdoll)
@@ -624,6 +605,34 @@ clearAutoSpheres = function()
         if s and s.Parent then s:Destroy() end
         table.remove(_autoSpheres, i)
     end
+    if State.showWaypoints then showAllWaypoints() end
+end
+
+showAllWaypoints = function()
+    clearAutoSpheresNoRefresh()
+    for _, pos in ipairs({_AP.L1, _AP.L2, _AP.R1, _AP.R2}) do
+        local s = Instance.new("Part")
+        s.Name = "NexusWaypoint"
+        s.Shape = Enum.PartType.Ball
+        s.Size = Vector3.new(2.8, 2.8, 2.8)
+        s.Position = pos
+        s.Anchored = true
+        s.CanCollide = false
+        s.CastShadow = false
+        s.Material = Enum.Material.Plastic
+        s.Color = Color3.fromRGB(180, 180, 190)
+        s.Transparency = 0.35
+        s.Parent = workspace.Terrain
+        table.insert(_autoSpheres, s)
+    end
+end
+
+clearAutoSpheresNoRefresh = function()
+    for i = #_autoSpheres, 1, -1 do
+        local s = _autoSpheres[i]
+        if s and s.Parent then s:Destroy() end
+        table.remove(_autoSpheres, i)
+    end
 end
 
 showAutoSpheres = function(side)
@@ -638,8 +647,8 @@ showAutoSpheres = function(side)
         s.Anchored = true
         s.CanCollide = false
         s.CastShadow = false
-        s.Material = Enum.Material.Neon
-        s.Color = Color3.fromRGB(120, 120, 130)
+        s.Material = Enum.Material.Plastic
+        s.Color = Color3.fromRGB(180, 180, 190)
         s.Transparency = 0.35
         s.Parent = workspace.Terrain
         table.insert(_autoSpheres, s)
@@ -734,8 +743,9 @@ end
 -- ============================================================
 -- BAT AIMBOT (Ace duels style + Revolt swing + Funny Hub unwalk)
 -- ============================================================
-local BAT_LIST = {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
-local function findBat()
+;(function()
+BAT_LIST = {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
+findBat = function()
     local char = LP.Character; if not char then return nil end
     local bp = LP:FindFirstChildOfClass("Backpack")
     for _, name in ipairs(BAT_LIST) do
@@ -747,7 +757,7 @@ local function findBat()
 end
 local _batSwingCD=0
 local _batSwingCDTime=0.28
-local AUTO_BAT_SPEED,AUTO_BAT_VERT_SPEED,AUTO_BAT_DIST,AUTO_BAT_HEIGHT,AUTO_BAT_V_OFF,AUTO_BAT_TURN_SPEED,AUTO_BAT_MAX_TURN_RATE = 58,52,-2.8,4.75,1,285,28
+AUTO_BAT_SPEED,AUTO_BAT_VERT_SPEED,AUTO_BAT_DIST,AUTO_BAT_HEIGHT,AUTO_BAT_V_OFF,AUTO_BAT_TURN_SPEED,AUTO_BAT_MAX_TURN_RATE = 58,52,-2.8,4.75,1,285,28
 local _savedAnimate=nil
 do
 local _autoBatTarget=nil
@@ -871,6 +881,7 @@ Conns.autoBat=RunService.Heartbeat:Connect(function()
     end
 end)
 end
+end)()
 
 -- ============================================================
 -- BAT COUNTER
@@ -908,6 +919,7 @@ end
 -- ============================================================
 -- ANTI-BAT AIMBOT PANEL
 -- ============================================================
+;(function()
 State.antiBatEnabled = false
 State.antiBatMode = "normal"
 local antiBatAimbotConn = nil
@@ -1059,43 +1071,50 @@ stopAntiBat = function()
     if hum then hum.AutoRotate = (_antiBatPrevAutoRotate == nil) and true or _antiBatPrevAutoRotate; hum.WalkSpeed = (_antiBatPrevWalkSpeed ~= nil) and _antiBatPrevWalkSpeed or 16; _antiBatPrevWalkSpeed = nil end
     _antiBatHitCD = false
 end
+end)()
+
+-- Speed boost removed
 
 -- ============================================================
--- SPEED BOOST (Mvwane-inspired low dose network bypass)
+-- ANTI-LAGBACK (prevents server rubberbanding when being lagged)
 -- ============================================================
 do
-    local SB_DEPTH = 296
-    local SB_POWER = 15000
-    local SB_DELAY = 0.12
-    local _sbBomb = nil
-    local _sbThread = nil
-    local function buildSpeedBomb(power)
-        local maintable = {}
-        local spammedtable = {}
-        table.insert(spammedtable, {})
-        local z = spammedtable[1]
-        for i = 1, SB_DEPTH do local t = {}; table.insert(z, t); z = t end
-        local maxRep = math.floor(power / (SB_DEPTH + 2))
-        for i = 1, maxRep do table.insert(maintable, spammedtable) end
-        return maintable
-    end
-    enableSpeedBoost = function()
-        if State.speedBoostEnabled then return end
-        State.speedBoostEnabled = true
-        pcall(function() NetworkClient:SetOutgoingKBPSLimit(math.huge) end)
-        _sbBomb = buildSpeedBomb(SB_POWER)
-        _sbThread = task.spawn(function()
-            while State.speedBoostEnabled do
-                if _sbBomb then pcall(function() game.RobloxReplicatedStorage.SetPlayerBlockList:FireServer(_sbBomb) end) end
-                task.wait(SB_DELAY)
+    local _albHRP = nil
+    local function albUpdate()
+        if not State.antiLagbackEnabled then return end
+        local c = LP.Character; if not c then _albHRP = nil; return end
+        local hrp = c:FindFirstChild("HumanoidRootPart"); if not hrp then _albHRP = nil; return end
+        if hrp ~= _albHRP then
+            _albHRP = hrp
+            pcall(function() hrp:SetNetworkOwner(LP) end)
+            if not hrp:FindFirstChild("AntiLagbackBP") then
+                local bp = Instance.new("BodyPosition")
+                bp.Name = "AntiLagbackBP"
+                bp.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                bp.P = 2000; bp.D = 100
+                bp.Position = hrp.Position
+                bp.Parent = hrp
+                State.antiLagbackBP = bp
             end
-        end)
+        end
+        local bp = State.antiLagbackBP
+        if bp and bp.Parent then
+            bp.Position = hrp.Position
+        end
     end
-    disableSpeedBoost = function()
-        State.speedBoostEnabled = false
-        if _sbThread then pcall(function() task.cancel(_sbThread) end); _sbThread = nil end
-        _sbBomb = nil
-        pcall(function() NetworkClient:SetOutgoingKBPSLimit(0) end)
+    enableAntiLagback = function()
+        if State.antiLagbackEnabled then return end
+        State.antiLagbackEnabled = true
+        pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge) end)
+        _albHRP = nil
+        albUpdate()
+        State.antiLagbackConn = RunService.Heartbeat:Connect(albUpdate)
+    end
+    disableAntiLagback = function()
+        State.antiLagbackEnabled = false
+        if State.antiLagbackConn then State.antiLagbackConn:Disconnect(); State.antiLagbackConn = nil end
+        if State.antiLagbackBP then pcall(function() State.antiLagbackBP:Destroy() end); State.antiLagbackBP = nil end
+        _albHRP = nil
     end
 end
 
@@ -1788,23 +1807,99 @@ local enableAntiBatDef, disableAntiBatDef
 enableAntiBatDef = function()
     if State.antiBatDefConn then return end
     State.antiBatDefEnabled = true
-    local char = LP.Character; if not char then return end
-    local rootPart = char:FindFirstChild("HumanoidRootPart"); if not rootPart then return end
     State.antiBatDefConn = RunService.Heartbeat:Connect(function()
         if not State.antiBatDefEnabled then return end
-        local c = LP.Character; if not c then return end
-        local r = c:FindFirstChild("HumanoidRootPart"); if not r then return end
-        local origX = r.AssemblyLinearVelocity.X
-        local origZ = r.AssemblyLinearVelocity.Z
-        r.AssemblyLinearVelocity = Vector3.new(60, r.AssemblyLinearVelocity.Y, 60)
-        task.defer(function()
-            if r and r.Parent then r.AssemblyLinearVelocity = Vector3.new(origX, r.AssemblyLinearVelocity.Y, origZ) end
-        end)
+        local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if root then
+            local orig = root.Velocity
+            root.Velocity = Vector3.new(1000, root.Velocity.Y, 1000)
+            RunService.RenderStepped:Wait()
+            root.Velocity = Vector3.new(orig.X, root.Velocity.Y, orig.Z)
+        end
     end)
 end
 disableAntiBatDef = function()
     State.antiBatDefEnabled = false
     if State.antiBatDefConn then State.antiBatDefConn:Disconnect(); State.antiBatDefConn = nil end
+end
+
+-- ============================================================
+-- STICK AFTER HIT (auto-chase and swing after being hit)
+-- ============================================================
+local function getClosestHitter()
+    local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    if not root then return nil end
+    local best, bestDist = nil, math.huge
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LP and plr.Character then
+            local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+            local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+            if tRoot and hum and hum.Health > 0 then
+                local d = (tRoot.Position - root.Position).Magnitude
+                if d < bestDist then bestDist = d; best = tRoot end
+            end
+        end
+    end
+    return best
+end
+local function swingBatOnce()
+    local char = LP.Character; if not char then return end
+    local bat = char:FindFirstChildOfClass("Tool")
+    if not bat then bat = findBat() end
+    if not bat then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if bat.Parent ~= char and hum then pcall(function() hum:EquipTool(bat) end); task.wait(0.05) end
+    local remote = bat:FindFirstChildOfClass("RemoteEvent") or bat:FindFirstChildOfClass("RemoteFunction")
+    if remote and remote:IsA("RemoteEvent") then pcall(function() remote:FireServer() end)
+    else pcall(function() bat:Activate() end) end
+end
+local _stickConn = nil
+startStickAfterHit = function()
+    if _stickConn then return end
+    State._stickRunning = true
+    _stickConn = RunService.Heartbeat:Connect(function()
+        if not State.stickAfterHitEnabled or not State._stickRunning then return end
+        local char = LP.Character
+        local root = char and char:FindFirstChild("HumanoidRootPart")
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not root or not hum then return end
+        local st = hum:GetState()
+        local isRagdoll = (st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown)
+        if isRagdoll then
+            if not State._stickWasRagdolled then State._stickWasRagdolled = true end
+            return
+        end
+        if State._stickWasRagdolled then
+            State._stickWasRagdolled = false
+            local target = getClosestHitter()
+            if target and (target.Position - root.Position).Magnitude < 18 then
+                local look = target.Position - root.Position
+                local dir = Vector3.new(look.X, 0, look.Z)
+                if dir.Magnitude > 0 then
+                    dir = dir.Unit
+                    chaseSpeed = 56
+                    local desiredY = target.Position.Y + 2.5
+                    local yDiff = desiredY - root.Position.Y
+                    local yVel = math.clamp(yDiff * 18, -60, 80)
+                    root.AssemblyLinearVelocity = Vector3.new(dir.X * chaseSpeed, yVel, dir.Z * chaseSpeed)
+                    if look.Magnitude > 0.1 then
+                        local goalCF = CFrame.lookAt(root.Position, Vector3.new(target.Position.X, root.Position.Y, target.Position.Z))
+                        root.CFrame = root.CFrame:Lerp(goalCF, 0.5)
+                    end
+                    if look.Magnitude <= 10 then swingBatOnce() end
+                end
+            end
+            task.wait(0.5)
+            State._stickRunning = false
+            if _stickConn then _stickConn:Disconnect(); _stickConn = nil end
+        end
+    end)
+end
+stopStickAfterHit = function()
+    State.stickAfterHitEnabled = false
+    State._stickRunning = false
+    State._stickWasRagdolled = false
+    if _stickConn then _stickConn:Disconnect(); _stickConn = nil end
 end
 
 local function setCollisionForChar(char, val)
@@ -1818,29 +1913,40 @@ local enableAntiCollision, disableAntiCollision
 enableAntiCollision = function()
     if State.antiCollisionConn then return end
     State.antiCollisionEnabled = true
-    local function applyAll()
+    local function setAllNoCollision()
         for _, plr in ipairs(Players:GetPlayers()) do
             if plr ~= LP and plr.Character then setCollisionForChar(plr.Character, false) end
         end
     end
-    applyAll()
-    State.antiCollisionConn = Players.PlayerAdded:Connect(function(plr)
+    setAllNoCollision()
+    State.antiCollisionConn = RunService.Heartbeat:Connect(function()
         if not State.antiCollisionEnabled then return end
-        plr.CharacterAdded:Connect(function(c)
-            if State.antiCollisionEnabled then task.wait(0.3); setCollisionForChar(c, false) end
-        end)
+        setAllNoCollision()
     end)
+    State._antiCollisionPlayerConns = State._antiCollisionPlayerConns or {}
     for _, plr in ipairs(Players:GetPlayers()) do
-        if plr ~= LP then
-            plr.CharacterAdded:Connect(function(c)
-                if State.antiCollisionEnabled then task.wait(0.3); setCollisionForChar(c, false) end
+        if plr ~= LP and not State._antiCollisionPlayerConns[plr] then
+            State._antiCollisionPlayerConns[plr] = plr.CharacterAdded:Connect(function(c)
+                if State.antiCollisionEnabled then task.wait(0.2); setCollisionForChar(c, false) end
             end)
         end
     end
+    State._antiCollisionAddedConn = Players.PlayerAdded:Connect(function(plr)
+        if not State.antiCollisionEnabled then return end
+        State._antiCollisionPlayerConns[plr] = plr.CharacterAdded:Connect(function(c)
+            if State.antiCollisionEnabled then task.wait(0.2); setCollisionForChar(c, false) end
+        end)
+    end)
+    State._antiCollisionRemovingConn = Players.PlayerRemoving:Connect(function(plr)
+        if State._antiCollisionPlayerConns[plr] then State._antiCollisionPlayerConns[plr]:Disconnect(); State._antiCollisionPlayerConns[plr] = nil end
+    end)
 end
 disableAntiCollision = function()
     State.antiCollisionEnabled = false
     if State.antiCollisionConn then State.antiCollisionConn:Disconnect(); State.antiCollisionConn = nil end
+    if State._antiCollisionAddedConn then State._antiCollisionAddedConn:Disconnect(); State._antiCollisionAddedConn = nil end
+    if State._antiCollisionRemovingConn then State._antiCollisionRemovingConn:Disconnect(); State._antiCollisionRemovingConn = nil end
+    if State._antiCollisionPlayerConns then for k, c in pairs(State._antiCollisionPlayerConns) do c:Disconnect(); State._antiCollisionPlayerConns[k] = nil end end
 end
 
 -- ============================================================
@@ -2240,7 +2346,6 @@ createLaggerPanel = function()
 
     TweenService:Create(f, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, PW, 0, PH)}):Play()
 end
-
 -- ============================================================
 -- NOTIFICATION TOAST SYSTEM
 -- ============================================================
@@ -2269,6 +2374,7 @@ end
 -- ============================================================
 -- VISUAL: ANTI-LAG, STRETCH REZ, SKY, POTATO, CUSTOM FOV
 -- ============================================================
+;(function()
 local antiLagDescConn, antiLagActive = nil, false
 local antiLagDefBrightness, antiLagDefFog, antiLagDefDiffuse, antiLagDefSpecular
 local function _applyAntiLagObj(obj)
@@ -2317,6 +2423,7 @@ disableStretchRez = function()
     if stretchRezConn then stretchRezConn:Disconnect(); stretchRezConn = nil end
     pcall(function() Workspace.CurrentCamera.FieldOfView = 70 end)
 end
+end)()
 
 -- SKY PRESETS (24 themes!)
 SKY_PRESETS_LIST = {"Off","Night","Aurora","Sunset","Galaxy","Cyber","Sakura","Pink Night",
@@ -2481,98 +2588,119 @@ end
 -- ============================================================
 -- MAIN FUNCTION (DH SIDEBAR UI)
 -- ============================================================
-local function buildStackButtons(gui, mkCorner, mkStroke)
-    for i, def in ipairs(stackDefs) do
-        local btnFrame = Instance.new("TextButton", gui)
-        btnFrame.Name = "StackBtn_"..def.key; btnFrame.Size = UDim2.new(0,BTN_W,0,BTN_H)
-        btnFrame.Position = getDefaultStackPos(i); btnFrame.BackgroundColor3 = Color3.fromRGB(18,18,22); btnFrame.BorderSizePixel = 0
-        btnFrame.AutoButtonColor = false; btnFrame.Text = def.label; btnFrame.TextColor3 = Color3.fromRGB(130,130,140)
-        btnFrame.TextScaled = false; btnFrame.TextSize = 11; btnFrame.Font = Enum.Font.GothamBold
-        btnFrame.TextWrapped = true; btnFrame.LineHeight = 1.2; btnFrame.ZIndex = 15
-        mkCorner(btnFrame, 12); local bStroke = mkStroke(btnFrame, Color3.fromRGB(38,38,45), 1)
-        stackWrappers[def.key] = btnFrame
-        local btnState = false
-        local function setOn(on)
-            btnState = on
-            TweenService:Create(btnFrame, TweenInfo.new(0.15), {BackgroundColor3 = on and Color3.fromRGB(48,48,55) or Color3.fromRGB(18,18,22), TextColor3 = on and Color3.fromRGB(230,230,235) or Color3.fromRGB(130,130,140)}):Play()
-            TweenService:Create(bStroke, TweenInfo.new(0.15), {Color = on and Color3.fromRGB(55,55,63) or Color3.fromRGB(38,38,45)}):Play()
-        end
-        stackBtnRefs[def.key] = {setOn = setOn}
-        local function onTap()
-            if def.key == "tpDown" then task.spawn(function() if runTPDown then pcall(runTPDown) end; setOn(true); task.wait(0.12); setOn(false) end); return end
-            if def.key == "drop" then task.spawn(function() pcall(executeDrop) end); return end
-            if def.key == "autoBat" then
-                if not State.autoBatEnabled then
-                    enableAutoBat()
-                else
-                    disableAutoBat()
-                end
-                setOn(State.autoBatEnabled); requestSave(); return
-            end
-            local ns = not btnState; setOn(ns)
-            if def.key == "autoLeft" then
-                State.autoLeftEnabled = ns
-                if ns then
-                    if State.autoRightEnabled then State.autoRightEnabled = false; stopAutoRight(); if stackBtnRefs.autoRight then stackBtnRefs.autoRight.setOn(false) end end
-                    if State.antiBatEnabled then State.antiBatEnabled = false; stopAntiBat(); if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](false) end end
-                    startAutoLeft()
-                else stopAutoLeft() end
-            elseif def.key == "autoRight" then
-                State.autoRightEnabled = ns
-                if ns then
-                    if State.autoLeftEnabled then State.autoLeftEnabled = false; stopAutoLeft(); if stackBtnRefs.autoLeft then stackBtnRefs.autoLeft.setOn(false) end end
-                    if State.antiBatEnabled then State.antiBatEnabled = false; stopAntiBat(); if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](false) end end
-                    startAutoRight()
-                else stopAutoRight() end
-            elseif def.key == "aimbot" then
-                State.antiBatEnabled = ns
-                if ns then
-                    if State.autoLeftEnabled then State.autoLeftEnabled = false; stopAutoLeft(); if stackBtnRefs.autoLeft then stackBtnRefs.autoLeft.setOn(false) end end
-                    if State.autoRightEnabled then State.autoRightEnabled = false; stopAutoRight(); if stackBtnRefs.autoRight then stackBtnRefs.autoRight.setOn(false) end end
-                    startAntiBat()
-                else stopAntiBat() end
-                if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](ns) end
-            elseif def.key == "floatDodge" then
-                if ns then enableFloatDodge() else disableFloatDodge() end
-            elseif def.key == "antiBatDef" then
-                State.antiBatDefEnabled = ns
-                if ns then enableAntiBatDef() else disableAntiBatDef() end
-                if toggleSetters["antiBatDef"] then toggleSetters["antiBatDef"](ns) end
-            elseif def.key == "antiCollision" then
-                State.antiCollisionEnabled = ns
-                if ns then enableAntiCollision() else disableAntiCollision() end
-                if toggleSetters["antiCollision"] then toggleSetters["antiCollision"](ns) end
-            elseif def.key == "lagger" then
-                if State.laggerMode == 0 then State.laggerMode = 1
-                elseif State.laggerMode == 1 then State.laggerMode = 2
-                else State.laggerMode = 0 end
-                setOn(State.laggerMode ~= 0)
-            elseif def.key == "instaReset" then task.spawn(function() pcall(insta_reset) end); return
-            elseif def.key == "taunt" then
-                task.spawn(function()
-                    pcall(function()
-                        local TextChatService = game:GetService("TextChatService")
-                        local channels = TextChatService:FindFirstChild("TextChannels")
-                        if channels then
-                            local genChannel = channels:FindFirstChild("RBXGeneral")
-                            if genChannel then
-                                genChannel:SendAsync("/nexus owns you")
-                            end
-                        end
-                    end)
+buildStackButtons = function(gui, mkCorner, mkStroke)
+    local KEYHANDLERS = {
+        tpDown = function(_, setOn)
+            task.spawn(function() if runTPDown then pcall(runTPDown) end; setOn(true); task.wait(0.12); setOn(false) end)
+        end,
+        drop = function()
+            task.spawn(function() pcall(executeDrop) end)
+        end,
+        autoBat = function(_, setOn)
+            if not State.autoBatEnabled then enableAutoBat() else disableAutoBat() end
+            setOn(State.autoBatEnabled); requestSave()
+        end,
+        autoLeft = function(ns, setOn)
+            State.autoLeftEnabled = ns
+            if ns then
+                if State.autoRightEnabled then State.autoRightEnabled = false; stopAutoRight(); if stackBtnRefs.autoRight then stackBtnRefs.autoRight.setOn(false) end end
+                if State.antiBatEnabled then State.antiBatEnabled = false; stopAntiBat(); if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](false) end end
+                startAutoLeft()
+            else stopAutoLeft() end
+        end,
+        autoRight = function(ns, setOn)
+            State.autoRightEnabled = ns
+            if ns then
+                if State.autoLeftEnabled then State.autoLeftEnabled = false; stopAutoLeft(); if stackBtnRefs.autoLeft then stackBtnRefs.autoLeft.setOn(false) end end
+                if State.antiBatEnabled then State.antiBatEnabled = false; stopAntiBat(); if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](false) end end
+                startAutoRight()
+            else stopAutoRight() end
+        end,
+        aimbot = function(ns, setOn)
+            State.antiBatEnabled = ns
+            if ns then
+                if State.autoLeftEnabled then State.autoLeftEnabled = false; stopAutoLeft(); if stackBtnRefs.autoLeft then stackBtnRefs.autoLeft.setOn(false) end end
+                if State.autoRightEnabled then State.autoRightEnabled = false; stopAutoRight(); if stackBtnRefs.autoRight then stackBtnRefs.autoRight.setOn(false) end end
+                startAntiBat()
+            else stopAntiBat() end
+            if toggleSetters["batAimbot"] then toggleSetters["batAimbot"](ns) end
+        end,
+        floatDodge = function(ns)
+            if ns then enableFloatDodge() else disableFloatDodge() end
+        end,
+        antiBatDef = function(ns)
+            State.antiBatDefEnabled = ns
+            if ns then enableAntiBatDef() else disableAntiBatDef() end
+            if toggleSetters["antiBatDef"] then toggleSetters["antiBatDef"](ns) end
+        end,
+        antiCollision = function(ns)
+            State.antiCollisionEnabled = ns
+            if ns then enableAntiCollision() else disableAntiCollision() end
+            if toggleSetters["antiCollision"] then toggleSetters["antiCollision"](ns) end
+        end,
+        lagger = function(_, setOn)
+            if State.laggerMode == 0 then State.laggerMode = 1
+            elseif State.laggerMode == 1 then State.laggerMode = 2
+            else State.laggerMode = 0 end
+            setOn(State.laggerMode ~= 0)
+        end,
+        instaReset = function() task.spawn(function() pcall(insta_reset) end) end,
+        taunt = function(_, setOn)
+            task.spawn(function()
+                pcall(function()
+                    local tcs = game:GetService("TextChatService")
+                    local ch = tcs:FindFirstChild("TextChannels")
+                    if ch then local gc = ch:FindFirstChild("RBXGeneral"); if gc then gc:SendAsync("/nexus owns you") end end
                 end)
-                setOn(true); task.wait(0.5); setOn(false)
-                return
-            elseif def.key == "carrySpeed" then
-                if State.autoCarryEnabled and State.laggerMode == 0 and isHoldingBrainrot() then
-                    State.speedToggled = true; setOn(true)
-                else
-                    State.speedToggled = not State.speedToggled; setOn(State.speedToggled)
-                end
+            end)
+            setOn(true); task.wait(0.5); setOn(false)
+        end,
+        carrySpeed = function(ns)
+            if State.autoCarryEnabled and State.laggerMode == 0 and isHoldingBrainrot() then
+                State.speedToggled = true; ns = true
+            else
+                State.speedToggled = not State.speedToggled; ns = State.speedToggled
             end
+            return ns
+        end,
+    }
+    for i, def in ipairs(stackDefs) do
+        local B = {}
+        B.frame = Instance.new("TextButton", gui)
+        B.frame.Name = "StackBtn_"..def.key; B.frame.Size = UDim2.new(0,BTN_W,0,BTN_H)
+        B.frame.Position = getDefaultStackPos(i); B.frame.BackgroundColor3 = Color3.fromRGB(18,18,22); B.frame.BorderSizePixel = 0
+        B.frame.AutoButtonColor = false; B.frame.Text = def.label; B.frame.TextColor3 = Color3.fromRGB(130,130,140)
+        B.frame.TextScaled = false; B.frame.TextSize = 11; B.frame.Font = Enum.Font.GothamBold
+        B.frame.TextWrapped = true; B.frame.LineHeight = 1.2; B.frame.ZIndex = 15
+        mkCorner(B.frame, 12); B.stroke = mkStroke(B.frame, Color3.fromRGB(38,38,45), 1)
+        stackWrappers[def.key] = B.frame
+        B.state = false
+        B.setOn = function(on)
+            B.state = on
+            TweenService:Create(B.frame, TweenInfo.new(0.15), {BackgroundColor3 = on and Color3.fromRGB(48,48,55) or Color3.fromRGB(18,18,22), TextColor3 = on and Color3.fromRGB(230,230,235) or Color3.fromRGB(130,130,140)}):Play()
+            TweenService:Create(B.stroke, TweenInfo.new(0.15), {Color = on and Color3.fromRGB(55,55,63) or Color3.fromRGB(38,38,45)}):Play()
+        end
+        stackBtnRefs[def.key] = {setOn = B.setOn}
+        local function onTap()
+            local handler = KEYHANDLERS[def.key]
+            if handler then
+                if def.key == "tpDown" or def.key == "drop" then handler(nil, B.setOn); return end
+                if def.key == "autoBat" then handler(nil, B.setOn); return end
+                if def.key == "taunt" then handler(nil, B.setOn); return end
+                local ns = not B.state
+                if def.key == "carrySpeed" then
+                    ns = handler(ns, B.setOn) or ns
+                else
+                    handler(ns, B.setOn)
+                end
+                B.setOn(ns)
+                requestSave()
+                return
+            end
+            local ns = not B.state; B.setOn(ns)
             requestSave()
         end
-        makeStackDraggable(btnFrame, onTap)
+        makeStackDraggable(B.frame, onTap)
     end
 end
 
@@ -2659,13 +2787,13 @@ local function Main()
     mainFrame.ClipsDescendants = true
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
     local mainStroke = Instance.new("UIStroke", mainFrame)
-    mainStroke.Thickness = 1.5; mainStroke.Color = Color3.fromRGB(50, 50, 58)
+    mainStroke.Thickness = 1.5; mainStroke.Color = Color3.fromRGB(28, 28, 38)
     uiScaleObj.Parent = mainFrame
 
     local sidebar = Instance.new("Frame", mainFrame)
     sidebar.Name = "Sidebar"; sidebar.Size = UDim2.new(0, sideW, 1, 0)
     sidebar.BackgroundColor3 = Theme.SidebarBG; sidebar.BorderSizePixel = 0
-    mkStroke(sidebar, Color3.fromRGB(50, 50, 58), 1)
+    mkStroke(sidebar, Color3.fromRGB(28, 28, 38), 1)
     local sidebarMask = Instance.new("Frame", sidebar)
     sidebarMask.Size = UDim2.new(0, 14, 1, 0); sidebarMask.Position = UDim2.new(1, -14, 0, 0)
     sidebarMask.BackgroundColor3 = Theme.SidebarBG; sidebarMask.BorderSizePixel = 0
@@ -2678,9 +2806,10 @@ local function Main()
     titleDrag.AutoButtonColor = false
     makeDraggable(mainFrame, titleDrag)
 
-    local tabNames = {"COMBAT", "AUTO", "VISUAL", "ADDS", "SETTINGS"}
+    local tabNames = {"COMBAT", "AUTO", "VISUAL", "ADDS", "KEYBINDS", "SETTINGS"}
     local tabBtns = {}
     local tabFrames = {}
+    local tabUnderlines = {}
     local tabY = 64
     for _, tName in ipairs(tabNames) do
         local btn = Instance.new("TextButton", sidebar)
@@ -2688,10 +2817,29 @@ local function Main()
         btn.Size = UDim2.new(1, -20, 0, 42)
         btn.Position = UDim2.new(0, 10, 0, tabY)
         btn.BackgroundColor3 = Theme.RowBG; btn.Text = tName
-        btn.TextColor3 = Color3.fromRGB(130, 130, 140)
+        btn.TextColor3 = Color3.fromRGB(100, 100, 120)
         btn.Font = Theme.Font; btn.TextSize = 13
         btn.AutoButtonColor = false; btn.BorderSizePixel = 0
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 10)
+        local underline = Instance.new("Frame", btn)
+        underline.Size = UDim2.new(0, 0, 0, 2)
+        underline.Position = UDim2.new(0.5, 0, 1, -4)
+        underline.AnchorPoint = Vector2.new(0.5, 0)
+        underline.BackgroundColor3 = Color3.fromRGB(160, 160, 175)
+        underline.BorderSizePixel = 0
+        underline.BackgroundTransparency = 1
+        Instance.new("UICorner", underline).CornerRadius = UDim.new(1, 0)
+        tabUnderlines[tName] = underline
+        btn.MouseEnter:Connect(function()
+            if btn.TextColor3 ~= Color3.fromRGB(220, 220, 225) then
+                TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextColor3 = Color3.fromRGB(170, 170, 178)}):Play()
+            end
+        end)
+        btn.MouseLeave:Connect(function()
+            if btn.TextColor3 ~= Color3.fromRGB(220, 220, 225) then
+                TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), {TextColor3 = Color3.fromRGB(100, 100, 120)}):Play()
+            end
+        end)
         tabBtns[tName] = btn
         tabY = tabY + 48
     end
@@ -2699,13 +2847,13 @@ local function Main()
     local fpsLbl = Instance.new("TextLabel", sidebar)
     fpsLbl.Size = UDim2.new(1, -16, 0, 16); fpsLbl.Position = UDim2.new(0, 10, 1, -46)
     fpsLbl.BackgroundTransparency = 1; fpsLbl.Text = "FPS: 0"
-    fpsLbl.TextColor3 = Color3.fromRGB(130, 160, 140); fpsLbl.Font = Enum.Font.Code
+    fpsLbl.TextColor3 = Color3.fromRGB(100, 220, 130); fpsLbl.Font = Enum.Font.Code
     fpsLbl.TextSize = 12; fpsLbl.TextXAlignment = Enum.TextXAlignment.Left
 
     local pingLbl = Instance.new("TextLabel", sidebar)
     pingLbl.Size = UDim2.new(1, -16, 0, 16); pingLbl.Position = UDim2.new(0, 10, 1, -28)
     pingLbl.BackgroundTransparency = 1; pingLbl.Text = "PING: 0ms"
-    pingLbl.TextColor3 = Color3.fromRGB(120, 140, 160); pingLbl.Font = Enum.Font.Code
+    pingLbl.TextColor3 = Color3.fromRGB(160, 140, 200); pingLbl.Font = Enum.Font.Code
     pingLbl.TextSize = 12; pingLbl.TextXAlignment = Enum.TextXAlignment.Left
 
     local content = Instance.new("Frame", mainFrame)
@@ -2776,7 +2924,7 @@ local function Main()
         Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 5)
         local box = Instance.new("TextBox", row); box.Size = UDim2.new(0, 50, 0, 28)
         box.Position = UDim2.new(1, -88, 0.5, -14)
-        box.BackgroundColor3 = Color3.fromRGB(30, 30, 37); box.Text = string.format("%.1f", value)
+        box.BackgroundColor3 = Color3.fromRGB(18, 18, 24); box.Text = string.format("%.1f", value)
         box.TextColor3 = Color3.fromRGB(220, 220, 225); box.Font = Enum.Font.Code; box.TextSize = 13
         box.BorderSizePixel = 0; box.ClearTextOnFocus = false; box.TextXAlignment = Enum.TextXAlignment.Center
         Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
@@ -2877,7 +3025,6 @@ local function Main()
             toggleSetters["floatDodge"] = setVis
             swBtn.Activated:Connect(function() State.floatDodgeEnabled = not State.floatDodgeEnabled; setVis(State.floatDodgeEnabled); if State.floatDodgeEnabled then enableFloatDodge() else disableFloatDodge() end; requestSave() end)
         end
-        makeDHKeybind(sf, "Float Dodge Key", Keys.floatDodge, LO(), function(k) Keys.floatDodge = k end, "floatDodge")
         makeDHInput(sf, "Float Height", State.floatHeight, LO(), function(n) if n and n >= 1 and n <= 50 then State.floatHeight = n end end)
         do
             local setVis, swBtn = makeDHToggle(sf, "Infinite Jump", "infJump", State.infJumpEnabled, LO())
@@ -2889,6 +3036,15 @@ local function Main()
             toggleSetters["autoCarry"] = setVis
             swBtn.Activated:Connect(function()
                 State.autoCarryEnabled = not State.autoCarryEnabled; setVis(State.autoCarryEnabled)
+                requestSave()
+            end)
+        end
+        do
+            local setVis, swBtn = makeDHToggle(sf, "Stick After Hit", "stickAfterHit", State.stickAfterHitEnabled, LO())
+            toggleSetters["stickAfterHit"] = setVis
+            swBtn.Activated:Connect(function()
+                State.stickAfterHitEnabled = not State.stickAfterHitEnabled; setVis(State.stickAfterHitEnabled)
+                if State.stickAfterHitEnabled then startStickAfterHit() else stopStickAfterHit() end
                 requestSave()
             end)
         end
@@ -2925,22 +3081,22 @@ local function Main()
 
             local normalBtn = Instance.new("TextButton", modeRow)
             normalBtn.Size = UDim2.new(0, 60, 0, 26); normalBtn.Position = UDim2.new(0.45, 0, 0.5, -13)
-            normalBtn.BackgroundColor3 = State.antiBatMode == "normal" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(30, 30, 37)
+            normalBtn.BackgroundColor3 = State.antiBatMode == "normal" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(18, 18, 24)
             normalBtn.Text = "Normal"; normalBtn.TextColor3 = State.antiBatMode == "normal" and Color3.fromRGB(220,220,225) or Color3.fromRGB(120,120,130)
             normalBtn.Font = Theme.Font; normalBtn.TextSize = 11; normalBtn.AutoButtonColor = false; normalBtn.BorderSizePixel = 0
             Instance.new("UICorner", normalBtn).CornerRadius = UDim.new(0, 5)
 
             local bypassBtn = Instance.new("TextButton", modeRow)
             bypassBtn.Size = UDim2.new(0, 60, 0, 26); bypassBtn.Position = UDim2.new(0.65, 0, 0.5, -13)
-            bypassBtn.BackgroundColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(30, 30, 37)
+            bypassBtn.BackgroundColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(18, 18, 24)
             bypassBtn.Text = "Bypass"; bypassBtn.TextColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(220,220,225) or Color3.fromRGB(120,120,130)
             bypassBtn.Font = Theme.Font; bypassBtn.TextSize = 11; bypassBtn.AutoButtonColor = false; bypassBtn.BorderSizePixel = 0
             Instance.new("UICorner", bypassBtn).CornerRadius = UDim.new(0, 5)
 
             local function refreshMode()
-                normalBtn.BackgroundColor3 = State.antiBatMode == "normal" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(30, 30, 37)
+                normalBtn.BackgroundColor3 = State.antiBatMode == "normal" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(18, 18, 24)
                 normalBtn.TextColor3 = State.antiBatMode == "normal" and Color3.fromRGB(220,220,225) or Color3.fromRGB(120,120,130)
-                bypassBtn.BackgroundColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(30, 30, 37)
+                bypassBtn.BackgroundColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(48, 48, 55) or Color3.fromRGB(18, 18, 24)
                 bypassBtn.TextColor3 = State.antiBatMode == "bypass" and Color3.fromRGB(220,220,225) or Color3.fromRGB(120,120,130)
             end
             refreshModeRef = refreshMode
@@ -2959,15 +3115,22 @@ local function Main()
                 refreshMode(); requestSave()
             end)
         end
-        makeDHKeybind(sf, "Aimbot Key", Keys.aimbot, LO(), function(k) Keys.aimbot = k end, "aimbot")
-        makeSection(sf, "SPEED BOOST", LO())
         do
-            local setVis, swBtn = makeDHToggle(sf, "Speed Boost", "speedBoost", State.speedBoostEnabled, LO())
-            toggleSetters["speedBoost"] = setVis
+            local setVis, swBtn = makeDHToggle(sf, "Anti-Bat Def", "antiBatDef", State.antiBatDefEnabled, LO())
+            toggleSetters["antiBatDef"] = setVis
             swBtn.Activated:Connect(function()
-                State.speedBoostEnabled = not State.speedBoostEnabled
-                setVis(State.speedBoostEnabled)
-                if State.speedBoostEnabled then enableSpeedBoost() else disableSpeedBoost() end
+                State.antiBatDefEnabled = not State.antiBatDefEnabled; setVis(State.antiBatDefEnabled)
+                if State.antiBatDefEnabled then enableAntiBatDef() else disableAntiBatDef() end
+                requestSave()
+            end)
+        end
+        do
+            local setVis, swBtn = makeDHToggle(sf, "Anti-Lagback", "antiLagback", State.antiLagbackEnabled, LO())
+            toggleSetters["antiLagback"] = setVis
+            swBtn.Activated:Connect(function()
+                State.antiLagbackEnabled = not State.antiLagbackEnabled
+                setVis(State.antiLagbackEnabled)
+                if State.antiLagbackEnabled then enableAntiLagback() else disableAntiLagback() end
                 requestSave()
             end)
         end
@@ -2976,9 +3139,6 @@ local function Main()
     -- ===== AUTO TAB =====
     do local sf = makeTabFrame("AUTO"); tabFrames["AUTO"] = sf; lo = 0
         makeSection(sf, "AUTO MOVEMENT", LO())
-        makeDHKeybind(sf, "Auto Left", Keys.autoLeft, LO(), function(k) Keys.autoLeft = k end, "autoLeft")
-        makeDHKeybind(sf, "Auto Right", Keys.autoRight, LO(), function(k) Keys.autoRight = k end, "autoRight")
-        makeDHKeybind(sf, "Drop Brainrot", Keys.drop, LO(), function(k) Keys.drop = k end, "drop")
         do
             local row = Instance.new("Frame", sf)
             row.Size = UDim2.new(1, 0, 0, 36); row.BackgroundTransparency = 1; row.BorderSizePixel = 0; row.LayoutOrder = LO()
@@ -3008,7 +3168,6 @@ local function Main()
             jumpBtn.MouseButton1Click:Connect(function() State.dropType = "jump"; refreshDropType(); requestSave() end)
             standBtn.MouseButton1Click:Connect(function() State.dropType = "stand"; refreshDropType(); requestSave() end)
         end
-        makeDHKeybind(sf, "TP Down", Keys.tpDown, LO(), function(k) Keys.tpDown = k end, "tpDown")
         makeSection(sf, "AUTO TP", LO())
         do
             local setVis, swBtn = makeDHToggle(sf, "Auto TP", "autoTP", State.autoTPEnabled, LO())
@@ -3081,6 +3240,15 @@ local function Main()
             local setVis, swBtn = makeDHToggle(sf, "No Cam Collision", "noCamCollision", State.noCamCollisionEnabled, LO())
             toggleSetters["noCamCollision"] = setVis
             swBtn.Activated:Connect(function() State.noCamCollisionEnabled = not State.noCamCollisionEnabled; setVis(State.noCamCollisionEnabled); applyNoCamCollision(State.noCamCollisionEnabled); requestSave() end)
+        end
+        do
+            local setVis, swBtn = makeDHToggle(sf, "Show Waypoints", "showWaypoints", State.showWaypoints, LO())
+            toggleSetters["showWaypoints"] = setVis
+            swBtn.Activated:Connect(function()
+                State.showWaypoints = not State.showWaypoints; setVis(State.showWaypoints)
+                if State.showWaypoints then showAllWaypoints() else clearAutoSpheres() end
+                requestSave()
+            end)
         end
         makeSection(sf, "SKY THEMES", LO())
         do
@@ -3162,18 +3330,6 @@ local function Main()
                 end
             end)
         end
-        makeSection(sf, "ANTI-BAT", LO())
-        do
-            local setVis, swBtn = makeDHToggle(sf, "Anti-Bat", "antiBatDef", State.antiBatDefEnabled, LO())
-            toggleSetters["antiBatDef"] = setVis
-            swBtn.Activated:Connect(function()
-                State.antiBatDefEnabled = not State.antiBatDefEnabled; setVis(State.antiBatDefEnabled)
-                if State.antiBatDefEnabled then enableAntiBatDef() else disableAntiBatDef() end
-                requestSave()
-            end)
-        end
-        makeDHKeybind(sf, "Anti-Bat Key", Keys.antiBatDef, LO(), function(k) Keys.antiBatDef = k end, "antiBatDef")
-
         makeSection(sf, "ANTI-COLLISION", LO())
         do
             local setVis, swBtn = makeDHToggle(sf, "Anti-Collision", "antiCollision", State.antiCollisionEnabled, LO())
@@ -3186,10 +3342,49 @@ local function Main()
         end
     end
 
+    -- ===== KEYBINDS TAB =====
+    do local sf = makeTabFrame("KEYBINDS"); tabFrames["KEYBINDS"] = sf; lo = 0
+        (function(sf, LO, Theme, Keys, getKeyDisplayName, TweenService, makeSection, UIS)
+            makeSection(sf, "KEYBINDS", LO())
+            local changingKeybind = nil
+            local allKeys = {
+                {"Speed / Carry Toggle", "speed"}, {"Auto Left", "autoLeft"}, {"Auto Right", "autoRight"},
+                {"Auto Bat", "autoBat"}, {"Lagger", "lagger"}, {"TP Down", "tpDown"},
+                {"Drop Brainrot", "drop"}, {"Insta Reset", "instaReset"}, {"Float Dodge", "floatDodge"},
+                {"Anti-Bat", "antiBatDef"},
+                {"Aimbot", "aimbot"}, {"Hide GUI", "guiHide"},
+            }
+            for i, v in ipairs(allKeys) do
+                local row = Instance.new("Frame", sf); row.Size = UDim2.new(1, 0, 0, 42); row.BackgroundColor3 = Theme.RowBG; row.BorderSizePixel = 0; row.LayoutOrder = LO()
+                Instance.new("UICorner", row).CornerRadius = UDim.new(0, 8)
+                row.MouseEnter:Connect(function() TweenService:Create(row, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(18, 18, 24)}):Play() end)
+                row.MouseLeave:Connect(function() TweenService:Create(row, TweenInfo.new(0.15), {BackgroundColor3 = Theme.RowBG}):Play() end)
+                local n = Instance.new("TextLabel", row); n.Size = UDim2.new(0, 28, 1, 0); n.Position = UDim2.new(0, 10, 0, 0); n.BackgroundTransparency = 1; n.Text = tostring(i); n.TextColor3 = Color3.fromRGB(70, 70, 90); n.Font = Enum.Font.Code; n.TextSize = 11; n.TextXAlignment = Enum.TextXAlignment.Center
+                local l = Instance.new("TextLabel", row); l.Size = UDim2.new(1, -130, 1, 0); l.Position = UDim2.new(0, 40, 0, 0); l.BackgroundTransparency = 1; l.Text = v[1]; l.TextColor3 = Color3.fromRGB(230, 230, 235); l.Font = Theme.Font; l.TextSize = 13; l.TextXAlignment = Enum.TextXAlignment.Left
+                local k = Instance.new("TextButton", row); k.Size = UDim2.new(0, 90, 0, 28); k.Position = UDim2.new(1, -102, 0.5, -14); k.BackgroundColor3 = Color3.fromRGB(18, 18, 24); k.BorderSizePixel = 0; k.AutoButtonColor = false
+                k.Text = getKeyDisplayName(Keys[v[2]]); k.TextColor3 = Color3.fromRGB(160, 160, 175); k.Font = Theme.Font; k.TextSize = 12
+                Instance.new("UICorner", k).CornerRadius = UDim.new(0, 6)
+                local s = Instance.new("UIStroke", k); s.Color = Color3.fromRGB(38, 38, 50); s.Thickness = 1
+                keybindBtnRefs[v[2]] = k
+                k.MouseButton1Click:Connect(function()
+                    if changingKeybind then return end
+                    changingKeybind = v[2]; k.Text = "..."; k.TextColor3 = Color3.fromRGB(255, 100, 100)
+                    local conn; conn = UIS.InputBegan:Connect(function(input)
+                        if not (input.UserInputType == Enum.UserInputType.Keyboard or isGamepadInput(input)) then return end
+                        if input.KeyCode == Enum.KeyCode.Unknown then return end
+                        Keys[v[2]] = input.KeyCode; k.Text = getKeyDisplayName(input.KeyCode); k.TextColor3 = Color3.fromRGB(160, 160, 175)
+                        changingKeybind = nil; conn:Disconnect(); requestSave()
+                    end)
+                end)
+                k.MouseEnter:Connect(function() TweenService:Create(s, TweenInfo.new(0.15), {Color = Color3.fromRGB(160, 160, 175)}):Play() end)
+                k.MouseLeave:Connect(function() TweenService:Create(s, TweenInfo.new(0.15), {Color = Color3.fromRGB(38, 38, 50)}):Play() end)
+            end
+        end)(sf, LO, Theme, Keys, getKeyDisplayName, TweenService, makeSection, UIS)
+    end
+
     -- ===== SETTINGS TAB =====
     do local sf = makeTabFrame("SETTINGS"); tabFrames["SETTINGS"] = sf; lo = 0
         makeSection(sf, "INTERFACE", LO())
-        makeDHKeybind(sf, "Hide GUI", Keys.guiHide, LO(), function(k) Keys.guiHide = k end, "guiHide")
         do
             local scaleOrder = LO()
             local scaleRow = Instance.new("Frame", sf)
@@ -3383,9 +3578,6 @@ local function Main()
         carryBox = makeDHInput(sf, "Carry Speed", State.carrySpeed, LO(), function(n) if n > 0 and n <= 500 then State.carrySpeed = n end end)
         laggerBox = makeDHInput(sf, "Lagger Speed", State.laggerSpeed, LO(), function(n) if n > 0 and n <= 500 then State.laggerSpeed = n end end)
         laggerCarryBox = makeDHInput(sf, "Lagger Carry", State.laggerCarrySpeed, LO(), function(n) if n > 0 and n <= 500 then State.laggerCarrySpeed = n end end)
-        makeDHKeybind(sf, "Speed Key", Keys.speed, LO(), function(k) Keys.speed = k end, "speed")
-        makeDHKeybind(sf, "Lagger Key", Keys.lagger, LO(), function(k) Keys.lagger = k end, "lagger")
-        makeDHKeybind(sf, "Reset Key", Keys.instaReset, LO(), function(k) Keys.instaReset = k end, "instaReset")
         makeSection(sf, "CONFIG", LO())
         do
             local row = Instance.new("Frame", sf); row.Size = UDim2.new(1, 0, 0, 44); row.BackgroundTransparency = 1; row.BorderSizePixel = 0; row.LayoutOrder = LO()
@@ -3416,21 +3608,28 @@ local function Main()
         do
             local row = Instance.new("Frame", sf); row.Size = UDim2.new(1, 0, 0, 22); row.BackgroundTransparency = 1; row.BorderSizePixel = 0; row.LayoutOrder = LO()
             local fl = Instance.new("TextLabel", row); fl.Size = UDim2.new(1, 0, 1, 0); fl.BackgroundTransparency = 1
-            fl.Text = "Nexus Duels Too v1.1"
+            fl.Text = "NEXUS DUELS // v1.3"
             fl.TextColor3 = Color3.fromRGB(80, 80, 85); fl.Font = Enum.Font.Gotham; fl.TextSize = 10; fl.TextXAlignment = Enum.TextXAlignment.Center
         end
     end
 
     -- TAB SWITCHING
+    local activeTab = "COMBAT"
     local function switchTab(name)
+        activeTab = name
         for tName, frame in pairs(tabFrames) do frame.Visible = (tName == name) end
         for tName, btn in pairs(tabBtns) do
             if tName == name then
-                btn.BackgroundColor3 = Color3.fromRGB(30, 30, 37)
-                btn.TextColor3 = Color3.fromRGB(220, 220, 225)
+                TweenService:Create(btn, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {BackgroundColor3 = Color3.fromRGB(18, 18, 24), TextColor3 = Color3.fromRGB(220, 220, 225)}):Play()
+                if tabUnderlines[tName] then
+                    tabUnderlines[tName].BackgroundTransparency = 0
+                    TweenService:Create(tabUnderlines[tName], TweenInfo.new(0.3, Enum.EasingStyle.Quint), {Size = UDim2.new(0.6, 0, 0, 2)}):Play()
+                end
             else
-                btn.BackgroundColor3 = Theme.RowBG
-                btn.TextColor3 = Color3.fromRGB(130, 130, 140)
+                TweenService:Create(btn, TweenInfo.new(0.25, Enum.EasingStyle.Quint), {BackgroundColor3 = Theme.RowBG, TextColor3 = Color3.fromRGB(100, 100, 120)}):Play()
+                if tabUnderlines[tName] then
+                    TweenService:Create(tabUnderlines[tName], TweenInfo.new(0.2, Enum.EasingStyle.Quint), {Size = UDim2.new(0, 0, 0, 2), BackgroundTransparency = 1}):Play()
+                end
             end
         end
     end
@@ -3606,6 +3805,8 @@ local function Main()
                 defAntiBat = State.antiBatDefEnabled,
                 antiCollision = State.antiCollisionEnabled,
                 noCamCollision = State.noCamCollisionEnabled,
+                stickAfterHit = State.stickAfterHitEnabled,
+                antiLagback = State.antiLagbackEnabled,
                 laggerActive = State.laggerActive,
                 laggerKeybind = State.laggerKeybind and State.laggerKeybind.Name or "V",
                 speedKey = Keys.speed and Keys.speed.Name or "Q",
@@ -3634,7 +3835,6 @@ local function Main()
                 buttonPositions = btnPositions,
                 autoGrabRadius = State.autoGrabRadius,
                 autoCarry = State.autoCarryEnabled,
-                speedBoost = State.speedBoostEnabled,
                 uiScale = uiScaleObj and uiScaleObj.Scale or 1.0,
             }
             local encoded = HttpService:JSONEncode(cfg)
@@ -3706,8 +3906,10 @@ local function Main()
             instaResetOnMedusa="instaResetOnMedusaEnabled", autoMedusa="autoMedusaEnabled",
             defAntiBat="antiBatDefEnabled",
             antiCollision="antiCollisionEnabled",
-            speedBoost="speedBoostEnabled",
             noCamCollision="noCamCollisionEnabled",
+            showWaypoints="showWaypoints",
+            stickAfterHit="stickAfterHitEnabled",
+            antiLagback="antiLagbackEnabled",
         }
         for cfgKey, stateKey in pairs(bools) do if dec[cfgKey] ~= nil then State[stateKey] = dec[cfgKey] end end
         if dec.activeSky then State.activeSky = dec.activeSky end
@@ -3738,7 +3940,8 @@ local function Main()
         if State.autoMedusaEnabled then startAutoMedusa() end
         if State.antiBatDefEnabled then enableAntiBatDef() end
         if State.antiCollisionEnabled then enableAntiCollision() end
-        if State.speedBoostEnabled then enableSpeedBoost() end
+        if State.stickAfterHitEnabled then startStickAfterHit() end
+        if State.antiLagbackEnabled then enableAntiLagback() end
         if State.noCamCollisionEnabled then applyNoCamCollision(true) end
         if dec.laggerActive then State.laggerActive = true; createLaggerPanel() end
         for key, setter in pairs(toggleSetters) do
@@ -3771,7 +3974,8 @@ local function Main()
             elseif key == "autoMedusa" then sv = State.autoMedusaEnabled
             elseif key == "defAntiBat" then sv = State.antiBatDefEnabled
             elseif key == "antiCollision" then sv = State.antiCollisionEnabled
-            elseif key == "speedBoost" then sv = State.speedBoostEnabled
+            elseif key == "stickAfterHit" then sv = State.stickAfterHitEnabled
+            elseif key == "antiLagback" then sv = State.antiLagbackEnabled
             elseif key == "noCamCollision" then sv = State.noCamCollisionEnabled
             end
             if sv ~= nil then pcall(setter, sv) end
@@ -3828,6 +4032,7 @@ local function Main()
         if State.spinBodyEnabled then task.wait(0.3); enableSpinBody() end
         if State.antiBatDefEnabled then task.wait(0.3); enableAntiBatDef() end
         if State.antiCollisionEnabled then task.wait(0.3); enableAntiCollision() end
+        if State.stickAfterHitEnabled then task.wait(0.3); startStickAfterHit() end
     end
     LP.CharacterAdded:Connect(setupChar)
     if LP.Character then task.spawn(function() setupChar(LP.Character) end) end
