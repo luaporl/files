@@ -12428,7 +12428,7 @@ end
                                                                                                                         _lastFakeTradeTime = tick()
                                                                                                                         pcall(function()
                                                                                                                                 local nc = require(RS.Controllers.NotificationController)
-                                                                                                                                nc:Success("Trade completed with @" .. username .. "! ")
+                                                                                                                                nc:Success("Trade with @" .. username .. " completed ! 🎉")
                                                                                                                         end)
                                                                                                                         pcall(function()
                                                                                                                                 require(RS.Controllers.SoundController):PlaySound("Sounds.Sfx.Success")
