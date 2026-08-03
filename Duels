@@ -14,16 +14,25 @@ local PlayerGui = LP:WaitForChild("PlayerGui")
 _G.AceIsMobile = true
 _G.AceCursedResetRemote = _G.AceCursedResetRemote or nil
 _G.AceCursedResetGuid = _G.AceCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6635d42"
-pcall(function()
-if not _G.AceCursedResetHooked and hookfunction and newcclosure then
-_G.AceCursedResetHooked = true
-local oldFire
-oldFire = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
-if not _G.AceCursedResetRemote and typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name:sub(1,3) == "RE/" then
-_G.AceCursedResetRemote = self
+task.spawn(function()
+task.wait(2)
+if not _G.AceCursedResetRemote then
+for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
+if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
+_G.AceCursedResetRemote = desc
+break
 end
-return oldFire(self, ...)
-end))
+end
+end
+if not _G.AceCursedResetRemote then
+local conn
+conn = game.DescendantAdded:Connect(function(desc)
+if _G.AceCursedResetRemote then pcall(function() conn:Disconnect() end); return end
+if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
+_G.AceCursedResetRemote = desc
+pcall(function() conn:Disconnect() end)
+end
+end)
 end
 end)
 _G.AceCursedResetCooldown = _G.AceCursedResetCooldown or false
@@ -79,10 +88,9 @@ setAutoCarrySpeedVisual = nil
 _G.AceAutoCarryWasCarrying = false
 _G.AceAutoCarrySavedMode = nil
 local autoStealEnabled = false
-local selectedStealMode = "Normal"
-local autoStealRadius = 62
+local selectedStealMode = "Semi"
+local autoStealRadius = 9
 _G.AceStealRadii = _G.AceStealRadii or {Normal = 62, Semi = 9}
-local autoStealRadiusBox = nil
 local selectedAimbotMode = "Normal"
 local AIMBOT_SPEED = 58
 local LAGGER_AIMBOT_SPEED = 40
@@ -1055,20 +1063,9 @@ autoTPHeight = tonumber(data.autoTPHeight) or autoTPHeight
 infJumpEnabled = data.infJumpEnabled == true
 antiRagdollEnabled = data.antiRagdollEnabled == true
 selectedAnimationPack = data.selectedAnimationPack or selectedAnimationPack
-selectedStealMode = data.selectedStealMode or selectedStealMode
-if selectedStealMode ~= "Semi" then selectedStealMode = "Normal" end
+selectedStealMode = "Semi"
 autoStealEnabled = data.autoStealEnabled == true
-if type(data.aceStealRadii) == "table" then
-_G.AceStealRadii.Normal = tonumber(data.aceStealRadii.Normal) or _G.AceStealRadii.Normal or 62
-_G.AceStealRadii.Semi = tonumber(data.aceStealRadii.Semi) or _G.AceStealRadii.Semi or 9
-end
-autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
-if selectedStealMode == "Normal" then
-_G.AceStealRadii.Normal = tonumber(autoStealRadius) or _G.AceStealRadii.Normal or 62
-autoStealRadius = _G.AceStealRadii.Normal
-else
-autoStealRadius = _G.AceStealRadii.Semi or 9
-end
+autoStealRadius = 9
 selectedAimbotMode = data.selectedAimbotMode or selectedAimbotMode
 if selectedAimbotMode ~= "Anti Bypass" then selectedAimbotMode = "Normal" end
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
@@ -1158,22 +1155,7 @@ _G.AceAutoResetOnMed.cooldown = 2.25
 _G.AceAutoResetOnMed.charAddedConn = _G.AceAutoResetOnMed.charAddedConn
 _G.AceCursedResetGuid = _G.AceCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6635d42"
 _G.AceCursedResetRemote = _G.AceCursedResetRemote or nil
-pcall(function()
-if hookfunction and newcclosure and not _G.AceCursedResetHooked and not _G.AceAutoResetOnMed.remoteHooked then
-_G.AceAutoResetOnMed.remoteHooked = true
-local oldFire
-oldFire = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
-if not _G.AceCursedResetRemote
-and typeof(self) == "Instance"
-and self:IsA("RemoteEvent")
-and self.Name:sub(1, 3) == "RE/" then
-_G.AceCursedResetRemote = self
-end
-return oldFire(self, ...)
-end))
-end
-end)
-function _G.AceFindCursedResetRemote()
+_G.AceFindCursedResetRemote = _G.AceFindCursedResetRemote or function()
 if _G.AceCursedResetRemote then return _G.AceCursedResetRemote end
 for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
 if desc:IsA("RemoteEvent") and desc.Name:sub(1, 3) == "RE/" then
@@ -2805,13 +2787,8 @@ if _G.AceNormalAutoStealStop then _G.AceNormalAutoStealStop() end
 if _G.AceSemiAutoStealStop then _G.AceSemiAutoStealStop() end
 return
 end
-if selectedStealMode == "Normal" then
-if _G.AceSemiAutoStealStop then _G.AceSemiAutoStealStop() end
-if _G.AceNormalAutoStealSync then _G.AceNormalAutoStealSync() end
-elseif selectedStealMode == "Semi" then
 if _G.AceNormalAutoStealStop then _G.AceNormalAutoStealStop() end
 if _G.AceSemiAutoStealSync then _G.AceSemiAutoStealSync() end
-end
 end
 task.spawn(function()
 while task.wait(30) do
@@ -3160,6 +3137,7 @@ local st=hum:GetState()
 if hum.PlatformStand or st==Enum.HumanoidStateType.Physics or st==Enum.HumanoidStateType.Ragdoll or st==Enum.HumanoidStateType.FallingDown then hum:Move(Vector3.zero,false); return end
 local P=_G.AceAutoPathPoints
 local spd=_G.AceAutoPathSpeed()
+hum.WalkSpeed = spd
 if S.leftPhase==1 then
 local tgt=Vector3.new(P.L1.X,hrp.Position.Y,P.L1.Z)
 if (tgt-hrp.Position).Magnitude<1 then
@@ -3210,6 +3188,7 @@ local st=hum:GetState()
 if hum.PlatformStand or st==Enum.HumanoidStateType.Physics or st==Enum.HumanoidStateType.Ragdoll or st==Enum.HumanoidStateType.FallingDown then hum:Move(Vector3.zero,false); return end
 local P=_G.AceAutoPathPoints
 local spd=_G.AceAutoPathSpeed()
+hum.WalkSpeed = spd
 if S.rightPhase==1 then
 local tgt=Vector3.new(P.R1.X,hrp.Position.Y,P.R1.Z)
 if (tgt-hrp.Position).Magnitude<1 then
@@ -3383,7 +3362,15 @@ task.wait(0.5)
 setupOverheadInfo(char)
 if ragdollCountdownEnabled then hookRagdollCountdown(char) end
 end)
-RunService.RenderStepped:Connect(function()
+do
+local VELOCITY_Y_TRICK = 0.000026
+local speedOwnershipTimer = 0
+local speedLagbackCooldown = 0
+local speedLastPosition = nil
+local speedLastTime = nil
+local isJumping = false
+local consecutiveLagbacks = 0
+RunService.Heartbeat:Connect(function(dt)
 local char = LP.Character
 if not char then return end
 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -3397,14 +3384,76 @@ or state == Enum.HumanoidStateType.FallingDown then
 lastMoveDir = Vector3.new(0, 0, 0)
 return
 end
+speedOwnershipTimer += dt
+if speedOwnershipTimer >= 0.8 then
+pcall(function() hrp:SetNetworkOwner(LP) end)
+speedOwnershipTimer = 0
+end
+isJumping = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
+local vy = hrp.AssemblyLinearVelocity.Y
+if not isJumping and vy < -50 then
+isJumping = true
+end
 local md = hum.MoveDirection
 local spd = getCurrentSpeedValue()
+local isCarrying = (currentSpeedMode == "Carry" or currentSpeedMode == "Lagger Carry")
 if not autoLeftEnabled and not autoRightEnabled and md.Magnitude > 0 then
 lastMoveDir = md
-hrp.Velocity = Vector3.new(md.X * spd, hrp.Velocity.Y, md.Z * spd)
+local targetY
+if isJumping then
+targetY = vy
+else
+targetY = VELOCITY_Y_TRICK
+end
+local currentVel = hrp.AssemblyLinearVelocity
+local horizontalCurrent = Vector3.new(currentVel.X, 0, currentVel.Z).Magnitude
+local horizontalTarget = spd
+local alpha
+if isCarrying then
+if horizontalCurrent < horizontalTarget * 0.8 then
+alpha = math.min(dt * 30, 0.7)
+else
+alpha = math.min(dt * 18, 0.50)
+end
+else
+alpha = math.min(dt * 14, 0.45)
+end
+local targetVel = Vector3.new(md.X * spd, targetY, md.Z * spd)
+hrp.AssemblyLinearVelocity = currentVel:Lerp(targetVel, alpha)
+hum.WalkSpeed = spd
+speedLagbackCooldown -= dt
+local now = tick()
+local elapsed = now - (speedLastTime or now)
+if elapsed > 0.05 and speedLastPosition then
+local expectedDist = spd * elapsed
+local actualDist = (hrp.Position - speedLastPosition).Magnitude
+local lagbackRatio = actualDist / math.max(expectedDist, 0.1)
+if lagbackRatio < 0.4 and speedLagbackCooldown <= 0 then
+consecutiveLagbacks = consecutiveLagbacks + 1
+local boostMultiplier = math.min(1.0 + consecutiveLagbacks * 0.08, 1.25)
+hrp.AssemblyLinearVelocity = targetVel * boostMultiplier
+hum.WalkSpeed = spd
+speedLagbackCooldown = 0.35
+else
+consecutiveLagbacks = math.max(0, consecutiveLagbacks - 1)
+end
+end
+speedLastPosition = hrp.Position
+speedLastTime = now
+else
+local currentVel = hrp.AssemblyLinearVelocity
+local horizontalCurrent = Vector3.new(currentVel.X, 0, currentVel.Z).Magnitude
+if horizontalCurrent > 0.5 then
+local decelAlpha = math.min(dt * 10, 0.35)
+hrp.AssemblyLinearVelocity = currentVel:Lerp(Vector3.new(0, currentVel.Y, 0), decelAlpha)
+hum.WalkSpeed = math.max(horizontalCurrent * 0.8, 0)
+end
+speedLastPosition = hrp.Position
+speedLastTime = tick()
+consecutiveLagbacks = 0
 end
 if overheadSpeedLabel then
-local v = hrp.AssemblyLinearVelocity or hrp.Velocity
+local v = hrp.AssemblyLinearVelocity
 local speedMag = Vector3.new(v.X, 0, v.Z).Magnitude
 local rounded = math.floor(speedMag * 10 + 0.5) / 10
 if math.abs(rounded - math.floor(rounded)) < 0.05 then
@@ -3414,16 +3463,17 @@ overheadSpeedLabel.Text = string.format("Speed: %.1f", rounded)
 end
 end
 end)
+end
 local COLORS = {
-bg = Color3.fromRGB(10, 10, 14),
-row = Color3.fromRGB(14, 14, 19),
-row2 = Color3.fromRGB(18, 18, 24),
-stroke = Color3.fromRGB(160, 160, 175),
-strokeSoft = Color3.fromRGB(38, 40, 48),
-white = Color3.fromRGB(250, 250, 255),
-textDim = Color3.fromRGB(120, 120, 135),
-toggleBg = Color3.fromRGB(38, 40, 48),
-knob = Color3.fromRGB(160, 160, 175),
+bg = Color3.fromRGB(0, 0, 0),
+row = Color3.fromRGB(10, 10, 10),
+row2 = Color3.fromRGB(18, 18, 18),
+stroke = Color3.fromRGB(25, 25, 25),
+strokeSoft = Color3.fromRGB(55, 55, 55),
+white = Color3.fromRGB(235, 235, 235),
+textDim = Color3.fromRGB(120, 120, 120),
+toggleBg = Color3.fromRGB(55, 55, 55),
+knob = Color3.fromRGB(235, 235, 235),
 }
 function corner(parent, radius)
 local c = Instance.new("UICorner")
@@ -3438,18 +3488,6 @@ s.Color = color or COLORS.stroke
 s.Thickness = thickness or 1
 s.Transparency = transparency or 0.35
 s.Parent = parent
-local g = Instance.new("UIGradient")
-g.Color = ColorSequence.new({
-ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 220, 230)),
-ColorSequenceKeypoint.new(0.5, Color3.fromRGB(160, 160, 175)),
-ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 220, 230)),
-})
-g.Transparency = NumberSequence.new({
-NumberSequenceKeypoint.new(0, 0.4),
-NumberSequenceKeypoint.new(0.5, 0.0),
-NumberSequenceKeypoint.new(1, 0.4),
-})
-g.Parent = s
 return s
 end
 function tween(obj, props, time)
@@ -3537,382 +3575,6 @@ end
 
 _G.AceFloatEnabled = false
 
--- NEXUS LAGGER PANEL (Polished Glass/Silver + Persistent Config)
--- ============================================================
-local createNexusLaggerPanel
-do
-	local laggerActive = false
-	local laggerGui = nil
-	local laggerKeybind = Enum.KeyCode.R
-	local laggerThread = nil
-	local nivelActual = "low"
-	local ventanaBloqueada = false
-	local LAGGER_CONFIG_FILE = "NexusLaggerConfig.json"
-
-	local function getKeyDisplayName(keyCode)
-		if not keyCode then return "None" end
-		return keyCode.Name
-	end
-
-	local function saveLaggerConfig()
-		local data = {keybind = laggerKeybind.Name, level = nivelActual, locked = ventanaBloqueada}
-		pcall(function() writefile(LAGGER_CONFIG_FILE, HttpService:JSONEncode(data)) end)
-	end
-
-	local function loadLaggerConfig()
-		if pcall(isfile, LAGGER_CONFIG_FILE) and isfile(LAGGER_CONFIG_FILE) then
-			pcall(function()
-				local data = HttpService:JSONDecode(readfile(LAGGER_CONFIG_FILE))
-				if data.keybind then
-					local ok, kc = pcall(function() return Enum.KeyCode[data.keybind] end)
-					if ok and kc then laggerKeybind = kc end
-				end
-				if data.level and LAGGER_LEVELS_TABLE[data.level] then nivelActual = data.level end
-				if data.locked ~= nil then ventanaBloqueada = data.locked end
-			end)
-		end
-	end
-
-	local payloadCache = nil
-
-	local function bombCursed(tableincrease, tries)
-		local maintable = {}
-		local spammedtable = {}
-		table.insert(spammedtable, {})
-		local z = spammedtable[1]
-		for i = 1, tableincrease do local t = {}; table.insert(z, t); z = t end
-		local maximum = math.floor(499999 / (tableincrease + 2))
-		for i = 1, maximum do
-			table.insert(maintable, spammedtable)
-			if i % 5000 == 0 then task.wait() end
-		end
-		local remote = nil
-		pcall(function()
-			local obj = game
-			local path = "RobloxReplicatedStorage.SetPlayerBlockList"
-			for segment in path:gmatch("[^%.]+") do obj = obj[segment] end
-			remote = obj
-		end)
-		if remote then
-			for i = 1, tries do
-				pcall(function()
-					if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
-						remote:FireServer(maintable)
-					elseif remote:IsA("RemoteFunction") then
-						remote:InvokeServer(maintable)
-					end
-				end)
-			end
-		end
-	end
-
-	LAGGER_LEVELS_TABLE = {
-		low   = {tableIncrease=240, tries=1, wait=0.05, color=Color3.fromRGB(0,220,70),   text="SPEED RECOMMENDED 50-25",     accent=Color3.fromRGB(0,255,80)},
-		mid   = {tableIncrease=265, tries=1, wait=0.05, color=Color3.fromRGB(220,180,0),  text="SPEED RECOMMENDED 42-20",     accent=Color3.fromRGB(255,200,0)},
-		high  = {tableIncrease=285, tries=1, wait=0.05, color=Color3.fromRGB(220,80,180),  text="SPEED RECOMMENDED 40-17",     accent=Color3.fromRGB(255,100,200)},
-		ultra = {tableIncrease=300, tries=1, wait=0.05, color=Color3.fromRGB(130,60,220),  text="EXTREME POWER - USE WITH CAUTION", accent=Color3.fromRGB(160,80,255)},
-	}
-	if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-		LAGGER_LEVELS_TABLE.low.wait = 0.85; LAGGER_LEVELS_TABLE.mid.wait = 0.85
-		LAGGER_LEVELS_TABLE.high.wait = 0.85; LAGGER_LEVELS_TABLE.ultra.wait = 0.85
-	end
-
-	loadLaggerConfig()
-
-	local function startLaggerLoop()
-		if not laggerActive then return end
-		while laggerActive do
-			pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge) end)
-			local cfg = LAGGER_LEVELS_TABLE[nivelActual] or LAGGER_LEVELS_TABLE.low
-			task.spawn(function()
-				bombCursed(cfg.tableIncrease, cfg.tries)
-			end)
-			task.wait(math.max(cfg.wait, 0.15))
-		end
-	end
-
-	createNexusLaggerPanel = function()
-		if laggerGui then pcall(function() laggerGui:Destroy() end) end
-		local sg = Instance.new("ScreenGui")
-		sg.Name = "NexusLaggerPanel"; sg.ResetOnSpawn = false; sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		sg.DisplayOrder = 999
-		pcall(function() sg.Parent = game:GetService("CoreGui") end)
-		if not sg.Parent then sg.Parent = LP:WaitForChild("PlayerGui") end
-		laggerGui = sg; _G.NexusLaggerGui = sg
-
-		local PW, PH = 200, 175
-		local f = Instance.new("Frame", sg)
-		f.Name = "Main"
-		f.Size = UDim2.new(0, PW, 0, 0); f.Position = UDim2.new(0, 20, 0, 20)
-		f.BackgroundColor3 = Color3.fromRGB(18, 18, 24); f.BorderSizePixel = 0
-		f.Active = true; f.ClipsDescendants = true
-		f.Parent = sg
-		Instance.new("UICorner", f).CornerRadius = UDim.new(0, 12)
-
-		local glassStroke = Instance.new("UIStroke", f)
-		glassStroke.Color = Color3.fromRGB(160, 160, 175); glassStroke.Thickness = 0.8; glassStroke.Transparency = 0.4
-
-		local bgGrad = Instance.new("UIGradient", f)
-		bgGrad.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(22, 22, 30)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(16, 16, 22)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 16))
-		})
-		bgGrad.Rotation = 135
-
-		local topShine = Instance.new("Frame", f)
-		topShine.Size = UDim2.new(1, 0, 0, 1); topShine.Position = UDim2.new(0, 0, 0, 0)
-		topShine.BackgroundColor3 = Color3.fromRGB(160, 160, 175); topShine.BackgroundTransparency = 0.6
-		topShine.BorderSizePixel = 0; topShine.ZIndex = 2
-
-		TweenService:Create(f, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = UDim2.new(0, PW, 0, PH)}):Play()
-
-		-- Title with silver shimmer
-		local titleFrame = Instance.new("Frame", f)
-		titleFrame.Size = UDim2.new(1, -20, 0, 22); titleFrame.Position = UDim2.new(0, 10, 0, 6)
-		titleFrame.BackgroundTransparency = 1; titleFrame.ZIndex = 10
-
-		local titleShadow = Instance.new("TextLabel", titleFrame)
-		titleShadow.Size = UDim2.new(1, 0, 1, 0); titleShadow.Position = UDim2.new(0, 1, 0, 1)
-		titleShadow.BackgroundTransparency = 1; titleShadow.Text = "NEXUS LAGGER"
-		titleShadow.TextColor3 = Color3.fromRGB(0, 0, 0); titleShadow.Font = Enum.Font.GothamBlack
-		titleShadow.TextSize = 15; titleShadow.TextTransparency = 0.55
-		titleShadow.TextXAlignment = Enum.TextXAlignment.Left; titleShadow.ZIndex = 10
-
-		local titleMain = Instance.new("TextLabel", titleFrame)
-		titleMain.Size = UDim2.new(1, 0, 1, 0); titleMain.BackgroundTransparency = 1
-		titleMain.Text = "NEXUS LAGGER"; titleMain.TextColor3 = Color3.fromRGB(255, 255, 255)
-		titleMain.Font = Enum.Font.GothamBlack; titleMain.TextSize = 15
-		titleMain.TextXAlignment = Enum.TextXAlignment.Left; titleMain.ZIndex = 11
-
-		local titleGrad = Instance.new("UIGradient", titleMain)
-		titleGrad.Color = ColorSequence.new({
-			ColorSequenceKeypoint.new(0, Color3.fromRGB(140,140,160)),
-			ColorSequenceKeypoint.new(0.15, Color3.fromRGB(200,200,220)),
-			ColorSequenceKeypoint.new(0.3, Color3.fromRGB(150,150,165)),
-			ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220,220,240)),
-			ColorSequenceKeypoint.new(0.7, Color3.fromRGB(140,140,155)),
-			ColorSequenceKeypoint.new(0.85, Color3.fromRGB(210,210,230)),
-			ColorSequenceKeypoint.new(1, Color3.fromRGB(140,140,160))
-		})
-		titleGrad.Rotation = 0
-		task.spawn(function()
-			while sg.Parent do
-				for i = -0.5, 1.5, 0.004 do
-					if not sg.Parent then break end
-					titleGrad.Offset = Vector2.new(i, 0); task.wait(0.016)
-				end
-			end
-		end)
-
-		-- Separator
-		local sep = Instance.new("Frame", f)
-		sep.Size = UDim2.new(1, -24, 0, 1); sep.Position = UDim2.new(0, 12, 0, 32)
-		sep.BackgroundColor3 = Color3.fromRGB(50, 50, 65); sep.BackgroundTransparency = 0.3
-		sep.BorderSizePixel = 0; sep.ZIndex = 5
-
-		-- Enable row
-		local enableRow = Instance.new("Frame", f)
-		enableRow.Size = UDim2.new(1, -24, 0, 36); enableRow.Position = UDim2.new(0, 12, 0, 40)
-		enableRow.BackgroundColor3 = Color3.fromRGB(14, 14, 19); enableRow.BorderSizePixel = 0; enableRow.ZIndex = 5
-		Instance.new("UICorner", enableRow).CornerRadius = UDim.new(0, 8)
-		local enableStroke = Instance.new("UIStroke", enableRow)
-		enableStroke.Color = Color3.fromRGB(50, 50, 65); enableStroke.Thickness = 0.5; enableStroke.Transparency = 0.5
-
-		local enableLabel = Instance.new("TextLabel", enableRow)
-		enableLabel.Size = UDim2.new(1, -56, 1, 0); enableLabel.Position = UDim2.new(0, 12, 0, 0)
-		enableLabel.BackgroundTransparency = 1; enableLabel.Text = "Enable Lagger"
-		enableLabel.TextColor3 = Color3.fromRGB(220, 220, 230); enableLabel.Font = Enum.Font.Gotham
-		enableLabel.TextSize = 12; enableLabel.TextXAlignment = Enum.TextXAlignment.Left; enableLabel.ZIndex = 6
-
-		local toggleBg = Instance.new("Frame", enableRow)
-		toggleBg.Size = UDim2.new(0, 36, 0, 18); toggleBg.Position = UDim2.new(1, -46, 0.5, -9)
-		toggleBg.BackgroundColor3 = Color3.fromRGB(35, 35, 45); toggleBg.ZIndex = 6
-		Instance.new("UICorner", toggleBg).CornerRadius = UDim.new(1, 0)
-
-		local toggleDot = Instance.new("Frame", toggleBg)
-		toggleDot.Size = UDim2.new(0, 12, 0, 12); toggleDot.Position = UDim2.new(0, 4, 0.5, -6)
-		toggleDot.BackgroundColor3 = Color3.fromRGB(80, 80, 100); toggleDot.ZIndex = 7
-		Instance.new("UICorner", toggleDot).CornerRadius = UDim.new(1, 0)
-
-		local toggleGlow = Instance.new("Frame", toggleBg)
-		toggleGlow.Size = UDim2.new(1, 0, 1, 0); toggleGlow.BackgroundTransparency = 1; toggleGlow.ZIndex = 8
-
-		local function setLaggerState(on)
-			laggerActive = on
-			local tw = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-			if on then
-				TweenService:Create(toggleBg, tw, {BackgroundColor3 = Color3.fromRGB(100, 140, 255)}):Play()
-				TweenService:Create(toggleDot, tw, {Position = UDim2.new(1, -16, 0.5, -6), BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-				laggerThread = task.spawn(startLaggerLoop)
-			else
-				TweenService:Create(toggleBg, tw, {BackgroundColor3 = Color3.fromRGB(35, 35, 45)}):Play()
-				TweenService:Create(toggleDot, tw, {Position = UDim2.new(0, 4, 0.5, -6), BackgroundColor3 = Color3.fromRGB(80, 80, 100)}):Play()
-				pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(0) end)
-				payloadCache = nil
-				if laggerThread then pcall(function() task.cancel(laggerThread) end) end
-				laggerThread = nil
-			end
-		end
-
-		local toggleHit = Instance.new("TextButton", enableRow)
-		toggleHit.Size = UDim2.new(1, 0, 1, 0); toggleHit.BackgroundTransparency = 1
-		toggleHit.Text = ""; toggleHit.ZIndex = 10; toggleHit.AutoButtonColor = false
-		toggleHit.MouseButton1Click:Connect(function() setLaggerState(not laggerActive) end)
-
-		-- Level row
-		local levelRow = Instance.new("Frame", f)
-		levelRow.Size = UDim2.new(1, -24, 0, 30); levelRow.Position = UDim2.new(0, 12, 0, 82)
-		levelRow.BackgroundColor3 = Color3.fromRGB(14, 14, 19); levelRow.BorderSizePixel = 0; levelRow.ZIndex = 5
-		Instance.new("UICorner", levelRow).CornerRadius = UDim.new(0, 8)
-		local levelStroke = Instance.new("UIStroke", levelRow)
-		levelStroke.Color = Color3.fromRGB(50, 50, 65); levelStroke.Thickness = 0.5; levelStroke.Transparency = 0.5
-
-		local btnNames = {"LOW", "MID", "HIGH"}
-		local btnKeys = {"low", "mid", "high"}
-		local btnW, btnGap = 54, 4
-		local levelBtns = {}
-
-		for idx, name in ipairs(btnNames) do
-			local key = btnKeys[idx]
-			local btn = Instance.new("TextButton", levelRow)
-			btn.Size = UDim2.new(0, btnW, 0, 20); btn.Position = UDim2.new(0, 6 + (btnW + btnGap) * (idx - 1), 0, 5)
-			btn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-			btn.Text = name; btn.TextColor3 = Color3.fromRGB(170, 170, 185)
-			btn.Font = Enum.Font.GothamBold; btn.TextSize = 8
-			btn.AutoButtonColor = false; btn.BorderSizePixel = 0; btn.ZIndex = 6
-			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
-			local btnStroke = Instance.new("UIStroke", btn)
-			btnStroke.Color = Color3.fromRGB(45, 45, 60); btnStroke.Thickness = 0.5; btnStroke.Transparency = 0.5
-			levelBtns[key] = btn
-			btn.MouseButton1Click:Connect(function()
-				nivelActual = key
-				for k, b in pairs(levelBtns) do
-					if k == nivelActual then
-						TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = LAGGER_LEVELS_TABLE[k].color, TextColor3 = Color3.fromRGB(0,0,0)}):Play()
-						btnStroke.Color = LAGGER_LEVELS_TABLE[k].color; btnStroke.Transparency = 0.3
-					else
-						TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,32), TextColor3 = Color3.fromRGB(170,170,185)}):Play()
-						btnStroke.Color = Color3.fromRGB(45, 45, 60); btnStroke.Transparency = 0.5
-					end
-				end
-				saveLaggerConfig()
-				if laggerActive then payloadCache = nil; setLaggerState(false); task.delay(0.1, function() setLaggerState(true) end) end
-			end)
-		end
-
-		local function updateLevelVisuals()
-			for k, b in pairs(levelBtns) do
-				local bs = b:FindFirstChildOfClass("UIStroke")
-				if k == nivelActual then
-					TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = LAGGER_LEVELS_TABLE[k].color, TextColor3 = Color3.fromRGB(0,0,0)}):Play()
-					if bs then bs.Color = LAGGER_LEVELS_TABLE[k].color; bs.Transparency = 0.3 end
-				else
-					TweenService:Create(b, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,32), TextColor3 = Color3.fromRGB(170,170,185)}):Play()
-					if bs then bs.Color = Color3.fromRGB(45, 45, 60); bs.Transparency = 0.5 end
-				end
-			end
-		end
-		updateLevelVisuals()
-
-		-- Separator 2
-		local sep2 = Instance.new("Frame", f)
-		sep2.Size = UDim2.new(1, -24, 0, 1); sep2.Position = UDim2.new(0, 12, 0, 117)
-		sep2.BackgroundColor3 = Color3.fromRGB(50, 50, 65); sep2.BackgroundTransparency = 0.3
-		sep2.BorderSizePixel = 0; sep2.ZIndex = 5
-
-		-- Keybind row
-		local keyRow = Instance.new("Frame", f)
-		keyRow.Size = UDim2.new(1, -24, 0, 36); keyRow.Position = UDim2.new(0, 12, 0, 125)
-		keyRow.BackgroundColor3 = Color3.fromRGB(14, 14, 19); keyRow.BorderSizePixel = 0; keyRow.ZIndex = 5
-		Instance.new("UICorner", keyRow).CornerRadius = UDim.new(0, 8)
-		local keyStroke = Instance.new("UIStroke", keyRow)
-		keyStroke.Color = Color3.fromRGB(50, 50, 65); keyStroke.Thickness = 0.5; keyStroke.Transparency = 0.5
-
-		local keyLabel = Instance.new("TextLabel", keyRow)
-		keyLabel.Size = UDim2.new(1, -56, 1, 0); keyLabel.Position = UDim2.new(0, 12, 0, 0)
-		keyLabel.BackgroundTransparency = 1; keyLabel.Text = "Toggle Key"
-		keyLabel.TextColor3 = Color3.fromRGB(220, 220, 230); keyLabel.Font = Enum.Font.Gotham
-		keyLabel.TextSize = 12; keyLabel.TextXAlignment = Enum.TextXAlignment.Left; keyLabel.ZIndex = 6
-
-		local keyBadge = Instance.new("Frame", keyRow)
-		keyBadge.Size = UDim2.new(0, 36, 0, 20); keyBadge.Position = UDim2.new(1, -48, 0.5, -10)
-		keyBadge.BackgroundColor3 = Color3.fromRGB(24, 24, 32); keyBadge.ZIndex = 6
-		Instance.new("UICorner", keyBadge).CornerRadius = UDim.new(0, 6)
-		local keyBadgeStroke = Instance.new("UIStroke", keyBadge)
-		keyBadgeStroke.Color = Color3.fromRGB(60, 60, 75); keyBadgeStroke.Thickness = 0.5; keyBadgeStroke.Transparency = 0.4
-
-		local keyVal = Instance.new("TextLabel", keyBadge)
-		keyVal.Size = UDim2.new(1, 0, 1, 0); keyVal.BackgroundTransparency = 1
-		keyVal.Text = getKeyDisplayName(laggerKeybind)
-		keyVal.TextColor3 = Color3.fromRGB(180, 180, 200); keyVal.Font = Enum.Font.GothamBold
-		keyVal.TextSize = 10; keyVal.ZIndex = 7
-
-		local listeningFor, listenStart = false, 0
-		local keyHit = Instance.new("TextButton", keyRow)
-		keyHit.Size = UDim2.new(1, 0, 1, 0); keyHit.BackgroundTransparency = 1
-		keyHit.Text = ""; keyHit.ZIndex = 10; keyHit.AutoButtonColor = false
-		keyHit.MouseButton1Click:Connect(function()
-			if listeningFor then
-				listeningFor = false
-				keyVal.Text = getKeyDisplayName(laggerKeybind)
-				keyVal.TextColor3 = Color3.fromRGB(180, 180, 200)
-				return
-			end
-			listeningFor = true; listenStart = tick()
-			keyVal.Text = "..."
-			keyVal.TextColor3 = Color3.fromRGB(100, 160, 255)
-		end)
-
-		local GAMEPAD_KEYS={[Enum.KeyCode.ButtonX]=true,[Enum.KeyCode.ButtonY]=true,[Enum.KeyCode.ButtonA]=true,[Enum.KeyCode.ButtonB]=true,[Enum.KeyCode.ButtonL1]=true,[Enum.KeyCode.ButtonR1]=true,[Enum.KeyCode.ButtonL2]=true,[Enum.KeyCode.ButtonR2]=true,[Enum.KeyCode.ButtonL3]=true,[Enum.KeyCode.ButtonR3]=true,[Enum.KeyCode.DPadUp]=true,[Enum.KeyCode.DPadDown]=true,[Enum.KeyCode.DPadLeft]=true,[Enum.KeyCode.DPadRight]=true,[Enum.KeyCode.Thumbstick1]=true,[Enum.KeyCode.Thumbstick2]=true}
-
-		UserInputService.InputBegan:Connect(function(input, gp)
-			if gp then return end
-			if listeningFor then
-				local isGp = input.UserInputType and input.UserInputType.Name:match("^Gamepad") ~= nil
-				if isGp and tick() - listenStart < 0.15 then return end
-				local ok = false
-				if input.UserInputType == Enum.UserInputType.Keyboard then ok = true
-				elseif isGp and GAMEPAD_KEYS[input.KeyCode] then ok = true end
-				if ok then
-					laggerKeybind = input.KeyCode
-					keyVal.Text = getKeyDisplayName(input.KeyCode)
-					keyVal.TextColor3 = Color3.fromRGB(180, 180, 200)
-					listeningFor = false
-					saveLaggerConfig()
-				elseif input.KeyCode == Enum.KeyCode.Unknown and not isGp then
-					listeningFor = false
-					keyVal.Text = getKeyDisplayName(laggerKeybind)
-					keyVal.TextColor3 = Color3.fromRGB(180, 180, 200)
-				end
-			elseif input.KeyCode == laggerKeybind then
-				setLaggerState(not laggerActive)
-			end
-		end)
-
-		-- Dragging
-		local isDragging, dragStart, startPos = false, nil, nil
-		f.InputBegan:Connect(function(input)
-			if ventanaBloqueada then return end
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				isDragging = true; dragStart = input.Position; startPos = f.Position
-			end
-		end)
-		UserInputService.InputChanged:Connect(function(input)
-			if not isDragging or ventanaBloqueada then return end
-			if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-				local delta = input.Position - dragStart
-				f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-			end
-		end)
-		f.InputEnded:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then isDragging = false end
-		end)
-
-		_G.NexusLaggerStartLagger = function(state) setLaggerState(state) end
-		_G.NexusLaggerGui = sg
-	end
-end
 local Gui = Instance.new("ScreenGui")
 Gui.Name = "NexusDuelsToo"
 Gui.ResetOnSpawn = false
@@ -3931,7 +3593,7 @@ Main.Active = true
 Main.ClipsDescendants = false
 Main.Parent = Gui
 corner(Main, 14)
-stroke(Main, COLORS.stroke, 1.1, 0.35)
+stroke(Main, Color3.fromRGB(25,25,25), 1, 0.2)
 makeDraggable(Main)
 Main:GetPropertyChangedSignal("Position"):Connect(function()
 savedMainPositionTable = udim2ToTable(Main.Position)
@@ -3942,7 +3604,7 @@ MiniFrame.Size = UDim2.new(0, 96, 0, 36)
 local MINI_DEFAULT_POSITION = UDim2.new(0, 160, 0, 140)
 MiniFrame.Position = MINI_DEFAULT_POSITION
 savedMiniPositionTable = nil
-MiniFrame.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
+MiniFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 MiniFrame.BackgroundTransparency = 0
 MiniFrame.BorderSizePixel = 0
 MiniFrame.Visible = false
@@ -3951,18 +3613,18 @@ MiniFrame.ZIndex = 20
 MiniFrame.Parent = Gui
 Instance.new("UICorner", MiniFrame).CornerRadius = UDim.new(0, 10)
 local miniStroke = Instance.new("UIStroke", MiniFrame)
-miniStroke.Color = Color3.fromRGB(160, 160, 175)
-miniStroke.Thickness = 1.5
-miniStroke.Transparency = 0.22
+miniStroke.Color = Color3.fromRGB(25, 25, 25)
+miniStroke.Thickness = 1
+miniStroke.Transparency = 0.2
 local MiniGradient = Instance.new("UIGradient", MiniFrame)
-MiniGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(40, 40, 50)), ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 18, 24))})
+MiniGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(10, 10, 10)), ColorSequenceKeypoint.new(1, Color3.fromRGB(10, 10, 10))})
 MiniGradient.Rotation = 90
 local MiniButton = Instance.new("TextButton")
 MiniButton.Name = "MiniButton"
 MiniButton.Size = UDim2.new(1, 0, 1, 0)
 MiniButton.BackgroundTransparency = 1
 MiniButton.Text = "NEXUS"
-MiniButton.TextColor3 = Color3.fromRGB(200, 200, 215)
+MiniButton.TextColor3 = Color3.fromRGB(200, 200, 200)
 MiniButton.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 MiniButton.TextStrokeTransparency = 0.2
 MiniButton.TextSize = 14
@@ -3971,7 +3633,7 @@ MiniButton.AutoButtonColor = false
 MiniButton.ZIndex = 21
 MiniButton.Parent = MiniFrame
 local miniTextGradient = Instance.new("UIGradient", MiniButton)
-miniTextGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 120, 135)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 220, 235)), ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 135))})
+miniTextGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, Color3.fromRGB(120, 120, 120)), ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 220, 220)), ColorSequenceKeypoint.new(1, Color3.fromRGB(120, 120, 120))})
 miniTextGradient.Rotation = 0
 local MiniShade = Instance.new("Frame")
 MiniShade.Name = "MiniShade"
@@ -3986,10 +3648,10 @@ corner(MiniShade, 8)
 task.spawn(function()
     while MiniFrame and MiniFrame.Parent do
         if MiniFrame.Visible then
-            TS:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5, Thickness = 2.5}):Play()
+        TS:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5, Thickness = 2.0}):Play()
             task.wait(1.2)
             if MiniFrame and MiniFrame.Parent then
-                TS:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.22, Thickness = 1.5}):Play()
+            TS:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.2, Thickness = 1}):Play()
                 task.wait(1.2)
             else
                 break
@@ -4097,8 +3759,7 @@ Title.Size = UDim2.new(1, -118, 0, 30)
 Title.Position = UDim2.new(0, 86, 0, 24)
 Title.Text = "NEXUS DUELS"
 Title.TextColor3 = COLORS.white
-Title.TextStrokeTransparency = 0.65
-Title.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+Title.TextStrokeTransparency = 1
 Title.Font = Enum.Font.GothamBold
 Title.TextSize = 27
 Title.TextXAlignment = Enum.TextXAlignment.Left
@@ -4110,60 +3771,68 @@ Discord.BackgroundTransparency = 1
 Discord.Size = UDim2.new(1, -118, 0, 18)
 Discord.Position = UDim2.new(0, 87, 0, 55)
 Discord.Text = "discord.gg/qfeEYFRjJU"
-Discord.TextColor3 = Color3.fromRGB(160, 160, 175)
+Discord.TextColor3 = Color3.fromRGB(120, 120, 120)
 Discord.Font = Enum.Font.GothamBold
 Discord.TextSize = 14
 Discord.TextXAlignment = Enum.TextXAlignment.Left
-Discord.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-Discord.TextStrokeTransparency = 0.25
+Discord.TextStrokeTransparency = 1
 Discord.ZIndex = 6
 Discord.Parent = Main
 local HeaderDivider = Instance.new("Frame")
 HeaderDivider.Name = "HeaderDivider"
-HeaderDivider.BackgroundColor3 = Color3.fromRGB(160, 160, 175)
-HeaderDivider.BackgroundTransparency = 0.65
+HeaderDivider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+HeaderDivider.BackgroundTransparency = 0
 HeaderDivider.BorderSizePixel = 0
 HeaderDivider.Size = UDim2.new(1, -34, 0, 1)
 HeaderDivider.Position = UDim2.new(0, 17, 0, 96)
 HeaderDivider.ZIndex = 6
 HeaderDivider.Parent = Main
+local headerDivGrad = Instance.new("UIGradient", HeaderDivider)
+headerDivGrad.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 1),
+    NumberSequenceKeypoint.new(0.18, 0.25),
+    NumberSequenceKeypoint.new(0.5, 0.25),
+    NumberSequenceKeypoint.new(0.82, 0.25),
+    NumberSequenceKeypoint.new(1, 1),
+})
+headerDivGrad.Rotation = 0
 local Close = Instance.new("TextButton")
 Close.Name = "Close"
-Close.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-Close.BackgroundTransparency = 0.28
-Close.Text = "-"
+Close.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Close.BackgroundTransparency = 0
+Close.Text = "X"
 Close.TextColor3 = COLORS.white
-Close.TextSize = 22
+Close.TextSize = 11
 Close.Font = Enum.Font.GothamBold
-Close.Size = UDim2.new(0, 32, 0, 28)
-Close.Position = UDim2.new(1, -42, 0, 14)
+Close.Size = UDim2.new(0, 24, 0, 24)
+Close.Position = UDim2.new(1, -38, 0, 14)
 Close.AutoButtonColor = false
 Close.ZIndex = 5
 Close.Parent = Main
-corner(Close, 8)
-stroke(Close, COLORS.stroke, 1, 0.35)
+corner(Close, 12)
+stroke(Close, Color3.fromRGB(50, 50, 50), 1, 0.2)
 AceLockTopButton = Instance.new("TextButton")
 AceLockTopButton.Name = "LockGUI"
-AceLockTopButton.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-AceLockTopButton.BackgroundTransparency = 0.28
+AceLockTopButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+AceLockTopButton.BackgroundTransparency = 0
 AceLockTopButton.TextColor3 = COLORS.white
 AceLockTopButton.TextSize = 8
 AceLockTopButton.Font = Enum.Font.GothamBold
-AceLockTopButton.Size = UDim2.new(0, 32, 0, 28)
-AceLockTopButton.Position = UDim2.new(1, -78, 0, 14)
+AceLockTopButton.Size = UDim2.new(0, 24, 0, 24)
+AceLockTopButton.Position = UDim2.new(1, -66, 0, 14)
 AceLockTopButton.AutoButtonColor = false
 AceLockTopButton.ZIndex = 5
 AceLockTopButton.Parent = Main
-corner(AceLockTopButton, 8)
-stroke(AceLockTopButton, COLORS.stroke, 1, 0.35)
+corner(AceLockTopButton, 12)
+stroke(AceLockTopButton, Color3.fromRGB(50, 50, 50), 1, 0.2)
 function AceUpdateGuiLockVisual()
 if AceLockTopButton then
-AceLockTopButton.Text = (_G.AceGuiLocked == true) and "UNLOCK" or "LOCK"
-AceLockTopButton.BackgroundTransparency = (_G.AceGuiLocked == true) and 0.08 or 0.28
+AceLockTopButton.Text = (_G.AceGuiLocked == true) and "U" or "L"
+AceLockTopButton.BackgroundTransparency = (_G.AceGuiLocked == true) and 0 or 0
 local st = AceLockTopButton:FindFirstChildOfClass("UIStroke")
 if st then
-st.Transparency = (_G.AceGuiLocked == true) and 0.08 or 0.35
-st.Color = (_G.AceGuiLocked == true) and Color3.fromRGB(160,160,175) or COLORS.stroke
+st.Transparency = (_G.AceGuiLocked == true) and 0.08 or 0.2
+st.Color = (_G.AceGuiLocked == true) and Color3.fromRGB(255,255,255) or Color3.fromRGB(50,50,50)
 end
 end
 if setLockGuiVisual then pcall(setLockGuiVisual, _G.AceGuiLocked == true) end
@@ -4177,22 +3846,23 @@ AceUpdateGuiLockVisual()
 local Content = Instance.new("Frame")
 Content.Name = "Content"
 Content.BackgroundTransparency = 1
-Content.Position = UDim2.new(0, 13, 0, 145)
-Content.Size = UDim2.new(1, -26, 1, -157)
+Content.Position = UDim2.new(0, 13, 0, 110)
+Content.Size = UDim2.new(1, -26, 1, -162)
 Content.ZIndex = 3
 Content.Parent = Main
 local Tabs = Instance.new("Frame")
 Tabs.Name = "Tabs"
 Tabs.BackgroundTransparency = 1
-Tabs.Position = UDim2.new(0, 12, 0, 103)
-Tabs.Size = UDim2.new(1, -24, 0, 34)
+Tabs.Position = UDim2.new(0, 12, 1, -46)
+Tabs.Size = UDim2.new(1, -24, 0, 36)
 Tabs.ZIndex = 3
 Tabs.Parent = Main
 local TabLayout = Instance.new("UIListLayout")
 TabLayout.FillDirection = Enum.FillDirection.Horizontal
-TabLayout.Padding = UDim.new(0, 5)
+TabLayout.Padding = UDim.new(0, 4)
 TabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 TabLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+TabLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 TabLayout.Parent = Tabs
 local pages = {}
 local tabButtons = {}
@@ -4225,34 +3895,84 @@ page.Visible = pageName == name
 end
 for tabName, btn in pairs(tabButtons) do
 local on = tabName == name
-btn.TextColor3 = on and COLORS.white or Color3.fromRGB(170, 170, 180)
-btn.BackgroundTransparency = on and 0.28 or 0.72
-local st = btn:FindFirstChildOfClass("UIStroke")
-if st then
-st.Transparency = on and 0.05 or 0.52
-st.Color = on and Color3.fromRGB(245, 245, 255) or COLORS.stroke
+local parent = btn.Parent
+local border = parent and parent:IsA("Frame") and parent or nil
+btn.TextColor3 = on and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
+btn.Font = on and Enum.Font.GothamBold or Enum.Font.GothamMedium
+btn.BackgroundTransparency = on and 0.05 or 0.15
+if border then
+local bs = border:FindFirstChildOfClass("UIStroke")
+if bs then
+bs.Transparency = on and 0.2 or 0.82
+bs.Thickness = on and 1.2 or 1
+end
+local bg = border:FindFirstChildOfClass("UIGradient")
+if bg then
+bg.Transparency = on and NumberSequence.new({
+NumberSequenceKeypoint.new(0, 0.55),
+NumberSequenceKeypoint.new(1, 0.72),
+}) or NumberSequence.new({
+NumberSequenceKeypoint.new(0, 0.85),
+NumberSequenceKeypoint.new(1, 0.92),
+})
 end
 end
 end
-for _, name in ipairs(tabNames) do
+end
+for i, name in ipairs(tabNames) do
 addPage(name)
+local border = Instance.new("Frame")
+border.Name = name .. "_Border"
+border.Size = UDim2.new(0.23, 0, 1, 0)
+border.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+border.BackgroundTransparency = 0.82
+border.BorderSizePixel = 0
+border.LayoutOrder = i
+border.ZIndex = 3
+border.Parent = Tabs
+corner(border, 10)
+local bs = Instance.new("UIStroke")
+bs.Color = Color3.fromRGB(255, 255, 255)
+bs.Thickness = 1
+bs.Transparency = 0.82
+bs.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+bs.Parent = border
+local grad = Instance.new("UIGradient", border)
+grad.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(180, 180, 180)),
+})
+grad.Transparency = NumberSequence.new({
+NumberSequenceKeypoint.new(0, 0.85),
+NumberSequenceKeypoint.new(1, 0.92),
+})
+grad.Rotation = 90
 local btn = Instance.new("TextButton")
 btn.Name = name
-btn.Size = UDim2.new(0.25, -4, 0, 34)
-btn.BackgroundColor3 = Color3.fromRGB(5, 5, 8)
-btn.BackgroundTransparency = 0.72
+btn.Size = UDim2.new(1, -2, 1, -2)
+btn.Position = UDim2.new(0, 1, 0, 1)
+btn.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+btn.BackgroundTransparency = 0.15
 btn.BorderSizePixel = 0
 btn.Text = name
-btn.TextColor3 = Color3.fromRGB(170, 170, 180)
-btn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-btn.TextStrokeTransparency = 0.35
-btn.TextSize = 8
-btn.Font = Enum.Font.GothamBlack
+btn.TextColor3 = Color3.new(1, 1, 1)
+btn.TextTransparency = 0
+btn.TextSize = 12
+btn.Font = Enum.Font.GothamBold
 btn.AutoButtonColor = false
 btn.ZIndex = 4
-btn.Parent = Tabs
-corner(btn, 7)
-stroke(btn, COLORS.stroke, 1, 0.52)
+btn.Parent = border
+corner(btn, 9)
+local btnGrad = Instance.new("UIGradient", btn)
+btnGrad.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 160, 160)),
+})
+btnGrad.Transparency = NumberSequence.new({
+NumberSequenceKeypoint.new(0, 0),
+NumberSequenceKeypoint.new(1, 0),
+})
+btnGrad.Rotation = 90
 tabButtons[name] = btn
 btn.MouseButton1Click:Connect(function()
 setTab(name)
@@ -4262,14 +3982,12 @@ function section(parent, text, order)
 local label = Instance.new("TextLabel")
 label.Name = text
 label.BackgroundTransparency = 1
-label.Text = text
-label.TextColor3 = Color3.fromRGB(245, 245, 255)
-label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-label.TextStrokeTransparency = 0.22
-label.TextSize = 11
-label.Font = Enum.Font.GothamBlack
+label.Text = string.upper(text)
+label.TextColor3 = Color3.fromRGB(200, 200, 200)
+label.TextSize = 10
+label.Font = Enum.Font.GothamBold
 label.TextXAlignment = Enum.TextXAlignment.Left
-label.Size = UDim2.new(1, -6, 0, 15)
+label.Size = UDim2.new(1, -6, 0, 20)
 label.LayoutOrder = order
 label.ZIndex = 8
 label.Parent = parent
@@ -4280,53 +3998,44 @@ local row = Instance.new("Frame")
 row.Name = labelText
 row.BackgroundColor3 = COLORS.row
 row.BackgroundTransparency = 0.3
-row.Size = UDim2.new(1, -4, 0, 34)
+row.Size = UDim2.new(1, -4, 0, 48)
 row.BorderSizePixel = 0
 row.LayoutOrder = order
 row.ZIndex = 4
 row.Parent = parent
-corner(row, 9)
-stroke(row, COLORS.strokeSoft, 1.15, 0.38)
+corner(row, 10)
+stroke(row, COLORS.strokeSoft, 1, 0.15)
 local label = Instance.new("TextLabel")
 label.Name = "Label"
 label.BackgroundTransparency = 1
 label.Text = labelText
-label.TextColor3 = Color3.fromRGB(245, 245, 255)
-label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-label.TextStrokeTransparency = 0.25
-label.TextSize = 12
-label.Font = Enum.Font.GothamSemibold
+label.TextColor3 = Color3.fromRGB(235, 235, 235)
+label.TextSize = 14
+label.Font = Enum.Font.GothamBold
 label.TextXAlignment = Enum.TextXAlignment.Left
-label.Position = UDim2.new(0, 12, 0, 0)
+label.Position = UDim2.new(0, 14, 0, 0)
 label.Size = UDim2.new(1, -132, 1, 0)
 label.ZIndex = 5
 label.Parent = row
-row.MouseEnter:Connect(function()
-tween(row, {BackgroundTransparency = 0.22})
-end)
-row.MouseLeave:Connect(function()
-tween(row, {BackgroundTransparency = 0.3})
-end)
 return row
 end
 function textboxRow(parent, labelText, value, order)
 local row = baseRow(parent, labelText, order)
 local box = Instance.new("TextBox")
 box.Name = "ValueBox"
-box.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-box.BackgroundTransparency = 0.18
+box.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+box.BackgroundTransparency = 0
 box.Text = tostring(value or "")
-box.TextColor3 = COLORS.white
-box.TextSize = 12
-box.Font = Enum.Font.GothamSemibold
-box.ClearTextOnFocus = false
-box.Size = UDim2.new(0, 58, 0, 24)
-box.Position = UDim2.new(1, -68, 0.5, -12)
+box.TextColor3 = Color3.fromRGB(235, 235, 235)
+box.TextSize = 13
+box.Font = Enum.Font.GothamBold
+box.ClearTextOnFocus = true
+box.Size = UDim2.new(0, 58, 0, 26)
+box.Position = UDim2.new(1, -68, 0.5, -13)
 box.BorderSizePixel = 0
 box.ZIndex = 6
 box.Parent = row
-corner(box, 7)
-stroke(box, COLORS.strokeSoft, 1, 0.45)
+corner(box, 6)
 return row, box
 end
 function toggleRow(parent, labelText, default, order)
@@ -4342,59 +4051,28 @@ button.ZIndex = 7
 button.Parent = row
 local track = Instance.new("Frame")
 track.Name = "Track"
-track.BackgroundColor3 = COLORS.toggleBg
-track.BackgroundTransparency = 0.2
-track.Size = UDim2.new(0, 34, 0, 18)
-track.Position = UDim2.new(1, -44, 0.5, -9)
+track.BackgroundColor3 = default and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(55, 55, 55)
+track.Size = UDim2.new(0, 38, 0, 20)
+track.Position = UDim2.new(1, -50, 0.5, -10)
 track.BorderSizePixel = 0
 track.ZIndex = 5
 track.Parent = button
-corner(track, 9)
-stroke(track, COLORS.strokeSoft, 1, 0.45)
+corner(track, 10)
 local knob = Instance.new("Frame")
 knob.Name = "Knob"
-knob.BackgroundColor3 = COLORS.knob
-knob.Size = UDim2.new(0, 13, 0, 13)
-knob.Position = default and UDim2.new(1, -16, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+knob.BackgroundColor3 = default and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(200, 200, 200)
+knob.Size = UDim2.new(0, 16, 0, 16)
+knob.Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
 knob.BorderSizePixel = 0
 knob.ZIndex = 6
 knob.Parent = track
-corner(knob, 999)
-local shine = Instance.new("Frame")
-shine.Name = "Shine"
-shine.BackgroundColor3 = COLORS.white
-shine.BackgroundTransparency = 0.72
-shine.Size = UDim2.new(1, -4, 0, 4)
-shine.Position = UDim2.new(0, 2, 0, 2)
-shine.BorderSizePixel = 0
-shine.ZIndex = 7
-shine.Parent = knob
-corner(shine, 4)
+corner(knob, 8)
 local state = default and true or false
-local trackStroke = track:FindFirstChildOfClass("UIStroke")
-local rowStroke = row:FindFirstChildOfClass("UIStroke")
 local function setVisual(on)
 state = on and true or false
-tween(knob, {Position = state and UDim2.new(1, -16, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)})
-tween(track, {
-BackgroundTransparency = state and 0.03 or 0.2,
-BackgroundColor3 = state and Color3.fromRGB(36, 36, 46) or COLORS.toggleBg
-})
-if trackStroke then
-tween(trackStroke, {
-Color = state and Color3.fromRGB(255, 255, 255) or COLORS.strokeSoft,
-Transparency = state and 0.05 or 0.45,
-Thickness = state and 1.25 or 1
-})
-end
-if rowStroke then
-tween(rowStroke, {
-Color = state and Color3.fromRGB(245, 245, 255) or COLORS.strokeSoft,
-Transparency = state and 0.12 or 0.38,
-Thickness = state and 1.25 or 1.15
-})
-end
-tween(row, {BackgroundTransparency = state and 0.16 or 0.3})
+tween(knob, {Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+BackgroundColor3 = state and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(200, 200, 200)})
+tween(track, {BackgroundColor3 = state and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(55, 55, 55)})
 end
 setVisual(state)
 button.Activated:Connect(function()
@@ -4422,58 +4100,28 @@ button.ZIndex = 7
 button.Parent = row
 local track = Instance.new("Frame")
 track.Name = "Track"
-track.BackgroundColor3 = COLORS.toggleBg
-track.BackgroundTransparency = 0.2
-track.Size = UDim2.new(0, 34, 0, 18)
-track.Position = UDim2.new(1, -44, 0.5, -9)
+track.BackgroundColor3 = default and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(55, 55, 55)
+track.Size = UDim2.new(0, 38, 0, 20)
+track.Position = UDim2.new(1, -50, 0.5, -10)
 track.BorderSizePixel = 0
 track.ZIndex = 5
 track.Parent = button
-corner(track, 9)
-stroke(track, COLORS.strokeSoft, 1, 0.45)
+corner(track, 10)
 local knob = Instance.new("Frame")
 knob.Name = "Knob"
-knob.BackgroundColor3 = COLORS.knob
-knob.Size = UDim2.new(0, 13, 0, 13)
-knob.Position = default and UDim2.new(1, -16, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)
+knob.BackgroundColor3 = default and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(200, 200, 200)
+knob.Size = UDim2.new(0, 16, 0, 16)
+knob.Position = default and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8)
 knob.BorderSizePixel = 0
 knob.ZIndex = 6
 knob.Parent = track
-corner(knob, 999)
-local shine = Instance.new("Frame")
-shine.Name = "Shine"
-shine.BackgroundColor3 = COLORS.white
-shine.BackgroundTransparency = 0.72
-shine.Size = UDim2.new(1, -4, 0, 4)
-shine.Position = UDim2.new(0, 2, 0, 2)
-shine.BorderSizePixel = 0
-shine.ZIndex = 7
-shine.Parent = knob
-corner(shine, 4)
-local trackStroke = track:FindFirstChildOfClass("UIStroke")
-local rowStroke = row:FindFirstChildOfClass("UIStroke")
+corner(knob, 8)
+local state = default and true or false
 local function setVisual(on)
 local state = on and true or false
-tween(knob, {Position = state and UDim2.new(1, -16, 0.5, -6) or UDim2.new(0, 3, 0.5, -6)})
-tween(track, {
-BackgroundTransparency = state and 0.03 or 0.2,
-BackgroundColor3 = state and Color3.fromRGB(40, 40, 50) or COLORS.toggleBg
-})
-if trackStroke then
-tween(trackStroke, {
-Color = state and Color3.fromRGB(160, 160, 175) or COLORS.strokeSoft,
-Transparency = state and 0.05 or 0.45,
-Thickness = state and 1.25 or 1
-})
-end
-if rowStroke then
-tween(rowStroke, {
-Color = state and Color3.fromRGB(160, 160, 175) or COLORS.strokeSoft,
-Transparency = state and 0.12 or 0.38,
-Thickness = state and 1.25 or 1.15
-})
-end
-tween(row, {BackgroundTransparency = state and 0.16 or 0.3})
+tween(knob, {Position = state and UDim2.new(1, -18, 0.5, -8) or UDim2.new(0, 2, 0.5, -8),
+BackgroundColor3 = state and Color3.fromRGB(20, 20, 20) or Color3.fromRGB(200, 200, 200)})
+tween(track, {BackgroundColor3 = state and Color3.fromRGB(240, 240, 240) or Color3.fromRGB(55, 55, 55)})
 end
 setVisual(default)
 return row, setVisual, button
@@ -4482,19 +4130,18 @@ function dropdownRow(parent, labelText, value, order)
 local row = baseRow(parent, labelText, order)
 local select = Instance.new("TextButton")
 select.Name = "Dropdown"
-select.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-select.BackgroundTransparency = 0.18
+select.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+select.BackgroundTransparency = 0
 select.Text = tostring(value or "None") .. "  ▼"
-select.TextColor3 = COLORS.white
+select.TextColor3 = Color3.fromRGB(235, 235, 235)
 select.TextSize = 11
 select.Font = Enum.Font.GothamBold
-select.Size = UDim2.new(0, 70, 0, 24)
-select.Position = UDim2.new(1, -80, 0.5, -12)
+select.Size = UDim2.new(0, 70, 0, 26)
+select.Position = UDim2.new(1, -80, 0.5, -13)
 select.BorderSizePixel = 0
 select.ZIndex = 6
 select.Parent = row
-corner(select, 7)
-stroke(select, COLORS.strokeSoft, 1, 0.45)
+corner(select, 6)
 return row, select
 end
 local animationPackValueLabel = nil
@@ -4505,37 +4152,35 @@ end
 end
 function animationPackRow(parent, order)
 local row = baseRow(parent, "Animation Pack", order)
-row.Size = UDim2.new(1, -4, 0, 42)
+row.Size = UDim2.new(1, -4, 0, 48)
 local label = row:FindFirstChild("Label")
 if label then
 label.Text = "Animation Pack"
 label.Size = UDim2.new(0, 112, 1, 0)
-label.TextSize = 11
+label.TextSize = 14
 end
 local left = Instance.new("TextButton")
 left.Name = "LeftArrow"
-left.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-left.BackgroundTransparency = 0.18
+left.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+left.BackgroundTransparency = 0
 left.Text = "<"
-left.TextColor3 = COLORS.white
+left.TextColor3 = Color3.fromRGB(235, 235, 235)
 left.TextSize = 12
-left.Font = Enum.Font.GothamSemibold
+left.Font = Enum.Font.GothamBold
 left.Size = UDim2.new(0, 42, 0, 28)
 left.Position = UDim2.new(1, -156, 0.5, -14)
 left.BorderSizePixel = 0
 left.ZIndex = 6
+left.AutoButtonColor = false
 left.Parent = row
-corner(left, 8)
-stroke(left, COLORS.strokeSoft, 1, 0.45)
+corner(left, 6)
 animationPackValueLabel = Instance.new("TextLabel")
 animationPackValueLabel.Name = "AnimationPackValue"
 animationPackValueLabel.BackgroundTransparency = 1
 animationPackValueLabel.Text = selectedAnimationPack
-animationPackValueLabel.TextColor3 = COLORS.white
-animationPackValueLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-animationPackValueLabel.TextStrokeTransparency = 0.25
+animationPackValueLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
 animationPackValueLabel.TextSize = 11
-animationPackValueLabel.Font = Enum.Font.GothamSemibold
+animationPackValueLabel.Font = Enum.Font.GothamBold
 animationPackValueLabel.TextXAlignment = Enum.TextXAlignment.Center
 animationPackValueLabel.Size = UDim2.new(0, 62, 1, 0)
 animationPackValueLabel.Position = UDim2.new(1, -112, 0, 0)
@@ -4543,19 +4188,19 @@ animationPackValueLabel.ZIndex = 6
 animationPackValueLabel.Parent = row
 local right = Instance.new("TextButton")
 right.Name = "RightArrow"
-right.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-right.BackgroundTransparency = 0.18
+right.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+right.BackgroundTransparency = 0
 right.Text = ">"
-right.TextColor3 = COLORS.white
+right.TextColor3 = Color3.fromRGB(235, 235, 235)
 right.TextSize = 12
-right.Font = Enum.Font.GothamSemibold
+right.Font = Enum.Font.GothamBold
 right.Size = UDim2.new(0, 42, 0, 28)
 right.Position = UDim2.new(1, -48, 0.5, -14)
 right.BorderSizePixel = 0
 right.ZIndex = 6
+right.AutoButtonColor = false
 right.Parent = row
-corner(right, 8)
-stroke(right, COLORS.strokeSoft, 1, 0.45)
+corner(right, 6)
 local function setPackIndex(nextIndex)
 if nextIndex < 1 then nextIndex = #AnimationPackList end
 if nextIndex > #AnimationPackList then nextIndex = 1 end
@@ -4604,36 +4249,34 @@ function tpDownKeybindRow(parent, order)
 local row = baseRow(parent, "TP Down", order)
 local btn = Instance.new("TextButton")
 btn.Name = "TPDownKeybindButton"
-btn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-btn.BackgroundTransparency = 0.18
+btn.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+btn.BackgroundTransparency = 0
 btn.Text = keyName(tpDownKeybind)
-btn.TextColor3 = COLORS.white
+btn.TextColor3 = Color3.fromRGB(235, 235, 235)
 btn.TextSize = 11
-btn.Font = Enum.Font.GothamSemibold
-btn.Size = UDim2.new(0, 56, 0, 24)
-btn.Position = UDim2.new(1, -64, 0.5, -12)
+btn.Font = Enum.Font.GothamBold
+btn.Size = UDim2.new(0, 56, 0, 26)
+btn.Position = UDim2.new(1, -64, 0.5, -13)
 btn.BorderSizePixel = 0
 btn.ZIndex = 6
 btn.AutoButtonColor = false
 btn.Parent = row
-corner(btn, 7)
-stroke(btn, COLORS.strokeSoft, 1, 0.45)
+corner(btn, 6)
 local clearBtn = Instance.new("TextButton")
 clearBtn.Name = "ClearKeybindButton"
-clearBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-clearBtn.BackgroundTransparency = 0.18
+clearBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+clearBtn.BackgroundTransparency = 0
 clearBtn.Text = "×"
-clearBtn.TextColor3 = COLORS.white
+clearBtn.TextColor3 = Color3.fromRGB(235, 235, 235)
 clearBtn.TextSize = 14
-clearBtn.Font = Enum.Font.GothamBlack
-clearBtn.Size = UDim2.new(0, 22, 0, 24)
-clearBtn.Position = UDim2.new(1, -90, 0.5, -12)
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.Size = UDim2.new(0, 22, 0, 26)
+clearBtn.Position = UDim2.new(1, -90, 0.5, -13)
 clearBtn.BorderSizePixel = 0
 clearBtn.ZIndex = 6
 clearBtn.AutoButtonColor = false
 clearBtn.Parent = row
-corner(clearBtn, 7)
-stroke(clearBtn, COLORS.strokeSoft, 1, 0.45)
+corner(clearBtn, 6)
 tpDownKeybindButton = btn
 btn.Activated:Connect(function()
 listeningForSpeedKey = nil
@@ -4657,36 +4300,34 @@ function speedKeybindRow(parent, labelText, keyId, order)
 local row = baseRow(parent, labelText, order)
 local btn = Instance.new("TextButton")
 btn.Name = "KeybindButton"
-btn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-btn.BackgroundTransparency = 0.18
+btn.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+btn.BackgroundTransparency = 0
 btn.Text = keyName(speedKeybinds[keyId])
-btn.TextColor3 = COLORS.white
+btn.TextColor3 = Color3.fromRGB(235, 235, 235)
 btn.TextSize = 11
-btn.Font = Enum.Font.GothamSemibold
-btn.Size = UDim2.new(0, 56, 0, 24)
-btn.Position = UDim2.new(1, -64, 0.5, -12)
+btn.Font = Enum.Font.GothamBold
+btn.Size = UDim2.new(0, 56, 0, 26)
+btn.Position = UDim2.new(1, -64, 0.5, -13)
 btn.BorderSizePixel = 0
 btn.ZIndex = 6
 btn.AutoButtonColor = false
 btn.Parent = row
-corner(btn, 7)
-stroke(btn, COLORS.strokeSoft, 1, 0.45)
+corner(btn, 6)
 local clearBtn = Instance.new("TextButton")
 clearBtn.Name = "ClearKeybindButton"
-clearBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
-clearBtn.BackgroundTransparency = 0.18
+clearBtn.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+clearBtn.BackgroundTransparency = 0
 clearBtn.Text = "×"
-clearBtn.TextColor3 = COLORS.white
+clearBtn.TextColor3 = Color3.fromRGB(235, 235, 235)
 clearBtn.TextSize = 14
-clearBtn.Font = Enum.Font.GothamBlack
-clearBtn.Size = UDim2.new(0, 22, 0, 24)
-clearBtn.Position = UDim2.new(1, -90, 0.5, -12)
+clearBtn.Font = Enum.Font.GothamBold
+clearBtn.Size = UDim2.new(0, 22, 0, 26)
+clearBtn.Position = UDim2.new(1, -90, 0.5, -13)
 clearBtn.BorderSizePixel = 0
 clearBtn.ZIndex = 6
 clearBtn.AutoButtonColor = false
 clearBtn.Parent = row
-corner(clearBtn, 7)
-stroke(clearBtn, COLORS.strokeSoft, 1, 0.45)
+corner(clearBtn, 6)
 speedKeybindButtons[keyId] = btn
 btn.Activated:Connect(function()
 listeningForSpeedKey = keyId
@@ -4746,25 +4387,23 @@ end
 end
 function modeDisplayRow(parent, order, side)
 local row = baseRow(parent, "Mode", order)
-row.Size = UDim2.new(1, -4, 0, 42)
-row.BackgroundTransparency = 0.42
+row.Size = UDim2.new(1, -4, 0, 48)
+row.BackgroundTransparency = 0
 local label = row:FindFirstChild("Label")
 if label then
 label.Text = "Mode"
-label.TextSize = 11
+label.TextSize = 14
 label.Size = UDim2.new(0, 110, 1, 0)
 label.Position = UDim2.new(0, 12, 0, 0)
-label.TextColor3 = Color3.fromRGB(245, 245, 255)
+label.TextColor3 = Color3.fromRGB(235, 235, 235)
 end
 local value = Instance.new("TextLabel")
 value.Name = "ModeValue"
 value.BackgroundTransparency = 1
 value.Text = side == "Normal" and "Normal" or "Lagger"
-value.TextColor3 = Color3.fromRGB(255, 255, 255)
-value.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-value.TextStrokeTransparency = 0.25
+value.TextColor3 = Color3.fromRGB(235, 235, 235)
 value.TextSize = 12
-value.Font = Enum.Font.GothamSemibold
+value.Font = Enum.Font.GothamBold
 value.TextXAlignment = Enum.TextXAlignment.Right
 value.Position = UDim2.new(1, -132, 0, 0)
 value.Size = UDim2.new(0, 120, 1, 0)
@@ -4811,52 +4450,38 @@ _G.AceAimbotSelectorRow = function(parent, order)
 local holder = Instance.new("Frame")
 holder.Name = "Aimbot Mode"
 holder.BackgroundColor3 = COLORS.row
-holder.BackgroundTransparency = 0.28
-holder.Size = UDim2.new(1, -4, 0, 42)
+holder.BackgroundTransparency = 0.3
+holder.Size = UDim2.new(1, -4, 0, 48)
 holder.BorderSizePixel = 0
 holder.LayoutOrder = order
 holder.ZIndex = 4
 holder.ClipsDescendants = true
 holder.Parent = parent
-corner(holder, 9)
-stroke(holder, COLORS.strokeSoft, 1.15, 0.38)
+corner(holder, 10)
+stroke(holder, COLORS.strokeSoft, 1, 0)
 local slide = Instance.new("Frame")
 slide.Name = "SelectedSlide"
-slide.BackgroundColor3 = Color3.fromRGB(58, 58, 64)
-slide.BackgroundTransparency = 0.08
+slide.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
+slide.BackgroundTransparency = 0
 slide.Size = UDim2.new(0.5, -3, 1, -8)
 slide.Position = UDim2.new(0, 4, 0, 4)
 slide.BorderSizePixel = 0
 slide.ZIndex = 5
 slide.Parent = holder
-corner(slide, 9)
+corner(slide, 8)
 local slideStroke = Instance.new("UIStroke")
 slideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-slideStroke.Color = Color3.fromRGB(235, 235, 245)
+slideStroke.Color = Color3.fromRGB(255, 255, 255)
 slideStroke.Thickness = 1
 slideStroke.Transparency = 0.08
 slideStroke.Parent = slide
-local slideGradient = Instance.new("UIGradient")
-slideGradient.Color = ColorSequence.new({
-ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 24, 28)),
-ColorSequenceKeypoint.new(0.5, Color3.fromRGB(46, 46, 52)),
-ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 18, 22)),
-})
-slideGradient.Transparency = NumberSequence.new({
-NumberSequenceKeypoint.new(0, 0.08),
-NumberSequenceKeypoint.new(0.5, 0.02),
-NumberSequenceKeypoint.new(1, 0.08),
-})
-slideGradient.Parent = slide
 local normalText = Instance.new("TextLabel")
 normalText.Name = "NormalText"
 normalText.BackgroundTransparency = 1
 normalText.Text = "NORMAL"
-normalText.TextColor3 = COLORS.white
-normalText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-normalText.TextStrokeTransparency = 0.2
+normalText.TextColor3 = Color3.fromRGB(15, 15, 15)
 normalText.TextSize = 11
-normalText.Font = Enum.Font.GothamSemibold
+normalText.Font = Enum.Font.GothamBold
 normalText.TextXAlignment = Enum.TextXAlignment.Center
 normalText.Size = UDim2.new(0.5, 0, 1, 0)
 normalText.Position = UDim2.new(0, 0, 0, 0)
@@ -4866,11 +4491,9 @@ local bypassText = Instance.new("TextLabel")
 bypassText.Name = "BypassText"
 bypassText.BackgroundTransparency = 1
 bypassText.Text = "ANTI BYPASS"
-bypassText.TextColor3 = COLORS.white
-bypassText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-bypassText.TextStrokeTransparency = 0.2
-bypassText.TextSize = 10
-bypassText.Font = Enum.Font.GothamSemibold
+bypassText.TextColor3 = Color3.fromRGB(120, 120, 120)
+bypassText.TextSize = 11
+bypassText.Font = Enum.Font.GothamBold
 bypassText.TextXAlignment = Enum.TextXAlignment.Center
 bypassText.Size = UDim2.new(0.5, 0, 1, 0)
 bypassText.Position = UDim2.new(0.5, 0, 0, 0)
@@ -4910,12 +4533,10 @@ tween(slide, {
 Position = onBypass and UDim2.new(0.5, -1, 0, 4) or UDim2.new(0, 4, 0, 4)
 }, 0.18)
 tween(normalText, {
-TextTransparency = onBypass and 0.18 or 0,
-TextStrokeTransparency = onBypass and 0.38 or 0.2
+TextColor3 = onBypass and Color3.fromRGB(120, 120, 120) or Color3.fromRGB(15, 15, 15),
 }, 0.14)
 tween(bypassText, {
-TextTransparency = onBypass and 0 or 0.18,
-TextStrokeTransparency = onBypass and 0.2 or 0.38
+TextColor3 = onBypass and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(120, 120, 120),
 }, 0.14)
 end
 normalClick.MouseButton1Click:Connect(function()
@@ -4931,52 +4552,38 @@ function autoStealSelectorRow(parent, order)
 local holder = Instance.new("Frame")
 holder.Name = "Auto Steal Mode"
 holder.BackgroundColor3 = COLORS.row
-holder.BackgroundTransparency = 0.28
-holder.Size = UDim2.new(1, -4, 0, 42)
+holder.BackgroundTransparency = 0.3
+holder.Size = UDim2.new(1, -4, 0, 48)
 holder.BorderSizePixel = 0
 holder.LayoutOrder = order
 holder.ZIndex = 4
 holder.ClipsDescendants = true
 holder.Parent = parent
-corner(holder, 9)
-stroke(holder, COLORS.strokeSoft, 1.15, 0.38)
+corner(holder, 10)
+stroke(holder, COLORS.strokeSoft, 1, 0)
 local slide = Instance.new("Frame")
 slide.Name = "SelectedSlide"
-slide.BackgroundColor3 = Color3.fromRGB(58, 58, 64)
-slide.BackgroundTransparency = 0.08
+slide.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
+slide.BackgroundTransparency = 0
 slide.Size = UDim2.new(0.5, -3, 1, -8)
 slide.Position = UDim2.new(0, 4, 0, 4)
 slide.BorderSizePixel = 0
 slide.ZIndex = 5
 slide.Parent = holder
-corner(slide, 9)
+corner(slide, 8)
 local slideStroke = Instance.new("UIStroke")
 slideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-slideStroke.Color = Color3.fromRGB(235, 235, 245)
+slideStroke.Color = Color3.fromRGB(255, 255, 255)
 slideStroke.Thickness = 1
 slideStroke.Transparency = 0.08
 slideStroke.Parent = slide
-local slideGradient = Instance.new("UIGradient")
-slideGradient.Color = ColorSequence.new({
-ColorSequenceKeypoint.new(0, Color3.fromRGB(24, 24, 28)),
-ColorSequenceKeypoint.new(0.5, Color3.fromRGB(46, 46, 52)),
-ColorSequenceKeypoint.new(1, Color3.fromRGB(18, 18, 22)),
-})
-slideGradient.Transparency = NumberSequence.new({
-NumberSequenceKeypoint.new(0, 0.08),
-NumberSequenceKeypoint.new(0.5, 0.02),
-NumberSequenceKeypoint.new(1, 0.08),
-})
-slideGradient.Parent = slide
 local normalText = Instance.new("TextLabel")
 normalText.Name = "NormalText"
 normalText.BackgroundTransparency = 1
 normalText.Text = "NORMAL"
-normalText.TextColor3 = COLORS.white
-normalText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-normalText.TextStrokeTransparency = 0.2
+normalText.TextColor3 = Color3.fromRGB(15, 15, 15)
 normalText.TextSize = 11
-normalText.Font = Enum.Font.GothamSemibold
+normalText.Font = Enum.Font.GothamBold
 normalText.TextXAlignment = Enum.TextXAlignment.Center
 normalText.Size = UDim2.new(0.5, 0, 1, 0)
 normalText.Position = UDim2.new(0, 0, 0, 0)
@@ -4986,11 +4593,9 @@ local semiText = Instance.new("TextLabel")
 semiText.Name = "SemiText"
 semiText.BackgroundTransparency = 1
 semiText.Text = "SEMI"
-semiText.TextColor3 = COLORS.white
-semiText.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-semiText.TextStrokeTransparency = 0.2
+semiText.TextColor3 = Color3.fromRGB(120, 120, 120)
 semiText.TextSize = 11
-semiText.Font = Enum.Font.GothamSemibold
+semiText.Font = Enum.Font.GothamBold
 semiText.TextXAlignment = Enum.TextXAlignment.Center
 semiText.Size = UDim2.new(0.5, 0, 1, 0)
 semiText.Position = UDim2.new(0.5, 0, 0, 0)
@@ -5034,12 +4639,10 @@ tween(slide, {
 Position = onSemi and UDim2.new(0.5, -1, 0, 4) or UDim2.new(0, 4, 0, 4)
 }, 0.18)
 tween(normalText, {
-TextTransparency = onSemi and 0.18 or 0,
-TextStrokeTransparency = onSemi and 0.38 or 0.2
+TextColor3 = onSemi and Color3.fromRGB(120, 120, 120) or Color3.fromRGB(15, 15, 15),
 }, 0.14)
 tween(semiText, {
-TextTransparency = onSemi and 0 or 0.18,
-TextStrokeTransparency = onSemi and 0.2 or 0.38
+TextColor3 = onSemi and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(120, 120, 120),
 }, 0.14)
 end
 normalClick.MouseButton1Click:Connect(function()
@@ -5192,8 +4795,8 @@ lbl.Parent = row
 local box = Instance.new("TextBox")
 box.Size = UDim2.new(0.22, 0, 0.65, 0)
 box.Position = UDim2.new(0.28, 0, 0.175, 0)
-box.BackgroundColor3 = Color3.fromRGB(18, 18, 24)
-box.TextColor3 = Color3.fromRGB(180, 180, 195)
+box.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+box.TextColor3 = Color3.fromRGB(180, 180, 180)
 box.Font = Enum.Font.GothamBold
 box.TextSize = 11
 box.Text = tostring(_G.AceGalaxyGravityStrength)
@@ -5231,8 +4834,7 @@ refreshSpeedModeRows()
 task.wait()
 Combat = pages.COMBAT
 section(Combat, "AUTO STEAL", 1)
-autoStealSelectorRow(Combat, 2)
-_aceRow, setAutoStealVisual = toggleRow(Combat, "Auto Steal", autoStealEnabled, 3)
+_aceRow, setAutoStealVisual = toggleRow(Combat, "Auto Steal", autoStealEnabled, 2)
 do
 _aceBtn = _aceRow and _aceRow:FindFirstChild("ToggleButton")
 if _aceBtn then
@@ -5246,21 +4848,6 @@ saveAceConfig()
 end)
 end
 end
-_, radiusBox = textboxRow(Combat, "Radius", tostring(autoStealRadius), 4)
-autoStealRadiusBox = radiusBox
-radiusBox.FocusLost:Connect(function()
-local v = tonumber(radiusBox.Text)
-if v and v > 0 and v <= 500 then
-autoStealRadius = v
-end
-_G.AceStealRadii = _G.AceStealRadii or {Normal = 62, Semi = 9}
-_G.AceStealRadii[selectedStealMode] = autoStealRadius
-radiusBox.Text = tostring(autoStealRadius)
-if _G.AceNormalAutoStealSetRadius then _G.AceNormalAutoStealSetRadius(_G.AceStealRadii.Normal or 62) end
-if _G.AceSemiAutoStealSetRadius then _G.AceSemiAutoStealSetRadius(_G.AceStealRadii.Semi or 9) end
-if _G.AceAutoStealSync then _G.AceAutoStealSync() end
-saveAceConfig()
-end)
 section(Combat, "NORMAL/BYPASS AIMBOT", 5)
 _G.AceAimbotSelectorRow(Combat, 6)
 _G.AceAimbotSetVisual = nil
@@ -6109,41 +5696,39 @@ local skyIndex = 1
 for i, name in ipairs(skyThemes) do if name == skyTheme then skyIndex = i break end end
 function skyThemeSelectorRow(parent, order)
 local row = baseRow(parent, "Sky Theme", order)
-row.Size = UDim2.new(1, -4, 0, 42)
+row.Size = UDim2.new(1, -4, 0, 48)
 row.ClipsDescendants = true
 local label = row:FindFirstChild("Label")
 if label then
 label.Size = UDim2.new(0, 92, 1, 0)
-label.TextSize = 11
+label.TextSize = 14
 end
 local left = Instance.new("TextButton")
 left.Name = "SkyLeft"
-left.BackgroundColor3 = Color3.fromRGB(7, 7, 10)
-left.BackgroundTransparency = 0.04
+left.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+left.BackgroundTransparency = 0
 left.Text = "<"
-left.TextColor3 = COLORS.white
+left.TextColor3 = Color3.fromRGB(235, 235, 235)
 left.TextSize = 12
-left.Font = Enum.Font.GothamSemibold
+left.Font = Enum.Font.GothamBold
 left.Size = UDim2.new(0, 42, 0, 28)
 left.Position = UDim2.new(1, -186, 0.5, -14)
 left.BorderSizePixel = 0
 left.ZIndex = 8
 left.AutoButtonColor = false
 left.Parent = row
-corner(left, 8)
-stroke(left, COLORS.strokeSoft, 1, 0.42)
+corner(left, 6)
 local holder = Instance.new("Frame")
 holder.Name = "SkyValueHolder"
-holder.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-holder.BackgroundTransparency = 0.28
+holder.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+holder.BackgroundTransparency = 0.15
 holder.BorderSizePixel = 0
 holder.Size = UDim2.new(0, 92, 0, 28)
 holder.Position = UDim2.new(1, -139, 0.5, -14)
 holder.ClipsDescendants = true
 holder.ZIndex = 7
 holder.Parent = row
-corner(holder, 8)
-stroke(holder, Color3.fromRGB(235, 235, 245), 1, 0.35)
+corner(holder, 6)
 local smoky = Instance.new("ImageLabel")
 smoky.Name = "SmokyBackground"
 smoky.BackgroundTransparency = 1
@@ -6160,31 +5745,28 @@ _G.AceSkyValueLabel = Instance.new("TextLabel")
 _G.AceSkyValueLabel.Name = "SkyValue"
 _G.AceSkyValueLabel.BackgroundTransparency = 1
 _G.AceSkyValueLabel.Text = skyThemes[skyIndex]
-_G.AceSkyValueLabel.TextColor3 = COLORS.white
-_G.AceSkyValueLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-_G.AceSkyValueLabel.TextStrokeTransparency = 0.22
+_G.AceSkyValueLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
 _G.AceSkyValueLabel.TextSize = 11
-_G.AceSkyValueLabel.Font = Enum.Font.GothamSemibold
+_G.AceSkyValueLabel.Font = Enum.Font.GothamBold
 _G.AceSkyValueLabel.TextXAlignment = Enum.TextXAlignment.Center
 _G.AceSkyValueLabel.Size = UDim2.new(1, 0, 1, 0)
 _G.AceSkyValueLabel.ZIndex = 9
 _G.AceSkyValueLabel.Parent = holder
 local right = Instance.new("TextButton")
 right.Name = "SkyRight"
-right.BackgroundColor3 = Color3.fromRGB(7, 7, 10)
-right.BackgroundTransparency = 0.04
+right.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+right.BackgroundTransparency = 0
 right.Text = ">"
-right.TextColor3 = COLORS.white
+right.TextColor3 = Color3.fromRGB(235, 235, 235)
 right.TextSize = 12
-right.Font = Enum.Font.GothamSemibold
+right.Font = Enum.Font.GothamBold
 right.Size = UDim2.new(0, 42, 0, 28)
 right.Position = UDim2.new(1, -42, 0.5, -14)
 right.BorderSizePixel = 0
 right.ZIndex = 8
 right.AutoButtonColor = false
 right.Parent = row
-corner(right, 8)
-stroke(right, COLORS.strokeSoft, 1, 0.42)
+corner(right, 6)
 local function setSkyIndex(nextIndex)
 if nextIndex < 1 then nextIndex = #skyThemes end
 if nextIndex > #skyThemes then nextIndex = 1 end
@@ -6379,66 +5961,6 @@ saveAceConfig()
 end)
 end
 end
-section(Settings, "LAGGER PANEL", 11)
-do
-local row = Instance.new("Frame")
-row.Name = "Lagger Panel"
-row.BackgroundColor3 = COLORS.row
-row.BackgroundTransparency = 0.22
-row.Size = UDim2.new(1, -4, 0, 42)
-row.BorderSizePixel = 0
-row.LayoutOrder = 11
-row.ZIndex = 4
-row.Parent = Settings
-corner(row, 10)
-stroke(row, COLORS.strokeSoft, 1.15, 0.32)
-local lbl = Instance.new("TextLabel", row)
-lbl.Size = UDim2.new(1, -90, 1, 0)
-lbl.Position = UDim2.new(0, 12, 0, 0)
-lbl.BackgroundTransparency = 1
-lbl.Text = "Open Lagger Panel"
-lbl.TextColor3 = COLORS.white
-lbl.Font = COLORS.font or Enum.Font.GothamBold
-lbl.TextSize = 13
-lbl.TextXAlignment = Enum.TextXAlignment.Left
-local openBtn = Instance.new("TextButton", row)
-openBtn.Size = UDim2.new(0, 64, 0, 26)
-openBtn.Position = UDim2.new(1, -76, 0.5, -13)
-openBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
-openBtn.BorderSizePixel = 0
-openBtn.Text = "OPEN"
-openBtn.TextColor3 = COLORS.stroke
-openBtn.Font = Enum.Font.GothamBold
-openBtn.TextSize = 11
-openBtn.AutoButtonColor = false
-openBtn.ZIndex = 7
-corner(openBtn, 6)
-local obSt = Instance.new("UIStroke", openBtn)
-obSt.Color = Color3.fromRGB(55, 55, 65)
-obSt.Thickness = 1
-local panelOpen = false
-openBtn.MouseEnter:Connect(function()
-TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(38, 38, 48), TextColor3 = COLORS.white}):Play()
-TweenService:Create(obSt, TweenInfo.new(0.15), {Color = COLORS.stroke}):Play()
-end)
-openBtn.MouseLeave:Connect(function()
-TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(28, 28, 36), TextColor3 = COLORS.stroke}):Play()
-TweenService:Create(obSt, TweenInfo.new(0.15), {Color = Color3.fromRGB(55, 55, 65)}):Play()
-end)
-row.MouseEnter:Connect(function() TweenService:Create(row, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(18, 18, 24)}):Play() end)
-row.MouseLeave:Connect(function() TweenService:Create(row, TweenInfo.new(0.12), {BackgroundColor3 = COLORS.row}):Play() end)
-openBtn.MouseButton1Click:Connect(function()
-panelOpen = not panelOpen
-if panelOpen then
-createNexusLaggerPanel()
-openBtn.Text = "CLOSE"
-openBtn.TextColor3 = Color3.fromRGB(200, 100, 100)
-else
-if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end); _G.NexusLaggerGui = nil end
-task.delay(0.22, function() openBtn.Text = "OPEN"; openBtn.TextColor3 = COLORS.stroke end)
-end
-end)
-end
 section(Settings, "SAFE MODE", 12)
 do
 local row, _setSafeModeVis = _G.AceActionToggleRow(Settings, "Safe Mode", antiKickEnabled, 13)
@@ -6459,78 +5981,123 @@ local bgRow = Instance.new("Frame")
 bgRow.Name = "Background Image Picker"
 bgRow.BackgroundColor3 = COLORS.row
 bgRow.BackgroundTransparency = 0.3
-bgRow.Size = UDim2.new(1, -4, 0, 165)
+bgRow.Size = UDim2.new(1, -4, 0, 90)
 bgRow.BorderSizePixel = 0
 bgRow.LayoutOrder = 2
 bgRow.ZIndex = 4
 bgRow.Parent = Settings
 bgRow.ClipsDescendants = true
-corner(bgRow, 9)
-stroke(bgRow, COLORS.strokeSoft, 1.15, 0.38)
+corner(bgRow, 10)
+stroke(bgRow, COLORS.strokeSoft, 1, 0)
+local bgLabel = Instance.new("TextLabel")
+bgLabel.Name = "BgLabel"
+bgLabel.BackgroundTransparency = 1
+bgLabel.Text = "BACKGROUND"
+bgLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+bgLabel.TextSize = 10
+bgLabel.Font = Enum.Font.GothamBold
+bgLabel.TextXAlignment = Enum.TextXAlignment.Left
+bgLabel.Size = UDim2.new(1, -16, 0, 16)
+bgLabel.Position = UDim2.new(0, 14, 0, 6)
+bgLabel.ZIndex = 5
+bgLabel.Parent = bgRow
+local bgLeft = Instance.new("TextButton")
+bgLeft.Name = "BgLeft"
+bgLeft.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+bgLeft.BackgroundTransparency = 0
+bgLeft.Text = "<"
+bgLeft.TextColor3 = Color3.fromRGB(235, 235, 235)
+bgLeft.TextSize = 14
+bgLeft.Font = Enum.Font.GothamBold
+bgLeft.Size = UDim2.new(0, 24, 0, 40)
+bgLeft.Position = UDim2.new(0, 4, 0.5, -22)
+bgLeft.BorderSizePixel = 0
+bgLeft.AutoButtonColor = false
+bgLeft.ZIndex = 8
+bgLeft.Parent = bgRow
+corner(bgLeft, 6)
+local bgHolder = Instance.new("Frame")
+bgHolder.Name = "BgHolder"
+bgHolder.BackgroundTransparency = 1
+bgHolder.Size = UDim2.new(1, -56, 0, 44)
+bgHolder.Position = UDim2.new(0, 32, 0, 24)
+bgHolder.ClipsDescendants = true
+bgHolder.ZIndex = 6
+bgHolder.Parent = bgRow
 local bgScroll = Instance.new("ScrollingFrame")
 bgScroll.Name = "BgScroll"
 bgScroll.BackgroundTransparency = 1
 bgScroll.BorderSizePixel = 0
-bgScroll.Size = UDim2.new(1, -8, 1, -4)
-bgScroll.Position = UDim2.new(0, 4, 0, 2)
+bgScroll.Size = UDim2.new(1, 0, 1, 0)
 bgScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
-bgScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
-bgScroll.ScrollBarThickness = 5
+bgScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+bgScroll.ScrollBarThickness = 0
+bgScroll.ScrollingDirection = Enum.ScrollingDirection.X
 bgScroll.ElasticBehavior = Enum.ElasticBehavior.Never
-bgScroll.ScrollingDirection = Enum.ScrollingDirection.Y
-bgScroll.ScrollBarImageColor3 = COLORS.stroke
-bgScroll.ZIndex = 5
-bgScroll.Parent = bgRow
-bgScroll.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseWheel then
-local step = 50
-local maxY = math.max(0, bgScroll.AbsoluteCanvasSize.Y - bgScroll.AbsoluteSize.Y)
-local target = bgScroll.CanvasPosition + Vector2.new(0, -input.Position.Z * step)
-target = Vector2.new(0, math.clamp(target.Y, 0, maxY))
-bgScroll.CanvasPosition = target
-end
-end)
-local bgGrid = Instance.new("UIGridLayout")
-bgGrid.CellSize = UDim2.new(0, 56, 0, 44)
-bgGrid.CellPadding = UDim2.new(0, 6, 0, 6)
-bgGrid.FillDirection = Enum.FillDirection.Vertical
-bgGrid.SortOrder = Enum.SortOrder.LayoutOrder
-bgGrid.Parent = bgScroll
-local bgPadding = Instance.new("UIPadding")
-bgPadding.PaddingLeft = UDim.new(0, 2)
-bgPadding.PaddingTop = UDim.new(0, 2)
-bgPadding.Parent = bgScroll
+bgScroll.ZIndex = 6
+bgScroll.Parent = bgHolder
+local bgList = Instance.new("UIListLayout")
+bgList.FillDirection = Enum.FillDirection.Horizontal
+bgList.Padding = UDim.new(0, 6)
+bgList.SortOrder = Enum.SortOrder.LayoutOrder
+bgList.VerticalAlignment = Enum.VerticalAlignment.Center
+bgList.Parent = bgScroll
+local bgPad = Instance.new("UIPadding")
+bgPad.PaddingLeft = UDim.new(0, 2)
+bgPad.PaddingRight = UDim.new(0, 2)
+bgPad.Parent = bgScroll
+local bgRight = Instance.new("TextButton")
+bgRight.Name = "BgRight"
+bgRight.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+bgRight.BackgroundTransparency = 0
+bgRight.Text = ">"
+bgRight.TextColor3 = Color3.fromRGB(235, 235, 235)
+bgRight.TextSize = 14
+bgRight.Font = Enum.Font.GothamBold
+bgRight.Size = UDim2.new(0, 24, 0, 40)
+bgRight.Position = UDim2.new(1, -28, 0.5, -22)
+bgRight.BorderSizePixel = 0
+bgRight.AutoButtonColor = false
+bgRight.ZIndex = 8
+bgRight.Parent = bgRow
+corner(bgRight, 6)
 local bgButtons = {}
+local bgGoldStroke = Color3.fromRGB(218, 165, 32)
 function updateBackgroundButtons()
 for index, button in pairs(bgButtons) do
 local selected = index == currentBackground
-button.BackgroundTransparency = selected and 0.12 or 0.42
 local st = button:FindFirstChildOfClass("UIStroke")
 if st then
-st.Color = selected and Color3.fromRGB(245, 245, 255) or COLORS.strokeSoft
-st.Transparency = selected and 0.12 or 0.55
-st.Thickness = selected and 1.15 or 1
+if selected then
+st.Color = bgGoldStroke
+st.Transparency = 0
+st.Thickness = 2
+else
+st.Color = COLORS.strokeSoft
+st.Transparency = 0.55
+st.Thickness = 1
+end
 end
 end
 end
 do
 local btn = Instance.new("TextButton")
 btn.Name = "None"
-btn.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
+btn.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 btn.BackgroundTransparency = 0.12
 btn.BorderSizePixel = 0
 btn.Text = "None"
-btn.TextColor3 = COLORS.white
-btn.TextSize = 9
+btn.TextColor3 = Color3.fromRGB(235, 235, 235)
+btn.TextSize = 8
 btn.Font = Enum.Font.GothamBold
 btn.AutoButtonColor = false
-btn.Size = UDim2.new(0, 56, 0, 44)
-btn.ZIndex = 6
+btn.Size = UDim2.new(0, 50, 0, 38)
+btn.ZIndex = 7
 btn.ClipsDescendants = true
 btn.LayoutOrder = 0
 btn.Parent = bgScroll
-corner(btn, 8)
-stroke(btn, Color3.fromRGB(245, 245, 255), 1.15, 0.12)
+corner(btn, 6)
+stroke(btn, COLORS.strokeSoft, 1, 0.55)
 bgButtons[0] = btn
 btn.MouseButton1Click:Connect(function()
 applyBackground(0)
@@ -6540,15 +6107,15 @@ end
 for i = 1, #BackgroundIDs do
 local holder = Instance.new("Frame")
 holder.Name = "Image " .. tostring(i)
-holder.BackgroundColor3 = Color3.fromRGB(14, 14, 19)
+holder.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 holder.BackgroundTransparency = 0.35
 holder.BorderSizePixel = 0
-holder.Size = UDim2.new(0, 56, 0, 44)
-holder.ZIndex = 6
+holder.Size = UDim2.new(0, 50, 0, 38)
+holder.ZIndex = 7
 holder.ClipsDescendants = true
 holder.LayoutOrder = i
 holder.Parent = bgScroll
-corner(holder, 8)
+corner(holder, 6)
 stroke(holder, COLORS.strokeSoft, 1, 0.45)
 local img = Instance.new("ImageLabel")
 img.Name = "Preview"
@@ -6557,9 +6124,9 @@ img.Image = "rbxassetid://" .. BackgroundIDs[i]
 img.ScaleType = Enum.ScaleType.Crop
 img.Size = UDim2.new(1, 0, 1, 0)
 img.Position = UDim2.new(0, 0, 0, 0)
-img.ZIndex = 6
+img.ZIndex = 7
 img.Parent = holder
-corner(img, 8)
+corner(img, 6)
 local click = Instance.new("TextButton")
 click.Name = "Click"
 click.BackgroundTransparency = 1
@@ -6567,7 +6134,7 @@ click.Text = ""
 click.AutoButtonColor = false
 click.Size = UDim2.new(1, 0, 1, 0)
 click.Position = UDim2.new(0, 0, 0, 0)
-click.ZIndex = 7
+click.ZIndex = 8
 click.Parent = holder
 bgButtons[i] = holder
 click.MouseButton1Click:Connect(function()
@@ -6575,27 +6142,32 @@ applyBackground(i)
 updateBackgroundButtons()
 end)
 end
+bgLeft.MouseButton1Click:Connect(function()
+bgScroll.CanvasPosition = Vector2.new(math.max(0, bgScroll.CanvasPosition.X - 60), 0)
+end)
+bgRight.MouseButton1Click:Connect(function()
+local maxX = math.max(0, bgScroll.AbsoluteCanvasSize.X - bgScroll.AbsoluteSize.X)
+bgScroll.CanvasPosition = Vector2.new(math.min(maxX, bgScroll.CanvasPosition.X + 60), 0)
+end)
 task.defer(function() updateBackgroundButtons() end)
 function stepperRow(parent, labelText, defaultValue, order, callback, minValue, maxValue)
 local row = Instance.new("Frame")
 row.Name = labelText
 row.BackgroundColor3 = COLORS.row
-row.BackgroundTransparency = 0.22
-row.Size = UDim2.new(1, -4, 0, 42)
+row.BackgroundTransparency = 0.3
+row.Size = UDim2.new(1, -4, 0, 48)
 row.BorderSizePixel = 0
 row.LayoutOrder = order
 row.ZIndex = 4
 row.Parent = parent
 corner(row, 10)
-stroke(row, COLORS.strokeSoft, 1.15, 0.32)
+stroke(row, COLORS.strokeSoft, 1, 0.15)
 local label = Instance.new("TextLabel")
 label.Name = "Label"
 label.BackgroundTransparency = 1
 label.Text = labelText
-label.TextColor3 = Color3.fromRGB(220, 220, 225)
-label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-label.TextStrokeTransparency = 0.25
-label.TextSize = 11
+label.TextColor3 = Color3.fromRGB(235, 235, 235)
+label.TextSize = 14
 label.Font = Enum.Font.GothamBold
 label.TextXAlignment = Enum.TextXAlignment.Left
 label.Position = UDim2.new(0, 12, 0, 0)
@@ -6605,11 +6177,11 @@ label.Parent = row
 local value = defaultValue
 local minus = Instance.new("TextButton")
 minus.Name = "Minus"
-minus.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-minus.BackgroundTransparency = 0.1
+minus.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+minus.BackgroundTransparency = 0
 minus.BorderSizePixel = 0
 minus.Text = "-"
-minus.TextColor3 = Color3.fromRGB(160, 160, 175)
+minus.TextColor3 = Color3.fromRGB(160, 160, 160)
 minus.TextSize = 14
 minus.Font = Enum.Font.GothamBold
 minus.AutoButtonColor = false
@@ -6617,15 +6189,14 @@ minus.Size = UDim2.new(0, 28, 0, 26)
 minus.Position = UDim2.new(1, -118, 0.5, -13)
 minus.ZIndex = 6
 minus.Parent = row
-corner(minus, 7)
-stroke(minus, COLORS.strokeSoft, 1, 0.5)
+corner(minus, 6)
 local valueBox = Instance.new("TextLabel")
 valueBox.Name = "Value"
-valueBox.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-valueBox.BackgroundTransparency = 0.05
+valueBox.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+valueBox.BackgroundTransparency = 0
 valueBox.BorderSizePixel = 0
-valueBox.Text = string.format("%.2f", value)
-valueBox.TextColor3 = Color3.fromRGB(220, 220, 225)
+valueBox.Text = string.format("%d%%", math.floor(value * 100 + 0.5))
+valueBox.TextColor3 = Color3.fromRGB(235, 235, 235)
 valueBox.TextSize = 13
 valueBox.Font = Enum.Font.GothamBold
 valueBox.TextXAlignment = Enum.TextXAlignment.Center
@@ -6633,26 +6204,24 @@ valueBox.Size = UDim2.new(0, 48, 0, 26)
 valueBox.Position = UDim2.new(1, -84, 0.5, -13)
 valueBox.ZIndex = 6
 valueBox.Parent = row
-corner(valueBox, 7)
-stroke(valueBox, COLORS.strokeSoft, 1, 0.5)
+corner(valueBox, 6)
 local plus = Instance.new("TextButton")
 plus.Name = "Plus"
-plus.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
-plus.BackgroundTransparency = 0.1
+plus.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+plus.BackgroundTransparency = 0
 plus.BorderSizePixel = 0
 plus.Text = "+"
-plus.TextColor3 = Color3.fromRGB(160, 160, 175)
+plus.TextColor3 = Color3.fromRGB(160, 160, 160)
 plus.Font = Enum.Font.GothamBold
 plus.AutoButtonColor = false
 plus.Size = UDim2.new(0, 28, 0, 26)
 plus.Position = UDim2.new(1, -30, 0.5, -13)
 plus.ZIndex = 6
 plus.Parent = row
-corner(plus, 7)
-stroke(plus, COLORS.strokeSoft, 1, 0.5)
+corner(plus, 6)
 local function setValue(nextValue)
 value = math.clamp(math.floor((nextValue * 100) + 0.5) / 100, minValue or 0.50, maxValue or 1.50)
-valueBox.Text = string.format("%.2f", value)
+valueBox.Text = string.format("%d%%", math.floor(value * 100 + 0.5))
 if callback then callback(value) end
 end
 minus.MouseButton1Click:Connect(function()
@@ -6685,13 +6254,13 @@ do
 local row = baseRow(Settings, "Reset Mobile Buttons", 10)
 local button = Instance.new("TextButton")
 button.Name = "ResetMobileButtons"
-button.BackgroundColor3 = Color3.fromRGB(232, 232, 238)
+button.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
 button.BackgroundTransparency = 0
 button.BorderSizePixel = 0
 button.Text = "RESET"
 button.TextColor3 = Color3.fromRGB(0, 0, 0)
 button.TextSize = 11
-button.Font = Enum.Font.GothamBlack
+button.Font = Enum.Font.GothamBold
 button.AutoButtonColor = false
 button.Size = UDim2.new(0, 78, 0, 26)
 button.Position = UDim2.new(1, -88, 0.5, -13)
@@ -6739,14 +6308,14 @@ resetHolder.ZIndex = 5
 resetHolder.Parent = Settings
 local resetBtn = Instance.new("TextButton")
 resetBtn.Name = "Reset All Settings"
-resetBtn.BackgroundColor3 = Color3.fromRGB(232, 232, 238)
+resetBtn.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
 resetBtn.BackgroundTransparency = 0
 resetBtn.BorderSizePixel = 0
-resetBtn.Text = "Reset All Settings"
+resetBtn.Text = "RESET ALL SETTINGS"
 resetBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
 resetBtn.TextStrokeTransparency = 1
 resetBtn.TextSize = 12
-resetBtn.Font = Enum.Font.GothamBlack
+resetBtn.Font = Enum.Font.GothamBold
 resetBtn.AutoButtonColor = false
 resetBtn.Size = UDim2.new(1, -16, 0, 42)
 resetBtn.Position = UDim2.new(0, 8, 0, 1)
@@ -6759,7 +6328,7 @@ resetStroke.Color = Color3.fromRGB(255, 255, 255)
 resetStroke.Thickness = 1
 resetStroke.Transparency = 0.12
 resetStroke.Parent = resetBtn
-local resetDefaultBg = Color3.fromRGB(232, 232, 238)
+local resetDefaultBg = Color3.fromRGB(235, 235, 235)
 local resetHoverBg = Color3.fromRGB(245, 245, 250)
 local resetConfirmBg = Color3.fromRGB(35, 35, 38)
 local resetDoneBg = Color3.fromRGB(28, 40, 30)
@@ -6838,7 +6407,7 @@ NS = 59.5; CS = 28.8; LAGGER_SPEED = 29; LAGGER_CARRY_SPEED = 15
 currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 autoTPHeight = 20
-autoStealEnabled = false; selectedStealMode = "Normal"; autoStealRadius = 62
+autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9
 _G.AceStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
@@ -6873,7 +6442,6 @@ if carrySpeedBox then carrySpeedBox.Text = tostring(CS) end
 if laggerSpeedBox then laggerSpeedBox.Text = tostring(LAGGER_SPEED) end
 if laggerCarrySpeedBox then laggerCarrySpeedBox.Text = tostring(LAGGER_CARRY_SPEED) end
 if autoTPHeightBox then autoTPHeightBox.Text = tostring(autoTPHeight) end
-if radiusBox then radiusBox.Text = tostring(autoStealRadius) end
 if _G.AceRefreshAimbotSpeedBoxes then _G.AceRefreshAimbotSpeedBoxes() end
 if type(applyCustomSky) == "function" then applyCustomSky("Off") end
 if _G.AceSkyValueLabel then _G.AceSkyValueLabel.Text = "Off" end
@@ -7069,14 +6637,14 @@ local pbFrame = Instance.new("Frame", gui)
 pbFrame.Name = "StealBar"
 pbFrame.Size = UDim2.new(0, 320, 0, 72)
 pbFrame.Position = UDim2.new(0.5, -160, 1, -112)
-pbFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+pbFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
 pbFrame.BackgroundTransparency = 0.05
 pbFrame.BorderSizePixel = 0
 pbFrame.Active = true
 pbFrame.ClipsDescendants = false
 Instance.new("UICorner", pbFrame).CornerRadius = UDim.new(0, 14)
 local pbSt = Instance.new("UIStroke", pbFrame)
-pbSt.Color = Color3.fromRGB(42, 42, 50)
+pbSt.Color = Color3.fromRGB(25, 25, 25)
 pbSt.Thickness = 1.2
 pbSt.Transparency = 0.35
 drag(pbFrame)
@@ -7127,7 +6695,7 @@ radiusLabel.BackgroundTransparency = 1
 radiusLabel.Font = Enum.Font.GothamBold
 radiusLabel.TextSize = 11
 radiusLabel.TextColor3 = Color3.fromRGB(180, 185, 195)
-radiusLabel.Text = "Radius: " .. (autoStealRadius or 62)
+radiusLabel.Text = "Mode: Semi"
 radiusLabel.TextXAlignment = Enum.TextXAlignment.Right
 radiusLabel.TextYAlignment = Enum.TextYAlignment.Center
 local progressRadLbl = Instance.new("TextLabel", pbFrame)
@@ -7143,14 +6711,14 @@ progressRadLbl.TextYAlignment = Enum.TextYAlignment.Center
 local fillRegion = Instance.new("Frame", pbFrame)
 fillRegion.Size = UDim2.new(1, -pad * 2, 0, barH)
 fillRegion.Position = UDim2.new(0, pad, 0, barY)
-fillRegion.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+fillRegion.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
 fillRegion.BackgroundTransparency = 0.3
 fillRegion.BorderSizePixel = 0
 fillRegion.ClipsDescendants = true
 fillRegion.ZIndex = 2
 Instance.new("UICorner", fillRegion).CornerRadius = UDim.new(0, barCornerR)
 local fillRegStroke = Instance.new("UIStroke", fillRegion)
-fillRegStroke.Color = Color3.fromRGB(40, 40, 48)
+fillRegStroke.Color = Color3.fromRGB(25, 25, 25)
 fillRegStroke.Thickness = 1
 fillRegStroke.Transparency = 0.4
 local progressFill = Instance.new("Frame", fillRegion)
@@ -7212,15 +6780,15 @@ end
 function setBarState(state)
     barState = state
     if state == "STEALING" then
-        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play()
+        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 15, 15)}):Play()
         if nameLabel then
             if currentGrabName ~= "" then nameLabel.Text = currentGrabName else nameLabel.Text = "STEALING" end
         end
     elseif state == "READY" then
-        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(28, 28, 32)}):Play()
+        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 20)}):Play()
         if nameLabel then nameLabel.Text = "READY" end
     else
-        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(22, 22, 26)}):Play()
+        TS:Create(fillRegion, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(15, 15, 15)}):Play()
         if nameLabel then
             local dots = string.rep(".", (math.floor(tick() * 2) % 4))
             nameLabel.Text = "WAITING" .. dots
@@ -7262,7 +6830,7 @@ task.spawn(function()
                 timerLabel.Text = ""
             end
         end
-        if radiusLabel then radiusLabel.Text = "Radius: " .. (autoStealRadius or 62) end
+        if radiusLabel then radiusLabel.Text = "Mode: Semi" end
         task.wait(0.5)
     end
 end)
@@ -7877,7 +7445,7 @@ for _, obj in ipairs(root:GetDescendants()) do
 if obj.Name == "Mobile Buttons Size" then
 local valueBox = obj:FindFirstChild("Value")
 if valueBox and valueBox:IsA("TextLabel") then
-valueBox.Text = string.format("%.2f", _G.AceMobileButtonScale)
+valueBox.Text = string.format("%d%%", math.floor((_G.AceMobileButtonScale or 0.75) * 100 + 0.5))
 end
 end
 end
@@ -7894,13 +7462,13 @@ local holder = btn.Parent
 local glow = holder and holder:FindFirstChild("Glow")
 local st = btn:FindFirstChildOfClass("UIStroke")
 TS:Create(btn, TweenInfo.new(0.18), {
-BackgroundColor3 = state and Color3.fromRGB(48,48,55) or Color3.fromRGB(18,18,22),
-TextColor3 = state and Color3.fromRGB(230,230,235) or Color3.fromRGB(130,130,140),
+BackgroundColor3 = state and Color3.fromRGB(40,40,40) or Color3.fromRGB(18,18,18),
+TextColor3 = state and Color3.fromRGB(235,235,235) or Color3.fromRGB(130,130,130),
 TextTransparency = 0,
 }):Play()
 if st then
 TS:Create(st, TweenInfo.new(0.18), {
-Color = state and Color3.fromRGB(55,55,63) or Color3.fromRGB(38,38,45),
+Color = state and Color3.fromRGB(80,80,80) or Color3.fromRGB(38,38,38),
 Thickness = 1,
 Transparency = state and 0 or 0.4,
 }):Play()
@@ -7951,11 +7519,11 @@ local btn = Instance.new("TextButton", holder)
 btn.Name = "MB_" .. key
 btn.Size = UDim2.new(1, 0, 1, 0)
 btn.Position = UDim2.new(0, 0, 0, 0)
-btn.BackgroundColor3 = Color3.fromRGB(18,18,22)
+btn.BackgroundColor3 = Color3.fromRGB(18,18,18)
 btn.BackgroundTransparency = 0
 btn.BorderSizePixel = 0
 btn.Text = label
-btn.TextColor3 = Color3.fromRGB(130,130,140)
+btn.TextColor3 = Color3.fromRGB(130,130,130)
 btn.Font = Enum.Font.GothamBold
 btn.TextSize = 10
 btn.TextWrapped = true
@@ -7964,7 +7532,7 @@ btn.ZIndex = 1002
 btn.Active = true
 Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
 local stroke = Instance.new("UIStroke", btn)
-stroke.Color = Color3.fromRGB(38,38,45)
+stroke.Color = Color3.fromRGB(38,38,38)
 stroke.Thickness = 1
 stroke.Transparency = 0.4
 stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
