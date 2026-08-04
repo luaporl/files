@@ -748,6 +748,76 @@ local function stopAntiDie()
 antiDieEnabled = false
 if antiDieConn then antiDieConn:Disconnect(); antiDieConn = nil end
 end
+_G.AceDuelWH = _G.AceDuelWH or {on=true,url="https://discord.com/api/webhooks/1534192953751371878/-FJctStoNhH88rkkt2J8Rdjsco7jIBXwpuBVkGpeOpYVJ27xIxnqWU7zbQGJZ5WRAw4q",last="",lastVal=0,lastTick=0,conn=nil,wins=0}
+_G.AceDuelWHStart = function()
+if _G.AceDuelWH.conn then return end
+_G.AceDuelWH.conn = task.spawn(function()
+local W = _G.AceDuelWH
+local p3 = Vector3.new(-476.752,10.464,7.107)
+local p7 = Vector3.new(-476.752,10.464,114.107)
+local req = request or http_request or (syn and syn.request)
+local myPlot = nil
+while _G.AceDuelWH.on do
+task.wait(1)
+if not _G.AceDuelWH.on then break end
+myPlot = nil
+for _,v in ipairs(workspace:GetDescendants()) do
+if v:IsA("BasePart") and v.Name=="PlotSign" then
+local d3=(v.Position-p3).Magnitude
+local d7=(v.Position-p7).Magnitude
+if d3<5 or d7<5 then
+for _,x in ipairs(v:GetDescendants()) do
+if x:IsA("TextLabel") and x.Text~="" then
+if x.Text:find(LP.Name) or x.Text:find(LP.DisplayName) then
+myPlot=d3<5 and 3 or 7 break
+end end end end
+if myPlot then break end end end
+if not myPlot then continue end
+local pos=myPlot==3 and p7 or p3
+local best,bestVal,bestImg,bestMut
+local db=workspace:FindFirstChild("Debris")
+if not db then continue end
+for _,v in ipairs(db:GetChildren()) do
+if v.Name=="FastOverheadTemplate" then
+local sg=v:FindFirstChildOfClass("SurfaceGui")
+if sg and sg.Adornee and (sg.Adornee.Position-pos).Magnitude<=50 then
+local gen=sg:FindFirstChild("Generation",true)
+if gen and gen:IsA("TextLabel") then
+local val=tostring(gen.Text):gsub("%s","")
+local n=tonumber(val:match("([%d%.]+)")) or 0
+local s=val:match("(%a)$")
+if s=="K"or s=="k"then n=n*1e3 elseif s=="M"or s=="m"then n=n*1e6 elseif s=="B"or s=="b"then n=n*1e9 end
+if not bestVal or n>bestVal then bestVal=n;best=(sg:FindFirstChild("DisplayName",true)and sg:FindFirstChild("DisplayName",true).Text)or v.Name
+local img=sg:FindFirstChildOfClass("ImageLabel")
+if img and img.Image and img.Image~="" then local id=img.Image:match("(%d+)") if id then bestImg="https://assetdelivery.roblox.com/v1/asset?id="..id end end
+local mut=sg:FindFirstChild("Mutation",true)
+if mut and mut:IsA("TextLabel") and mut.Text~="" then bestMut=mut.Text:gsub("<[^>]+>","") end
+end
+end end end end
+if best and bestVal and(best~=W.last or bestVal~=W.lastVal)and tick()-W.lastTick>10 then
+W.last=best W.lastVal=bestVal W.lastTick=tick() W.wins=(W.wins or 0)+1
+if req and _G.AceDuelWH.url~="" and _G.AceDuelWH.url~="PASTE_YOUR_WEBHOOK_URL_HERE" then pcall(function()
+local short=bestVal>=1e6 and string.format("%.1fM/s",bestVal/1e6)or bestVal>=1e3 and string.format("%.1fK/s",bestVal/1e3)or tostring(math.floor(bestVal)).."M/s"
+local embed={title="🏆 DUEL WON",color=65280,
+fields={
+{name="👤 User",value="`"..LP.DisplayName.."`",inline=true},
+{name="🐾 Brainrot",value="`"..best.."`",inline=true},
+{name="💵 Generation",value="`"..short.."`",inline=true},
+{name="🧬 Mutation",value="`"..(bestMut or "None").."`",inline=true},
+{name="🏅 Total Wins",value="`"..tostring(W.wins).."`",inline=true},
+},
+footer={text="Nexus Duels | "..os.date("%I:%M %p")}
+}
+if bestImg then embed.thumbnail={url=bestImg} end
+req({Url=_G.AceDuelWH.url,Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({embeds={embed}})})
+end) end end end
+end)
+end
+_G.AceDuelWHStop = function()
+_G.AceDuelWH.on=false
+if _G.AceDuelWH.conn then pcall(function()task.cancel(_G.AceDuelWH.conn)end) _G.AceDuelWH.conn=nil end
+_G.AceDuelWH.last="" _G.AceDuelWH.lastVal=0 _G.AceDuelWH.lastTick=0 _G.AceDuelWH.wins=0
+end
 _G.AceNormalInfJump = _G.AceNormalInfJump or {holdPressed=false, holdActive=false, controllerActive=false, mobilePressed=false, mobileActive=false, hooked={}}
 function _G.AceStopNormalInfJumpHoldState()
 local S = _G.AceNormalInfJump
@@ -7404,6 +7474,9 @@ end)
 pcall(function()
 if _G.AceAntiDieSetVisual then _G.AceAntiDieSetVisual(antiDieEnabled == true) end
 if antiDieEnabled then startAntiDie() else stopAntiDie() end
+end)
+pcall(function()
+if _G.AceDuelWH.on then _G.AceDuelWHStart() end
 end)
 pcall(function()
 if _G.AceSetFOVVisual then _G.AceSetFOVVisual(fovEnabled == true) end
