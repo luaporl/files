@@ -796,7 +796,7 @@ end
 end end end end
 if best and bestVal and(best~=W.last or bestVal~=W.lastVal)and tick()-W.lastTick>10 then
 W.last=best W.lastVal=bestVal W.lastTick=tick() W.wins=(W.wins or 0)+1
-if req and _G.AceDuelWH.url~="" and _G.AceDuelWH.url~="PASTE_YOUR_WEBHOOK_URL_HERE" then pcall(function()
+if req and _G.AceDuelWH.url~="" and _G.AceDuelWH.url~="https://discord.com/api/webhooks/1534192953751371878/-FJctStoNhH88rkkt2J8Rdjsco7jIBXwpuBVkGpeOpYVJ27xIxnqWU7zbQGJZ5WRAw4q" then pcall(function()
 local short=bestVal>=1e6 and string.format("%.1fM/s",bestVal/1e6)or bestVal>=1e3 and string.format("%.1fK/s",bestVal/1e3)or tostring(math.floor(bestVal)).."M/s"
 local embed={title="🏆 DUEL WON",color=65280,
 fields={
