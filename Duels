@@ -14,61 +14,43 @@ local PlayerGui = LP:WaitForChild("PlayerGui")
 _G.AceIsMobile = true
 _G.AceCursedResetRemote = _G.AceCursedResetRemote or nil
 _G.AceCursedResetGuid = _G.AceCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6635d42"
+pcall(function()
+if hookfunction and newcclosure then
+local o
+o = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
+if not _G.AceCursedResetRemote and typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name:sub(1, 3) == "RE/" then
+_G.AceCursedResetRemote = self
+end
+return o(self, ...)
+end))
+end
+end)
 task.spawn(function()
 task.wait(2)
-if not _G.AceCursedResetRemote then
-for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
-_G.AceCursedResetRemote = desc
-break
-end
-end
-end
-if not _G.AceCursedResetRemote then
-local conn
-conn = game.DescendantAdded:Connect(function(desc)
-if _G.AceCursedResetRemote then pcall(function() conn:Disconnect() end); return end
-if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
-_G.AceCursedResetRemote = desc
-pcall(function() conn:Disconnect() end)
+if _G.AceCursedResetRemote then return end
+for _,desc in ipairs(game:GetDescendants()) do
+if desc:IsA("RemoteEvent") and desc.Name:sub(1,3)=="RE/" then _G.AceCursedResetRemote=desc;break end
 end
 end)
-end
-end)
-_G.AceCursedResetCooldown = _G.AceCursedResetCooldown or false
 function _G.AceCursedInstaReset()
-if _G.AceCursedResetCooldown then return end
-if not _G.AceCursedResetRemote then
-for _, desc in ipairs(game:GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
-_G.AceCursedResetRemote = desc
-break
-end
-end
-if not _G.AceCursedResetRemote then
-pcall(function()
-for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1,3) == "RE/" then
-_G.AceCursedResetRemote = desc
-break
-end
-end
-end)
-end
-end
 if not _G.AceCursedResetRemote then return end
-_G.AceCursedResetCooldown = true
-local old_char = LP.Character
-if not old_char then _G.AceCursedResetCooldown = false; return end
+local character=LP.Character
+if not character then pcall(function() _G.AceCursedResetRemote:FireServer(_G.AceCursedResetGuid,LP,"balloon") end);return end
+local humanoid=character:FindFirstChildOfClass("Humanoid")
+if not humanoid then pcall(function() _G.AceCursedResetRemote:FireServer(_G.AceCursedResetGuid,LP,"balloon") end);return end
+if humanoid.Health<=0 then pcall(function() _G.AceCursedResetRemote:FireServer(_G.AceCursedResetGuid,LP,"balloon") end);return end
+local resetDetected=false
+local conns={}
+table.insert(conns,humanoid.Died:Connect(function() resetDetected=true end))
+table.insert(conns,humanoid:GetPropertyChangedSignal("Health"):Connect(function() if humanoid.Health<=0 then resetDetected=true end end))
+table.insert(conns,character.AncestryChanged:Connect(function(_,parent) if not parent then resetDetected=true end end))
 task.spawn(function()
-local startTime = tick()
-local fireCount = 0
-while LP.Character == old_char and (tick() - startTime) < 5 and fireCount < 60 do
-pcall(function() _G.AceCursedResetRemote:FireServer(_G.AceCursedResetGuid, LP, "balloon") end)
-fireCount = fireCount + 1
+for _=1,50 do
+if resetDetected then break end
+pcall(function() _G.AceCursedResetRemote:FireServer(_G.AceCursedResetGuid,LP,"balloon") end)
 task.wait()
 end
-_G.AceCursedResetCooldown = false
+for _,conn in ipairs(conns) do pcall(function() conn:Disconnect() end) end
 end)
 end
 function cursedInstaReset()
@@ -98,6 +80,7 @@ _G.AceAntiBypassAimbotSpeed = _G.AceAntiBypassAimbotSpeed or 58
 if _G.AceAntiBypassLaggerAimbotSpeed == nil or tonumber(_G.AceAntiBypassLaggerAimbotSpeed) == 58 then _G.AceAntiBypassLaggerAimbotSpeed = 40 end
 local autoSwingEnabled = false
 local mirrorTPDownEnabled = false
+local faceTrackEnabled = false
 _G.AceNormalAimbotOn = _G.AceNormalAimbotOn or false
 _G.AceAntiBypassAimbotOn = _G.AceAntiBypassAimbotOn or false
 local antiDesyncAutoSwingEnabled = false
@@ -106,6 +89,7 @@ local ANTI_DESYNC_AIMBOT_SPEED = 58
 local batCounterEnabled = false
 local medCounterEnabled = false
 local autoMedusaEnabled = false
+local antiDieEnabled = false
 local autoMedusaRange = 9.5
 _G.AceAutoMedusaCooldown = 0.12
 _G.AceAutoMedusaConn = nil
@@ -518,9 +502,12 @@ if now - resetCooldown > 0.15 then
 resetCooldown = now
 pcall(function()
 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-root.Velocity = Vector3.zero
-root.RotVelocity = Vector3.zero
+if currentSpeedMode ~= "Normal" then
+local keepVel = root.AssemblyLinearVelocity
+root.AssemblyLinearVelocity = Vector3.new(keepVel.X, 0, keepVel.Z)
+else
 root.AssemblyLinearVelocity = Vector3.zero
+end
 root.AssemblyAngularVelocity = Vector3.zero
 for _, obj in ipairs(char:GetDescendants()) do
 if obj:IsA("Motor6D") then obj.Enabled = true end
@@ -638,6 +625,128 @@ startInstaResetOnDie()
 else
 stopInstaResetOnDie()
 end
+end
+local faceTrackConn = nil
+local function getNearestPlayer()
+local char = LP.Character
+if not char then return nil end
+local root = char:FindFirstChild("HumanoidRootPart")
+if not root then return nil end
+local nearest, nearestDist = nil, math.huge
+for _, p in ipairs(Players:GetPlayers()) do
+if p ~= LP and p.Character then
+local targetRoot = p.Character:FindFirstChild("HumanoidRootPart")
+local hum = p.Character:FindFirstChildOfClass("Humanoid")
+if targetRoot and hum and hum.Health > 0 then
+local dist = (root.Position - targetRoot.Position).Magnitude
+if dist < nearestDist then
+nearestDist = dist
+nearest = p
+end
+end
+end
+end
+return nearest
+end
+local function faceTrackStep()
+if not faceTrackEnabled then return end
+local char = LP.Character
+if not char then return end
+local root = char:FindFirstChild("HumanoidRootPart")
+if not root then return end
+local target = getNearestPlayer()
+if not target then return end
+local targetChar = target.Character
+if not targetChar then return end
+local targetPart = targetChar:FindFirstChild("HumanoidRootPart")
+if not targetPart then return end
+local direction = (targetPart.Position - root.Position)
+direction = Vector3.new(direction.X, 0, direction.Z)
+if direction.Magnitude < 0.01 then return end
+local targetAngle = math.atan2(direction.X, direction.Z)
+local currentCF = root.CFrame
+local currentAngle = math.atan2(currentCF.LookVector.X, currentCF.LookVector.Z)
+local diff = targetAngle - currentAngle
+while diff > math.pi do diff = diff - 2 * math.pi end
+while diff < -math.pi do diff = diff + 2 * math.pi end
+if math.abs(diff) < 0.01 then return end
+local step = math.clamp(diff, -0.15, 0.15)
+root.CFrame = CFrame.new(currentCF.Position) * CFrame.Angles(0, currentAngle + step, 0)
+end
+function _G.AceEnableFaceTrack()
+if faceTrackEnabled then return end
+faceTrackEnabled = true
+if not faceTrackConn then
+faceTrackConn = RunService.RenderStepped:Connect(faceTrackStep)
+end
+end
+function _G.AceDisableFaceTrack()
+faceTrackEnabled = false
+if faceTrackConn then faceTrackConn:Disconnect(); faceTrackConn = nil end
+end
+LP.CharacterAdded:Connect(function(char)
+task.wait(0.3)
+if faceTrackEnabled then
+local hum = char:FindFirstChildOfClass("Humanoid")
+if hum then hum.AutoRotate = false end
+if not faceTrackConn then
+faceTrackConn = RunService.RenderStepped:Connect(faceTrackStep)
+end
+end
+end)
+local antiDieConn = nil
+local antiDieCharConn = nil
+local function startAntiDie()
+if antiDieConn then return end
+antiDieConn = RunService.Heartbeat:Connect(function()
+if not antiDieEnabled then return end
+local char = LP.Character
+if not char then return end
+local hum = char:FindFirstChildOfClass("Humanoid")
+local root = char:FindFirstChild("HumanoidRootPart")
+if not hum or not root then return end
+if hum.Health <= 0 then
+hum.Health = hum.MaxHealth
+end
+local s = hum:GetState()
+if s == Enum.HumanoidStateType.Physics or s == Enum.HumanoidStateType.Ragdoll or s == Enum.HumanoidStateType.FallingDown or s == Enum.HumanoidStateType.Dead then
+pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+end
+local endTime = char:GetAttribute("RagdollEndTime")
+if endTime and (endTime - workspace:GetServerTimeNow()) > 0 then
+pcall(function() char:SetAttribute("RagdollEndTime", workspace:GetServerTimeNow()) end)
+pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+end
+root.Anchored = false
+for _, d in ipairs(char:GetDescendants()) do
+if d:IsA("BallSocketConstraint") then pcall(function() d:Destroy() end)
+elseif d:IsA("Attachment") and d.Name:find("RagdollAttachment") then pcall(function() d:Destroy() end)
+elseif d:IsA("Motor6D") and d.Enabled == false then d.Enabled = true
+end
+end
+if root.AssemblyLinearVelocity.Y < -50 then
+root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+end
+workspace.CurrentCamera.CameraSubject = hum
+hum.PlatformStand = false
+hum.Sit = false
+hum.AutoRotate = true
+end)
+antiDieCharConn = LP.CharacterAdded:Connect(function(char)
+if not antiDieEnabled then return end
+task.wait(0.2)
+local hum = char:FindFirstChildOfClass("Humanoid")
+local root = char:FindFirstChild("HumanoidRootPart")
+if hum then
+hum.PlatformStand = false
+hum.Sit = false
+hum.AutoRotate = true
+end
+end)
+end
+local function stopAntiDie()
+antiDieEnabled = false
+if antiDieConn then antiDieConn:Disconnect(); antiDieConn = nil end
 end
 _G.AceNormalInfJump = _G.AceNormalInfJump or {holdPressed=false, holdActive=false, controllerActive=false, mobilePressed=false, mobileActive=false, hooked={}}
 function _G.AceStopNormalInfJumpHoldState()
@@ -976,10 +1085,12 @@ mirrorTPDownEnabled = mirrorTPDownEnabled,
 normalAimbotEnabled = _G.AceNormalAimbotOn == true,
 antiBypassAimbotEnabled = _G.AceAntiBypassAimbotOn == true,
 antiDesyncAutoSwingEnabled = antiDesyncAutoSwingEnabled,
+antiDieEnabled = antiDieEnabled,
 antiDesyncAimbotEnabled = _G.AceAntiDesyncAimbotOn == true,
 batCounterEnabled = batCounterEnabled,
 medCounterEnabled = medCounterEnabled,
 autoMedusaEnabled = autoMedusaEnabled,
+faceTrackEnabled = faceTrackEnabled,
 safeMode = antiKickEnabled == true,
 autoResetOnMedEnabled = autoResetOnMedEnabled,
 espEnabled = espEnabled,
@@ -1082,6 +1193,7 @@ mirrorTPDownEnabled = data.mirrorTPDownEnabled == true
 _G.AceNormalAimbotOn = data.normalAimbotEnabled == true
 _G.AceAntiBypassAimbotOn = data.antiBypassAimbotEnabled == true
 antiDesyncAutoSwingEnabled = data.antiDesyncAutoSwingEnabled == true
+antiDieEnabled = data.antiDieEnabled == true
 _G.AceAntiDesyncAimbotOn = data.antiDesyncAimbotEnabled == true
 batCounterEnabled = data.batCounterEnabled == true
 medCounterEnabled = data.medCounterEnabled == true
@@ -1105,6 +1217,7 @@ customFontVisualEnabled = false
 skyTheme = (type(data.skyTheme) == "string" and data.skyTheme) or skyTheme
 autoLeftEnabled = data.autoLeftEnabled == true
 autoRightEnabled = data.autoRightEnabled == true
+faceTrackEnabled = data.faceTrackEnabled == true
 if data.introEnabled ~= nil then _introEnabled = data.introEnabled == true end
 if data.selectedIntroMusic and INTRO_MUSIC_OPTIONS[data.selectedIntroMusic] then selectedIntroMusic = data.selectedIntroMusic end
 if autoLeftEnabled and autoRightEnabled then autoRightEnabled = false end
@@ -1157,7 +1270,7 @@ _G.AceCursedResetGuid = _G.AceCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6
 _G.AceCursedResetRemote = _G.AceCursedResetRemote or nil
 _G.AceFindCursedResetRemote = _G.AceFindCursedResetRemote or function()
 if _G.AceCursedResetRemote then return _G.AceCursedResetRemote end
-for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
+for _, desc in ipairs(game:GetDescendants()) do
 if desc:IsA("RemoteEvent") and desc.Name:sub(1, 3) == "RE/" then
 _G.AceCursedResetRemote = desc
 break
@@ -1166,11 +1279,13 @@ end
 return _G.AceCursedResetRemote
 end
 function _G.AceAutoResetCursedInstaReset()
-local remote = _G.AceFindCursedResetRemote and _G.AceFindCursedResetRemote() or _G.AceCursedResetRemote
+local remote = _G.AceCursedResetRemote or (_G.AceFindCursedResetRemote and _G.AceFindCursedResetRemote())
 if not remote then return end
 local character = LP.Character
-local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-if humanoid and humanoid.Health <= 0 then
+if not character then pcall(function() remote:FireServer(_G.AceCursedResetGuid, LP, "balloon") end); return end
+local humanoid = character:FindFirstChildOfClass("Humanoid")
+if not humanoid then pcall(function() remote:FireServer(_G.AceCursedResetGuid, LP, "balloon") end); return end
+if humanoid.Health <= 0 then
 pcall(function()
 remote:FireServer(_G.AceCursedResetGuid, LP, "balloon")
 end)
@@ -1178,7 +1293,6 @@ return
 end
 local resetDetected = false
 local resetConns = {}
-if humanoid then
 table.insert(resetConns, humanoid.Died:Connect(function()
 resetDetected = true
 end))
@@ -1187,21 +1301,18 @@ if humanoid.Health <= 0 then
 resetDetected = true
 end
 end))
-end
-if character then
 table.insert(resetConns, character.AncestryChanged:Connect(function(_, parent)
 if not parent then
 resetDetected = true
 end
 end))
-end
 task.spawn(function()
-for _ = 1, 10 do
+for _ = 1, 50 do
 if resetDetected then break end
 pcall(function()
 remote:FireServer(_G.AceCursedResetGuid, LP, "balloon")
 end)
-task.wait(0.05)
+task.wait()
 end
 for _, conn in ipairs(resetConns) do
 pcall(function()
@@ -2703,7 +2814,7 @@ task.spawn(function()
 local startTime = A.state.startTime
 for _, fn in ipairs(data.holdCallbacks) do task.spawn(function() pcall(fn) end) end
 while A.enabled and selectedStealMode == "Semi" and tick() - startTime < (A.holdMin or 1.3) do
-barSet((tick() - startTime) / (A.holdMax or 2.6), A.state.label or "STEALING")
+barSet((tick() - startTime) / (A.holdMax or 2.6), "STEALING")
 task.wait()
 end
 A.state.phase = "waitingRange"
@@ -2712,7 +2823,7 @@ local fired = false
 while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
 local elapsed = tick() - startTime
 if elapsed > (A.holdMax or 2.6) then break end
-barSet(elapsed / (A.holdMax or 2.6), A.state.label or "STEALING")
+barSet(elapsed / (A.holdMax or 2.6), "STEALING")
 if distToAnimal(animalData) <= (tonumber(A.radius) or 10) then
 if not alreadyInRange then task.wait(A.entryDelay or 0.3) end
 if A.enabled and selectedStealMode == "Semi" then
@@ -3361,15 +3472,13 @@ LP.CharacterAdded:Connect(function(char)
 task.wait(0.5)
 setupOverheadInfo(char)
 if ragdollCountdownEnabled then hookRagdollCountdown(char) end
+_G.AceSpeedSpawnGrace = 0.1
 end)
 do
-local VELOCITY_Y_TRICK = 0.000026
-local speedOwnershipTimer = 0
-local speedLagbackCooldown = 0
-local speedLastPosition = nil
-local speedLastTime = nil
-local isJumping = false
-local consecutiveLagbacks = 0
+local MOVE_KEYS={[Enum.KeyCode.W]=true,[Enum.KeyCode.A]=true,[Enum.KeyCode.S]=true,[Enum.KeyCode.D]=true,
+	[Enum.KeyCode.Up]=true,[Enum.KeyCode.Left]=true,[Enum.KeyCode.Down]=true,[Enum.KeyCode.Right]=true}
+local lastSpeedPos = nil
+local lastSpeedTime = nil
 RunService.Heartbeat:Connect(function(dt)
 local char = LP.Character
 if not char then return end
@@ -3384,73 +3493,40 @@ or state == Enum.HumanoidStateType.FallingDown then
 lastMoveDir = Vector3.new(0, 0, 0)
 return
 end
-speedOwnershipTimer += dt
-if speedOwnershipTimer >= 0.8 then
-pcall(function() hrp:SetNetworkOwner(LP) end)
-speedOwnershipTimer = 0
-end
-isJumping = state == Enum.HumanoidStateType.Jumping or state == Enum.HumanoidStateType.Freefall
-local vy = hrp.AssemblyLinearVelocity.Y
-if not isJumping and vy < -50 then
-isJumping = true
+if _G.AceSpeedSpawnGrace and _G.AceSpeedSpawnGrace > 0 then
+_G.AceSpeedSpawnGrace = math.max(0, _G.AceSpeedSpawnGrace - dt)
+local spd = getCurrentSpeedValue()
+if spd and spd > 0 then hum.WalkSpeed = spd end
+return
 end
 local md = hum.MoveDirection
 local spd = getCurrentSpeedValue()
-local isCarrying = (currentSpeedMode == "Carry" or currentSpeedMode == "Lagger Carry")
-if not autoLeftEnabled and not autoRightEnabled and md.Magnitude > 0 then
+if not autoLeftEnabled and not autoRightEnabled then
+if md.Magnitude > 0 then
 lastMoveDir = md
-local targetY
-if isJumping then
-targetY = vy
-else
-targetY = VELOCITY_Y_TRICK
-end
-local currentVel = hrp.AssemblyLinearVelocity
-local horizontalCurrent = Vector3.new(currentVel.X, 0, currentVel.Z).Magnitude
-local horizontalTarget = spd
-local alpha
-if isCarrying then
-if horizontalCurrent < horizontalTarget * 0.8 then
-alpha = math.min(dt * 30, 0.7)
-else
-alpha = math.min(dt * 18, 0.50)
-end
-else
-alpha = math.min(dt * 14, 0.45)
-end
-local targetVel = Vector3.new(md.X * spd, targetY, md.Z * spd)
-hrp.AssemblyLinearVelocity = currentVel:Lerp(targetVel, alpha)
 hum.WalkSpeed = spd
-speedLagbackCooldown -= dt
-local now = tick()
-local elapsed = now - (speedLastTime or now)
-if elapsed > 0.05 and speedLastPosition then
-local expectedDist = spd * elapsed
-local actualDist = (hrp.Position - speedLastPosition).Magnitude
-local lagbackRatio = actualDist / math.max(expectedDist, 0.1)
-if lagbackRatio < 0.4 and speedLagbackCooldown <= 0 then
-consecutiveLagbacks = consecutiveLagbacks + 1
-local boostMultiplier = math.min(1.0 + consecutiveLagbacks * 0.08, 1.25)
-hrp.AssemblyLinearVelocity = targetVel * boostMultiplier
+local hVel = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+local targetH = Vector3.new(md.X * spd, 0, md.Z * spd)
+local hMag = hVel.Magnitude
+if hMag < spd * 0.85 then
+hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity:Lerp(Vector3.new(targetH.X, hrp.AssemblyLinearVelocity.Y, targetH.Z), math.min(dt * 30, 0.8))
+end
+elseif antiRagdollEnabled and lastMoveDir.Magnitude > 0 then
+local anyHeld = false
+for key in pairs(MOVE_KEYS) do if UserInputService:IsKeyDown(key) then anyHeld = true; break end end
+if anyHeld then
 hum.WalkSpeed = spd
-speedLagbackCooldown = 0.35
+local hVel = Vector3.new(hrp.AssemblyLinearVelocity.X, 0, hrp.AssemblyLinearVelocity.Z)
+local targetH = Vector3.new(lastMoveDir.X * spd, 0, lastMoveDir.Z * spd)
+if hVel.Magnitude < spd * 0.85 then
+hrp.AssemblyLinearVelocity = hrp.AssemblyLinearVelocity:Lerp(Vector3.new(targetH.X, hrp.AssemblyLinearVelocity.Y, targetH.Z), math.min(dt * 30, 0.8))
+end
+end
 else
-consecutiveLagbacks = math.max(0, consecutiveLagbacks - 1)
+hum.WalkSpeed = 34
 end
-end
-speedLastPosition = hrp.Position
-speedLastTime = now
 else
-local currentVel = hrp.AssemblyLinearVelocity
-local horizontalCurrent = Vector3.new(currentVel.X, 0, currentVel.Z).Magnitude
-if horizontalCurrent > 0.5 then
-local decelAlpha = math.min(dt * 10, 0.35)
-hrp.AssemblyLinearVelocity = currentVel:Lerp(Vector3.new(0, currentVel.Y, 0), decelAlpha)
-hum.WalkSpeed = math.max(horizontalCurrent * 0.8, 0)
-end
-speedLastPosition = hrp.Position
-speedLastTime = tick()
-consecutiveLagbacks = 0
+hum.WalkSpeed = 34
 end
 if overheadSpeedLabel then
 local v = hrp.AssemblyLinearVelocity
@@ -4767,6 +4843,15 @@ saveAceConfig()
 end)
 end
 end
+_G.AceAntiDieRow, _G.AceAntiDieSetVisual, _G.AceAntiDieBtn = _G.AceActionToggleRow(Movement, "Anti Die", antiDieEnabled, 17.5)
+if _G.AceAntiDieBtn then
+_G.AceAntiDieBtn.MouseButton1Click:Connect(function()
+antiDieEnabled = not antiDieEnabled
+if _G.AceAntiDieSetVisual then _G.AceAntiDieSetVisual(antiDieEnabled) end
+if antiDieEnabled then startAntiDie() else stopAntiDie() end
+saveAceConfig()
+end)
+end
 do
 local row, setVis = toggleRow(Movement, "Gravity Fall", _G.AceGalaxyGravityEnabled, 18)
 _G.AceSetGalaxyGravityVisual = setVis
@@ -4902,6 +4987,19 @@ end
 if _G.AceRefreshAimbotSpeedBoxes then _G.AceRefreshAimbotSpeedBoxes() else laggerAimbotSpeedBox.Text = tostring(LAGGER_AIMBOT_SPEED) end
 saveAceConfig()
 end)
+_G.AceFaceTrackRow, _G.AceFaceTrackSetVisual, _G.AceFaceTrackBtn = _G.AceActionToggleRow(Combat, "Face Track", faceTrackEnabled, 9.5)
+if _G.AceFaceTrackBtn then
+_G.AceFaceTrackBtn.MouseButton1Click:Connect(function()
+faceTrackEnabled = not faceTrackEnabled
+if _G.AceFaceTrackSetVisual then _G.AceFaceTrackSetVisual(faceTrackEnabled) end
+if faceTrackEnabled then
+if _G.AceEnableFaceTrack then _G.AceEnableFaceTrack() end
+else
+if _G.AceDisableFaceTrack then _G.AceDisableFaceTrack() end
+end
+saveAceConfig()
+end)
+end
 section(Combat, "ANTI DESYNC BAT", 10)
 _G.AceAntiDesyncAutoSwingRow, _G.AceAntiDesyncAutoSwingSetVisual, _G.AceAntiDesyncAutoSwingBtn = _G.AceActionToggleRow(Combat, "Auto Swing", antiDesyncAutoSwingEnabled, 11)
 do
@@ -6412,7 +6510,7 @@ _G.AceStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
 _G.AceAntiBypassAimbotSpeed = 58; _G.AceAntiBypassLaggerAimbotSpeed = 40; ANTI_DESYNC_AIMBOT_SPEED = 58
-autoSwingEnabled = false; mirrorTPDownEnabled = false; antiDesyncAutoSwingEnabled = false
+autoSwingEnabled = false; mirrorTPDownEnabled = false; antiDesyncAutoSwingEnabled = false; faceTrackEnabled = false; antiDieEnabled = false
 _G.AceNormalAimbotOn = false; _G.AceAntiBypassAimbotOn = false; _G.AceAntiDesyncAimbotOn = false
 antiRagdollEnabled = false; infJumpEnabled = false; autoTPEnabled = false
 batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = false; autoResetOnMedEnabled = false
@@ -7298,6 +7396,14 @@ end)
 pcall(function()
 if _G.AceSetInstaResetOnDieVisual then _G.AceSetInstaResetOnDieVisual(_G.AceInstaResetOnDieEnabled == true) end
 if _G.AceInstaResetOnDieEnabled then startInstaResetOnDie() else stopInstaResetOnDie() end
+end)
+pcall(function()
+if _G.AceFaceTrackSetVisual then _G.AceFaceTrackSetVisual(faceTrackEnabled == true) end
+if faceTrackEnabled then _G.AceEnableFaceTrack() else _G.AceDisableFaceTrack() end
+end)
+pcall(function()
+if _G.AceAntiDieSetVisual then _G.AceAntiDieSetVisual(antiDieEnabled == true) end
+if antiDieEnabled then startAntiDie() else stopAntiDie() end
 end)
 pcall(function()
 if _G.AceSetFOVVisual then _G.AceSetFOVVisual(fovEnabled == true) end
