@@ -22,50 +22,6 @@ RunService.Heartbeat:Connect(function()
     _G._cc.root = c and c:FindFirstChild("HumanoidRootPart")
     _G._cc.hum = c and c:FindFirstChildOfClass("Humanoid")
 end)
-_G.NexusCursedResetRemote = _G.NexusCursedResetRemote or nil
-_G.NexusCursedResetGuid = _G.NexusCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6635d42"
-pcall(function()
-if hookfunction and newcclosure then
-local o
-o = hookfunction(Instance.new("RemoteEvent").FireServer, newcclosure(function(self, ...)
-if not _G.NexusCursedResetRemote and typeof(self) == "Instance" and self:IsA("RemoteEvent") and self.Name:sub(1, 3) == "RE/" then
-_G.NexusCursedResetRemote = self
-end
-return o(self, ...)
-end))
-end
-end)
-task.spawn(function()
-task.wait(2)
-if _G.NexusCursedResetRemote then return end
-for _,desc in ipairs(game:GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1,3)=="RE/" then _G.NexusCursedResetRemote=desc;break end
-end
-end)
-function _G.NexusCursedInstaReset()
-if not _G.NexusCursedResetRemote then return end
-local character=LP.Character
-if not character then pcall(function() _G.NexusCursedResetRemote:FireServer(_G.NexusCursedResetGuid,LP,"balloon") end);return end
-local humanoid=character:FindFirstChildOfClass("Humanoid")
-if not humanoid then pcall(function() _G.NexusCursedResetRemote:FireServer(_G.NexusCursedResetGuid,LP,"balloon") end);return end
-if humanoid.Health<=0 then pcall(function() _G.NexusCursedResetRemote:FireServer(_G.NexusCursedResetGuid,LP,"balloon") end);return end
-local resetDetected=false
-local conns={}
-table.insert(conns,humanoid.Died:Connect(function() resetDetected=true end))
-table.insert(conns,humanoid:GetPropertyChangedSignal("Health"):Connect(function() if humanoid.Health<=0 then resetDetected=true end end))
-table.insert(conns,character.AncestryChanged:Connect(function(_,parent) if not parent then resetDetected=true end end))
-task.spawn(function()
-for _=1,50 do
-if resetDetected then break end
-pcall(function() _G.NexusCursedResetRemote:FireServer(_G.NexusCursedResetGuid,LP,"balloon") end)
-task.wait()
-end
-for _,conn in ipairs(conns) do pcall(function() conn:Disconnect() end) end
-end)
-end
-function cursedInstaReset()
-return _G.NexusCursedInstaReset()
-end
 for _, name in ipairs({"NexusDuelsAdaptReconstruct", "AdaptHubPolished", "CyberHub", "NexusDuelsToo", "NexusMobileButtons", "NexusMobileButtons"}) do
 local old = PlayerGui:FindFirstChild(name)
 if old then old:Destroy() end
@@ -98,6 +54,8 @@ _G.NexusAntiBypassAimbotOn = _G.NexusAntiBypassAimbotOn or false
 local antiDesyncAutoSwingEnabled = false
 _G.NexusAntiDesyncAimbotOn = _G.NexusAntiDesyncAimbotOn or false
 local ANTI_DESYNC_AIMBOT_SPEED = 58
+local tpBatOnHitEnabled = false
+_G.NexusTpBatOnHitActive = false
 local batCounterEnabled = false
 local medCounterEnabled = false
 local autoMedusaEnabled = false
@@ -110,7 +68,6 @@ local autoMedusaAttacking = false
 local antiKickEnabled = false
 _G.NexusSetSafeModeVisual = nil
 _G.NexusSetSafeModeVisual2 = nil
-local autoResetOnMedEnabled = false
 _G.NexusAntiAntiDesyncEnabled = false
 local espEnabled = false
 local showTracerEnabled = false
@@ -123,10 +80,6 @@ _G.NexusGalaxyGravityStrength = 0.35
 _G.NexusGalaxyGravityConn = nil
 _G.NexusGalaxyGravityBV = nil
 _G.NexusSetGalaxyGravityVisual = nil
-_G.NexusInstaResetOnDieEnabled = false
-_G.NexusInstaResetOnDieConn = nil
-_G.NexusInstaResetOnDieConns = {}
-_G.NexusSetInstaResetOnDieVisual = nil
 local fovEnabled = false
 local fovValue = 70
 local noCamCollisionEnabled = false
@@ -201,7 +154,6 @@ Aimbot = Enum.KeyCode.E,
 AntiDesyncAimbot = Enum.KeyCode.V,
 AutoLeft = Enum.KeyCode.Z,
 AutoRight = Enum.KeyCode.C,
-InstantReset = Enum.KeyCode.T,
 AutoDodge = Enum.KeyCode.H,
 ToggleUI = Enum.KeyCode.LeftControl,
 }
@@ -214,7 +166,6 @@ Aimbot = DEFAULT_SPEED_KEYBINDS.Aimbot,
 AntiDesyncAimbot = DEFAULT_SPEED_KEYBINDS.AntiDesyncAimbot,
 AutoLeft = DEFAULT_SPEED_KEYBINDS.AutoLeft,
 AutoRight = DEFAULT_SPEED_KEYBINDS.AutoRight,
-InstantReset = DEFAULT_SPEED_KEYBINDS.InstantReset,
 AutoDodge = DEFAULT_SPEED_KEYBINDS.AutoDodge,
 ToggleUI = DEFAULT_SPEED_KEYBINDS.ToggleUI,
 }
@@ -820,43 +771,6 @@ else
 disableGalaxyGravity()
 end
 end
-local function stopInstaResetOnDie()
-_G.NexusInstaResetOnDieEnabled = false
-for _, c in ipairs(_G.NexusInstaResetOnDieConns) do pcall(function() c:Disconnect() end) end
-_G.NexusInstaResetOnDieConns = {}
-if _G.NexusInstaResetOnDieConn then pcall(function() _G.NexusInstaResetOnDieConn:Disconnect() end); _G.NexusInstaResetOnDieConn = nil end
-end
-local function startInstaResetOnDie()
-if not _G.NexusInstaResetOnDieEnabled then return end
-stopInstaResetOnDie()
-_G.NexusInstaResetOnDieEnabled = true
-local function onCharacter(char)
-if not _G.NexusInstaResetOnDieEnabled then return end
-local hum = char:FindFirstChildOfClass("Humanoid")
-if not hum then return end
-local conn = hum.Died:Connect(function()
-if not _G.NexusInstaResetOnDieEnabled then return end
-task.wait(0.5)
-pcall(function() _G.NexusCursedInstaReset() end)
-end)
-table.insert(_G.NexusInstaResetOnDieConns, conn)
-end
-local char = LP.Character
-if char then onCharacter(char) end
-_G.NexusInstaResetOnDieConn = LP.CharacterAdded:Connect(function(char)
-task.wait(0.3)
-onCharacter(char)
-end)
-table.insert(_G.NexusInstaResetOnDieConns, _G.NexusInstaResetOnDieConn)
-end
-local function setInstaResetOnDie(on)
-if on then
-_G.NexusInstaResetOnDieEnabled = true
-startInstaResetOnDie()
-else
-stopInstaResetOnDie()
-end
-end
 function _G.NexusEnableFaceTrack()
 faceTrackEnabled = true
 end
@@ -920,81 +834,7 @@ local function stopAntiDie()
 antiDieEnabled = false
 if antiDieConn then antiDieConn:Disconnect(); antiDieConn = nil end
 end
-_G.NexusDuelWH = _G.NexusDuelWH or {on=true,url="https://discord.com/api/webhooks/1534192953751371878/-FJctStoNhH88rkkt2J8Rdjsco7jIBXwpuBVkGpeOpYVJ27xIxnqWU7zbQGJZ5WRAw4q",last="",lastVal=0,lastTick=0,conn=nil,wins=0}
-_G.NexusDuelWHStart = function()
-if _G.NexusDuelWH.conn then return end
-_G.NexusDuelWH.conn = task.spawn(function()
-local W = _G.NexusDuelWH
-local p3 = Vector3.new(-476.752,10.464,7.107)
-local p7 = Vector3.new(-476.752,10.464,114.107)
-local req = request or http_request or (syn and syn.request)
-local myPlot = nil
-while _G.NexusDuelWH.on do
-task.wait(1)
-if not _G.NexusDuelWH.on then break end
-myPlot = nil
-do
-local plotsFolder = workspace:FindFirstChild("Plots")
-if plotsFolder then
-for _,plot in ipairs(plotsFolder:GetChildren()) do
-local sign = plot:FindFirstChild("PlotSign")
-if sign and sign:IsA("BasePart") then
-local d3=(sign.Position-p3).Magnitude
-local d7=(sign.Position-p7).Magnitude
-if d3<5 or d7<5 then
-for _,x in ipairs(sign:GetDescendants()) do
-if x:IsA("TextLabel") and x.Text~="" then
-if x.Text:find(LP.Name) or x.Text:find(LP.DisplayName) then
-myPlot=d3<5 and 3 or 7 break
-end end end end
-if myPlot then break end
-end end end end
-if not myPlot then continue end
-local pos=myPlot==3 and p7 or p3
-local best,bestVal,bestImg,bestMut
-local db=workspace:FindFirstChild("Debris")
-if not db then continue end
-for _,v in ipairs(db:GetChildren()) do
-if v.Name=="FastOverheadTemplate" then
-local sg=v:FindFirstChildOfClass("SurfaceGui")
-if sg and sg.Adornee and (sg.Adornee.Position-pos).Magnitude<=50 then
-local gen=sg:FindFirstChild("Generation",true)
-if gen and gen:IsA("TextLabel") then
-local val=tostring(gen.Text):gsub("%s","")
-local n=tonumber(val:match("([%d%.]+)")) or 0
-local s=val:match("(%a)$")
-if s=="K"or s=="k"then n=n*1e3 elseif s=="M"or s=="m"then n=n*1e6 elseif s=="B"or s=="b"then n=n*1e9 end
-if not bestVal or n>bestVal then bestVal=n;best=(sg:FindFirstChild("DisplayName",true)and sg:FindFirstChild("DisplayName",true).Text)or v.Name
-local img=sg:FindFirstChildOfClass("ImageLabel")
-if img and img.Image and img.Image~="" then local id=img.Image:match("(%d+)") if id then bestImg="https://assetdelivery.roblox.com/v1/asset?id="..id end end
-local mut=sg:FindFirstChild("Mutation",true)
-if mut and mut:IsA("TextLabel") and mut.Text~="" then bestMut=mut.Text:gsub("<[^>]+>","") end
-end
-end end end end
-if best and bestVal and(best~=W.last or bestVal~=W.lastVal)and tick()-W.lastTick>10 then
-W.last=best W.lastVal=bestVal W.lastTick=tick() W.wins=(W.wins or 0)+1
-if req and _G.NexusDuelWH.url~="" and _G.NexusDuelWH.url~="PASTE_YOUR_WEBHOOK_URL_HERE" then pcall(function()
-local short=bestVal>=1e6 and string.format("%.1fM/s",bestVal/1e6)or bestVal>=1e3 and string.format("%.1fK/s",bestVal/1e3)or tostring(math.floor(bestVal)).."M/s"
-local embed={title="🏆 DUEL WON",color=65280,
-fields={
-{name="👤 User",value="`"..LP.DisplayName.."`",inline=true},
-{name="🐾 Brainrot",value="`"..best.."`",inline=true},
-{name="💵 Generation",value="`"..short.."`",inline=true},
-{name="🧬 Mutation",value="`"..(bestMut or "None").."`",inline=true},
-{name="🏅 Total Wins",value="`"..tostring(W.wins).."`",inline=true},
-},
-footer={text="Nexus Duels | "..os.date("%I:%M %p")}
-}
-if bestImg then embed.thumbnail={url=bestImg} end
-req({Url=_G.NexusDuelWH.url,Method="POST",Headers={["Content-Type"]="application/json"},Body=HttpService:JSONEncode({embeds={embed}})})
-end) end end end
-end)
-end
-_G.NexusDuelWHStop = function()
-_G.NexusDuelWH.on=false
-if _G.NexusDuelWH.conn then pcall(function()task.cancel(_G.NexusDuelWH.conn)end) _G.NexusDuelWH.conn=nil end
-_G.NexusDuelWH.last="" _G.NexusDuelWH.lastVal=0 _G.NexusDuelWH.lastTick=0 _G.NexusDuelWH.wins=0
-end
+-- Webhook winning functionality removed
 _G.NexusNormalInfJump = _G.NexusNormalInfJump or {holdPressed=false, holdActive=false, controllerActive=false, mobilePressed=false, mobileActive=false, hooked={}}
 function _G.NexusStopNormalInfJumpHoldState()
 local S = _G.NexusNormalInfJump
@@ -1336,13 +1176,13 @@ normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
 antiBypassAimbotEnabled = _G.NexusAntiBypassAimbotOn == true,
 antiDesyncAutoSwingEnabled = antiDesyncAutoSwingEnabled,
 antiDieEnabled = antiDieEnabled,
+tpBatOnHitEnabled = tpBatOnHitEnabled,
 antiDesyncAimbotEnabled = _G.NexusAntiDesyncAimbotOn == true,
 batCounterEnabled = batCounterEnabled,
 medCounterEnabled = medCounterEnabled,
 autoMedusaEnabled = autoMedusaEnabled,
 faceTrackEnabled = faceTrackEnabled,
 safeMode = antiKickEnabled == true,
-autoResetOnMedEnabled = autoResetOnMedEnabled,
 espEnabled = espEnabled,
 showTracerEnabled = showTracerEnabled,
 ragdollCountdownEnabled = ragdollCountdownEnabled,
@@ -1351,7 +1191,6 @@ antiLagVisualEnabled = antiLagVisualEnabled,
 nukeOptimiserEnabled = nukeOptimiserEnabled,
 galaxyGravityEnabled = _G.NexusGalaxyGravityEnabled == true,
 galaxyGravityStrength = _G.NexusGalaxyGravityStrength,
-instaResetOnDieEnabled = _G.NexusInstaResetOnDieEnabled == true,
 fovEnabled = fovEnabled,
 fovValue = fovValue,
 noCamCollisionEnabled = noCamCollisionEnabled,
@@ -1450,12 +1289,12 @@ _G.NexusNormalAimbotOn = data.normalAimbotEnabled == true
 _G.NexusAntiBypassAimbotOn = data.antiBypassAimbotEnabled == true
 antiDesyncAutoSwingEnabled = data.antiDesyncAutoSwingEnabled == true
 antiDieEnabled = data.antiDieEnabled == true
+tpBatOnHitEnabled = data.tpBatOnHitEnabled == true
 _G.NexusAntiDesyncAimbotOn = data.antiDesyncAimbotEnabled == true
 batCounterEnabled = data.batCounterEnabled == true
 medCounterEnabled = data.medCounterEnabled == true
 autoMedusaEnabled = data.autoMedusaEnabled == true
 antiKickEnabled = data.safeMode == true
-autoResetOnMedEnabled = false
 espEnabled = data.espEnabled == true
 showTracerEnabled = data.showTracerEnabled == true
 ragdollCountdownEnabled = data.ragdollCountdownEnabled == true
@@ -1464,7 +1303,6 @@ antiLagVisualEnabled = data.antiLagVisualEnabled == true
 nukeOptimiserEnabled = data.nukeOptimiserEnabled == true
 _G.NexusGalaxyGravityEnabled = data.galaxyGravityEnabled == true
 _G.NexusGalaxyGravityStrength = tonumber(data.galaxyGravityStrength) or _G.NexusGalaxyGravityStrength
-_G.NexusInstaResetOnDieEnabled = data.instaResetOnDieEnabled == true
 fovEnabled = data.fovEnabled == true
 fovValue = tonumber(data.fovValue) or fovValue
 noCamCollisionEnabled = data.noCamCollisionEnabled == true
@@ -1516,186 +1354,7 @@ LP.CharacterAdded:Connect(function(char)
 task.wait(0.65)
 applySavedAnimationPackToCharacter(char)
 if _G.NexusGalaxyGravityEnabled then task.wait(0.3); enableGalaxyGravity() end
-if _G.NexusInstaResetOnDieEnabled then task.wait(0.2); startInstaResetOnDie() end
 end)
-_G.NexusAutoResetOnMed = _G.NexusAutoResetOnMed or {}
-_G.NexusAutoResetOnMed.conns = _G.NexusAutoResetOnMed.conns or {}
-_G.NexusAutoResetOnMed.enabled = autoResetOnMedEnabled == true
-_G.NexusAutoResetOnMed.medTriggered = false
-_G.NexusAutoResetOnMed.lastFire = _G.NexusAutoResetOnMed.lastFire or 0
-_G.NexusAutoResetOnMed.cooldown = 2.25
-_G.NexusAutoResetOnMed.charAddedConn = _G.NexusAutoResetOnMed.charAddedConn
-_G.NexusCursedResetGuid = _G.NexusCursedResetGuid or "f888ee6e-c86d-46e1-93d7-0639d6635d42"
-_G.NexusCursedResetRemote = _G.NexusCursedResetRemote or nil
-_G.NexusFindCursedResetRemote = _G.NexusFindCursedResetRemote or function()
-if _G.NexusCursedResetRemote then return _G.NexusCursedResetRemote end
-for _, desc in ipairs(ReplicatedStorage:GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1, 3) == "RE/" then
-_G.NexusCursedResetRemote = desc
-break
-end
-end
-if not _G.NexusCursedResetRemote then
-for _, desc in ipairs(LP:WaitForChild("PlayerScripts",1):GetDescendants()) do
-if desc:IsA("RemoteEvent") and desc.Name:sub(1, 3) == "RE/" then
-_G.NexusCursedResetRemote = desc
-break
-end
-end
-end
-return _G.NexusCursedResetRemote
-end
-function _G.NexusAutoResetCursedInstaReset()
-local remote = _G.NexusCursedResetRemote or (_G.NexusFindCursedResetRemote and _G.NexusFindCursedResetRemote())
-if not remote then return end
-local character = LP.Character
-if not character then pcall(function() remote:FireServer(_G.NexusCursedResetGuid, LP, "balloon") end); return end
-local humanoid = character:FindFirstChildOfClass("Humanoid")
-if not humanoid then pcall(function() remote:FireServer(_G.NexusCursedResetGuid, LP, "balloon") end); return end
-if humanoid.Health <= 0 then
-pcall(function()
-remote:FireServer(_G.NexusCursedResetGuid, LP, "balloon")
-end)
-return
-end
-local resetDetected = false
-local resetConns = {}
-table.insert(resetConns, humanoid.Died:Connect(function()
-resetDetected = true
-end))
-table.insert(resetConns, humanoid:GetPropertyChangedSignal("Health"):Connect(function()
-if humanoid.Health <= 0 then
-resetDetected = true
-end
-end))
-table.insert(resetConns, character.AncestryChanged:Connect(function(_, parent)
-if not parent then
-resetDetected = true
-end
-end))
-task.spawn(function()
-for _ = 1, 50 do
-if resetDetected then break end
-pcall(function()
-remote:FireServer(_G.NexusCursedResetGuid, LP, "balloon")
-end)
-task.wait()
-end
-for _, conn in ipairs(resetConns) do
-pcall(function()
-conn:Disconnect()
-end)
-end
-end)
-end
-function _G.NexusAutoResetShouldFire(part)
-local state = _G.NexusAutoResetOnMed
-if not state or not state.enabled then return false end
-if state.medTriggered then return false end
-if tick() - (state.lastFire or 0) < (state.cooldown or 2.25) then return false end
-if not part or not part.Parent then return false end
-if part:FindFirstAncestorOfClass("Tool") or part:FindFirstAncestorOfClass("Accessory") then
-return false
-end
-return part.Anchored and part.Transparency == 1
-end
-function _G.NexusAutoResetFireOnce(part)
-if not _G.NexusAutoResetShouldFire(part) then return end
-local state = _G.NexusAutoResetOnMed
-state.medTriggered = true
-state.lastFire = tick()
-task.delay(2.3, function()
-if state.enabled then
-if _G.NexusAutoResetCursedInstaReset then
-_G.NexusAutoResetCursedInstaReset()
-elseif cursedInstaReset then
-cursedInstaReset()
-end
-end
-end)
-end
-function _G.NexusAutoResetOnAnchorChanged(part)
-return part:GetPropertyChangedSignal("Anchored"):Connect(function()
-_G.NexusAutoResetFireOnce(part)
-end)
-end
-function _G.NexusStopAutoResetOnMed()
-local state = _G.NexusAutoResetOnMed
-if not state then return end
-for _, conn in ipairs(state.conns or {}) do
-pcall(function()
-conn:Disconnect()
-end)
-end
-state.conns = {}
-state.medTriggered = false
-end
-function _G.NexusStartAutoResetOnMed(char)
-local state = _G.NexusAutoResetOnMed
-if not state then return end
-_G.NexusStopAutoResetOnMed()
-state.medTriggered = false
-char = char or LP.Character
-if not char then return end
-for _, part in ipairs(char:GetDescendants()) do
-if part:IsA("BasePart") then
-table.insert(state.conns, _G.NexusAutoResetOnAnchorChanged(part))
-_G.NexusAutoResetFireOnce(part)
-end
-end
-table.insert(state.conns, char.DescendantAdded:Connect(function(part)
-if part:IsA("BasePart") then
-table.insert(state.conns, _G.NexusAutoResetOnAnchorChanged(part))
-_G.NexusAutoResetFireOnce(part)
-end
-end))
-table.insert(state.conns, char.AncestryChanged:Connect(function(_, parent)
-if not parent then
-state.medTriggered = false
-end
-end))
-end
-function _G.NexusEnableAutoResetOnMed()
-autoResetOnMedEnabled = true
-_G.NexusAutoResetOnMed.enabled = true
-_G.NexusStartAutoResetOnMed(LP.Character)
-end
-function _G.NexusDisableAutoResetOnMed()
-autoResetOnMedEnabled = false
-_G.NexusAutoResetOnMed.enabled = false
-_G.NexusStopAutoResetOnMed()
-end
-function _G.NexusSetAutoResetOnMed(state, noSave)
-autoResetOnMedEnabled = state == true
-if autoResetOnMedEnabled then
-_G.NexusEnableAutoResetOnMed()
-else
-_G.NexusDisableAutoResetOnMed()
-end
-if setAutoResetOnMedVisual then
-setAutoResetOnMedVisual(autoResetOnMedEnabled)
-end
-if not noSave and saveNexusConfig then saveNexusConfig() end
-end
-function enableAutoResetOnMed()
-_G.NexusSetAutoResetOnMed(true)
-end
-function disableAutoResetOnMed()
-_G.NexusSetAutoResetOnMed(false)
-end
-function toggleAutoResetOnMed(on)
-_G.NexusSetAutoResetOnMed(on == true)
-end
-_G.NexusAutoResetFireOnce = function() end
-_G.NexusAutoResetCursedInstaReset = function() end
-if not _G.NexusAutoResetOnMed.charAddedConn then
-_G.NexusAutoResetOnMed.charAddedConn = LP.CharacterAdded:Connect(function(char)
-if _G.NexusAutoResetOnMed and _G.NexusAutoResetOnMed.enabled then
-task.wait(0.25)
-_G.NexusStartAutoResetOnMed(char)
-end
-end)
-end
 _G.NexusCounterState = _G.NexusCounterState or {}
 _G.NexusCounterState.batConn = nil
 _G.NexusCounterState.batDebounce = false
@@ -2079,7 +1738,11 @@ end
 _G.NexusSafeModeMonitorStarted = _G.NexusSafeModeMonitorStarted or false
 if not _G.NexusSafeModeMonitorStarted then
 _G.NexusSafeModeMonitorStarted = true
+local _safeModeMonitorLastRun = 0
 RunService.Heartbeat:Connect(function()
+local now = tick()
+if now - _safeModeMonitorLastRun < 0.15 then return end
+_safeModeMonitorLastRun = now
 if antiKickEnabled and _G.NexusSafeModeIsLocked and _G.NexusSafeModeIsLocked() then
 _G.NexusSafeModeForceStop("SAFE MODE LOCK")
 end
@@ -2614,6 +2277,99 @@ _G.NexusStopAntiDesyncAimbot()
 else
 _G.NexusStartAntiDesyncAimbot()
 end
+end
+
+-- TP Bat on Hit: when hit by bat, enable anti-desync until you hit them back
+_G.NexusTpBatOnHitConn = nil
+local _tpBatOnHitWasAlreadyActive = false
+
+function _G.NexusStartTpBatOnHit()
+if _G.NexusTpBatOnHitConn then return end
+tpBatOnHitEnabled = true
+_G.NexusTpBatOnHitActive = false
+_G.NexusTpBatOnHitConn = RunService.Heartbeat:Connect(function()
+if not tpBatOnHitEnabled then
+_G.NexusStopTpBatOnHit()
+return
+end
+local char = LP.Character
+if not char then return end
+local hum = char:FindFirstChildOfClass("Humanoid")
+local root = char:FindFirstChild("HumanoidRootPart")
+if not hum or not root or hum.Health <= 0 then return end
+
+-- When active, check if we hit the enemy (they got ragdolled or we're within swing range and they took damage)
+if _G.NexusTpBatOnHitActive then
+local hitConfirmed = false
+for _, plr in ipairs(Players:GetPlayers()) do
+if plr ~= LP and plr.Character then
+local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+local tHum = plr.Character:FindFirstChildOfClass("Humanoid")
+if tRoot and tHum and tHum.Health > 0 then
+local dist = (tRoot.Position - root.Position).Magnitude
+local tState = tHum:GetState()
+local targetRagdolled = (tState == Enum.HumanoidStateType.Physics
+or tState == Enum.HumanoidStateType.Ragdoll
+or tState == Enum.HumanoidStateType.FallingDown
+or tHum.PlatformStand == true)
+-- If enemy is ragdolled or we're close enough to have hit them
+if targetRagdolled or dist <= 8 then
+hitConfirmed = true
+break
+end
+end
+end
+end
+if hitConfirmed then
+_G.NexusTpBatOnHitActive = false
+if not _tpBatOnHitWasAlreadyActive then
+pcall(function() _G.NexusStopAntiDesyncAimbot() end)
+end
+if type(showActionNotification) == "function" then
+pcall(function() showActionNotification("TP BAT ON HIT - TARGET HIT!") end)
+end
+return
+end
+end
+
+-- Detect when we get hit (ragdolled) and activate
+local st = hum:GetState()
+local isRagdolled = (st == Enum.HumanoidStateType.Physics
+or st == Enum.HumanoidStateType.Ragdoll
+or st == Enum.HumanoidStateType.FallingDown
+or hum.PlatformStand == true)
+if isRagdolled and not _G.NexusTpBatOnHitActive then
+if not _G.NexusAntiDesyncAimbotOn then
+_tpBatOnHitWasAlreadyActive = false
+_G.NexusTpBatOnHitActive = true
+pcall(function() _G.NexusStartAntiDesyncAimbot() end)
+if type(showActionNotification) == "function" then
+pcall(function() showActionNotification("TP BAT ON HIT!") end)
+end
+else
+_tpBatOnHitWasAlreadyActive = true
+end
+end
+end)
+end
+
+function _G.NexusStopTpBatOnHit()
+tpBatOnHitEnabled = false
+_G.NexusTpBatOnHitActive = false
+_tpBatOnHitWasAlreadyActive = false
+if _G.NexusTpBatOnHitConn then
+pcall(function() _G.NexusTpBatOnHitConn:Disconnect() end)
+_G.NexusTpBatOnHitConn = nil
+end
+end
+
+function _G.NexusToggleTpBatOnHit(on)
+if on then
+_G.NexusStartTpBatOnHit()
+else
+_G.NexusStopTpBatOnHit()
+end
+saveNexusConfig()
 end
 _G.__NexusSetupNormalAutoSteal = function()
 _G.NexusNormalSteal = _G.NexusNormalSteal or {
@@ -4458,7 +4214,6 @@ pcall(function() if setAutoCarrySpeedVisual then setAutoCarrySpeedVisual(autoCar
 pcall(function() if setAutoSwitchVisual then setAutoSwitchVisual(autoSwitchEnabled == true) end end)
 if autoSwitchEnabled and _G.NexusStartAutoSwitch then _G.NexusStartAutoSwitch() end
 pcall(function() if setAutoTPVisual then setAutoTPVisual(autoTPEnabled == true) end end)
-pcall(function() if setAutoResetOnMedVisual then setAutoResetOnMedVisual(autoResetOnMedEnabled == true) end end)
 end
 _G.NexusActionToggleRow = function(parent, labelText, default, order)
 local row = baseRow(parent, labelText, order)
@@ -5179,19 +4934,6 @@ saveNexusConfig()
 end)
 end
 end)()
-_, _G.NexusSetInstaResetOnDieVisual = toggleRow(Movement, "Insta Reset on Die", _G.NexusInstaResetOnDieEnabled, 19)
-;(function()
-local row = Movement:FindFirstChild("Insta Reset on Die")
-_nexusBtn = row and row:FindFirstChild("ToggleButton")
-if _nexusBtn then
-_nexusBtn.Activated:Connect(function()
-_G.NexusInstaResetOnDieEnabled = not _G.NexusInstaResetOnDieEnabled
-if _G.NexusSetInstaResetOnDieVisual then _G.NexusSetInstaResetOnDieVisual(_G.NexusInstaResetOnDieEnabled) end
-if _G.NexusInstaResetOnDieEnabled then startInstaResetOnDie() else stopInstaResetOnDie() end
-saveNexusConfig()
-end)
-end
-end)()
 task.wait()
 Combat = pages.COMBAT
 ;(function()
@@ -5293,6 +5035,24 @@ end)
 end
 end
 _G.NexusAntiDesyncSetVisual = function(_) end
+_G.NexusTpBatOnHitRow, _G.NexusTpBatOnHitSetVisual, _G.NexusTpBatOnHitBtn = _G.NexusActionToggleRow(Combat, "TP Bat on Hit", tpBatOnHitEnabled, 12)
+do
+if _G.NexusTpBatOnHitBtn then
+_G.NexusTpBatOnHitBtn.MouseButton1Click:Connect(function()
+if _G.NexusTpBatOnHitClickBusy then return end
+_G.NexusTpBatOnHitClickBusy = true
+tpBatOnHitEnabled = not tpBatOnHitEnabled
+if tpBatOnHitEnabled then
+if _G.NexusStartTpBatOnHit then _G.NexusStartTpBatOnHit() end
+else
+if _G.NexusStopTpBatOnHit then _G.NexusStopTpBatOnHit() end
+end
+if _G.NexusTpBatOnHitSetVisual then _G.NexusTpBatOnHitSetVisual(tpBatOnHitEnabled) end
+saveNexusConfig()
+task.delay(0.12, function() _G.NexusTpBatOnHitClickBusy = false end)
+end)
+end
+end
 section(Combat, "COUNTERS", 13)
 _nexusRow, setBatCounterVisual = _G.NexusActionToggleRow(Combat, "Bat Counter", batCounterEnabled, 14)
 do
@@ -5364,21 +5124,6 @@ saveNexusConfig()
 end)
 end
 end
-_nexusRow, setAutoResetOnMedVisual = toggleRow(Combat, "Auto Reset On Med Fling", autoResetOnMedEnabled, 17)
-do
-_nexusBtn = _nexusRow and _nexusRow:FindFirstChild("ToggleButton")
-if _nexusBtn then
-_nexusBtn.Activated:Connect(function()
-if _G.NexusSetAutoResetOnMed then
-_G.NexusSetAutoResetOnMed(not autoResetOnMedEnabled)
-else
-autoResetOnMedEnabled = not autoResetOnMedEnabled
-if setAutoResetOnMedVisual then setAutoResetOnMedVisual(autoResetOnMedEnabled) end
-saveNexusConfig()
-end
-end)
-end
-end
 _nexusRow, setAntiAntiDesyncVisual = toggleRow(Combat, "Anti Anti Desync", _G.NexusAntiAntiDesyncEnabled, 18)
 do
 _nexusBtn = _nexusRow and _nexusRow:FindFirstChild("ToggleButton")
@@ -5406,8 +5151,7 @@ refreshAimbotModeLabels()
 speedKeybindRow(Keybinds, "Anti Desync Bat", "AntiDesyncAimbot", 8)
 speedKeybindRow(Keybinds, "Auto Left", "AutoLeft", 9)
 speedKeybindRow(Keybinds, "Auto Right", "AutoRight", 10)
-speedKeybindRow(Keybinds, "Instant Reset", "InstantReset", 12)
-speedKeybindRow(Keybinds, "Auto Dodge", "AutoDodge", 13)
+speedKeybindRow(Keybinds, "Auto Dodge", "AutoDodge", 12)
 do
 THEME_ACCENT = THEME_ACCENT or Color3.fromRGB(230, 230, 230)
 THEME_ACCENT_DIM = THEME_ACCENT_DIM or Color3.fromRGB(145, 145, 145)
@@ -6974,14 +6718,14 @@ _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
 _G.NexusAntiBypassAimbotSpeed = 58; _G.NexusAntiBypassLaggerAimbotSpeed = 40; ANTI_DESYNC_AIMBOT_SPEED = 58
-autoSwingEnabled = false; mirrorTPDownEnabled = false; antiDesyncAutoSwingEnabled = false; faceTrackEnabled = false; antiDieEnabled = false
+autoSwingEnabled = false; mirrorTPDownEnabled = false; antiDesyncAutoSwingEnabled = false; faceTrackEnabled = false; antiDieEnabled = false; tpBatOnHitEnabled = false
 _G.NexusNormalAimbotOn = false; _G.NexusAntiBypassAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
 antiRagdollEnabled = false; infJumpEnabled = false; autoTPEnabled = false; autoDodgeEnabled = false; autoDodgeOnSteal = false; autoDodgeSuspended = false; autoDodgeForcedBySteal = false; autoDodgeHeight = 5
-batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = false; autoResetOnMedEnabled = false
+batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = false
 espEnabled = false; showTracerEnabled = false; ragdollCountdownEnabled = false
 fpsBoostEnabled = false; antiLagVisualEnabled = false; nukeOptimiserEnabled = false
 _G.NexusPerfOptSaved = nil; _G.NexusPerfOptSetStatus = _G.NexusPerfOptSetStatus or function() end; _G.NexusPerfOptSetStatus("Ready")
-_G.NexusGalaxyGravityEnabled = false; _G.NexusInstaResetOnDieEnabled = false
+_G.NexusGalaxyGravityEnabled = false
 fovEnabled = false; fovValue = 70; noCamCollisionEnabled = false; _G.NexusNoPlayerCollisionEnabled = false
 skyTheme = "Off"; currentBackground = 0
 selectedIntroMusic = 1; _introEnabled = true
@@ -7140,10 +6884,6 @@ return
 end
 if speedKeybinds.AutoRight and input.KeyCode == speedKeybinds.AutoRight then
 if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
-return
-end
-if speedKeybinds.InstantReset and input.KeyCode == speedKeybinds.InstantReset then
-if _G.NexusCursedInstaReset then _G.NexusCursedInstaReset() end
 return
 end
 if speedKeybinds.AutoDodge and input.KeyCode == speedKeybinds.AutoDodge then
@@ -7673,6 +7413,10 @@ pcall(function()
 if _G.NexusNormalAutoSwingSetVisual then _G.NexusNormalAutoSwingSetVisual(autoSwingEnabled) end
 if _G.NexusMirrorTPDownSetVisual then _G.NexusMirrorTPDownSetVisual(mirrorTPDownEnabled) end
 if _G.NexusAntiDesyncAutoSwingSetVisual then _G.NexusAntiDesyncAutoSwingSetVisual(antiDesyncAutoSwingEnabled) end
+if _G.NexusTpBatOnHitSetVisual then _G.NexusTpBatOnHitSetVisual(tpBatOnHitEnabled) end
+if tpBatOnHitEnabled then
+if _G.NexusStartTpBatOnHit then _G.NexusStartTpBatOnHit() end
+end
 if _G.NexusAntiDesyncSetVisual then _G.NexusAntiDesyncSetVisual(_G.NexusAntiDesyncAimbotOn == true) end
 if _G.NexusAntiDesyncAimbotOn and _G.NexusStartAntiDesyncAimbot then
 _G.NexusStartAntiDesyncAimbot()
@@ -7724,11 +7468,6 @@ if enableNoPlayerCollision then enableNoPlayerCollision() end
 else
 if disableNoPlayerCollision then disableNoPlayerCollision() end
 end
-if _G.NexusSetAutoResetOnMed then
-_G.NexusSetAutoResetOnMed(autoResetOnMedEnabled, true)
-else
-if setAutoResetOnMedVisual then setAutoResetOnMedVisual(autoResetOnMedEnabled) end
-end
 end)
 pcall(function()
 if _G.NexusSetPlayerESPVisual then _G.NexusSetPlayerESPVisual(espEnabled) end
@@ -7746,8 +7485,6 @@ if _G.NexusSetNukeOptimiserVisual then _G.NexusSetNukeOptimiserVisual(nukeOptimi
 if nukeOptimiserEnabled then enableNukeOptimizer() else disableNukeOptimizer() end
 if _G.NexusSetGalaxyGravityVisual then _G.NexusSetGalaxyGravityVisual(_G.NexusGalaxyGravityEnabled) end
 if _G.NexusGalaxyGravityEnabled then enableGalaxyGravity() else disableGalaxyGravity() end
-if _G.NexusSetInstaResetOnDieVisual then _G.NexusSetInstaResetOnDieVisual(_G.NexusInstaResetOnDieEnabled) end
-if _G.NexusInstaResetOnDieEnabled then startInstaResetOnDie() else stopInstaResetOnDie() end
 if _G.NexusSetFOVVisual then _G.NexusSetFOVVisual(fovEnabled) end
 if fovEnabled then enableCustomFov() else disableCustomFov() end
 if _G.NexusSetNoCamCollisionVisual then _G.NexusSetNoCamCollisionVisual(noCamCollisionEnabled) end
@@ -7823,9 +7560,6 @@ pcall(function()
 if _G.NexusSetSafeModeVisual then _G.NexusSetSafeModeVisual(antiKickEnabled == true) end
 end)
 pcall(function()
-if _G.NexusSetAutoResetOnMed then _G.NexusSetAutoResetOnMed(autoResetOnMedEnabled == true, true) end
-end)
-pcall(function()
 if _G.NexusSetPlayerESPVisual then _G.NexusSetPlayerESPVisual(espEnabled == true) end
 if espEnabled then if startPlayerESP then startPlayerESP() end else if stopPlayerESP then stopPlayerESP() end end
 end)
@@ -7855,10 +7589,6 @@ if _G.NexusSetGalaxyGravityVisual then _G.NexusSetGalaxyGravityVisual(_G.NexusGa
 if _G.NexusGalaxyGravityEnabled then enableGalaxyGravity() else disableGalaxyGravity() end
 end)
 pcall(function()
-if _G.NexusSetInstaResetOnDieVisual then _G.NexusSetInstaResetOnDieVisual(_G.NexusInstaResetOnDieEnabled == true) end
-if _G.NexusInstaResetOnDieEnabled then startInstaResetOnDie() else stopInstaResetOnDie() end
-end)
-pcall(function()
 if _G.NexusFaceTrackSetVisual then _G.NexusFaceTrackSetVisual(faceTrackEnabled == true) end
 if faceTrackEnabled then _G.NexusEnableFaceTrack() else _G.NexusDisableFaceTrack() end
 end)
@@ -7867,8 +7597,10 @@ if _G.NexusAntiDieSetVisual then _G.NexusAntiDieSetVisual(antiDieEnabled == true
 if antiDieEnabled then startAntiDie() else stopAntiDie() end
 end)
 pcall(function()
-if _G.NexusDuelWH.on then _G.NexusDuelWHStart() end
+if _G.NexusTpBatOnHitSetVisual then _G.NexusTpBatOnHitSetVisual(tpBatOnHitEnabled == true) end
+if tpBatOnHitEnabled then _G.NexusStartTpBatOnHit() end
 end)
+-- Webhook auto-start removed
 pcall(function()
 if _G.NexusSetFOVVisual then _G.NexusSetFOVVisual(fovEnabled == true) end
 if fovEnabled then enableCustomFov() else disableCustomFov() end
@@ -7901,7 +7633,7 @@ end)
 _G.NexusAutoTPRestoreWanted = _G.NexusAutoTPRestoreWanted or false
 _G.NexusAutoTPRestoreBlockedUntil = _G.NexusAutoTPRestoreBlockedUntil or 0
 function nexusAnyAimbotActive()
-return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
+return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
 end
 _G.NexusStopAutoTPForAction = function()
 if autoTPEnabled then
@@ -8169,7 +7901,6 @@ end
 local x1, x2, x3 = -218, -154, -90
 local y1, y2, y3, y4, y5 = -150, -102, -54, -6, 42
 local defaults = {
-insta        = UDim2.new(1, x1, 0.5, y1),
 drop         = UDim2.new(1, x2, 0.5, y1),
 autoLeft     = UDim2.new(1, x3, 0.5, y1),
 antiDesync   = UDim2.new(1, x1, 0.5, y2),
@@ -8204,10 +7935,6 @@ if _G.NexusApplyMobileButtonsHidden then _G.NexusApplyMobileButtonsHidden() end
 if showActionNotification then pcall(function() showActionNotification("MOBILE BUTTONS RESET") end) end
 saveNexusConfig()
 end
-makeButton("insta", "INSTA\nRESET", defaults.insta, function(btn)
-if _G.NexusCursedInstaReset then _G.NexusCursedInstaReset() elseif cursedInstaReset then cursedInstaReset() end
-pulse(btn)
-end)
 makeButton("drop", "DROP\nBR", defaults.drop, function(btn)
 if doDrop then doDrop() elseif runDropBrainrot then runDropBrainrot() elseif runDrop then runDrop() end
 pulse(btn)
@@ -8291,6 +8018,10 @@ end)
 _G.NexusApplyMobileButtonSize()
 _G.NexusApplyMobileButtonsHidden()
 RunService.Heartbeat:Connect(function()
+local now = tick()
+if not _G._nexusMobileBtnLastSync then _G._nexusMobileBtnLastSync = 0 end
+if now - _G._nexusMobileBtnLastSync < 0.1 then return end
+_G._nexusMobileBtnLastSync = now
 if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
 if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
 if mobileButtons.aimbot then mobileButtons.aimbot.setActive((_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true)) end
