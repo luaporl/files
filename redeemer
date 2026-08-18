@@ -1,5 +1,5 @@
 --[[
-    NEXUS REDEEMER Ã¢â‚¬â€ OPTIMIZED
+    NEXUS REDEEMER - OPTIMIZED
     Code Sniper + Riddle Solver + Auto Redeem
     Rewritten for sub-frame latency and zero polling loops.
 --]]
@@ -213,11 +213,12 @@ local getconns    = getconnections or (debug and debug.getconnections)
 local setupv      = (debug and debug.setupvalue) or setupvalue
 local httpRequest = (syn and syn.request) or (http and http.request) or http_request or request
 
-local GUI, setStatus, flashCode, appendToBox, clearNexusCapture
+local GUI, setStatus, flashCode, appendToBox, clearNexusCapture, multiSolve
 
 -- ============================================================================
 -- LOCAL RIDDLE KNOWLEDGE BASE (SAB)
 -- ============================================================================
+do -- scoped: keeps Lua top-level register count under 200
 local SAB_DB = {
     -- Owner / Sammy
     ["real name"]="SAMMY", ["sammy real name"]="SAMMY", ["sammys real name"]="SAMMY",
@@ -311,6 +312,23 @@ local SAB_DB = {
     ["14th mutation"]="CRYSTAL", ["evil mutation"]="CURSED", ["cursed mutation"]="CURSED",
     ["angelic mutation"]="DIVINE", ["total mutations"]="14", ["number of mutations"]="14",
     ["how many mutations"]="14", ["mutation count"]="14",
+    ["best mutation"]="CRYSTAL", ["strongest mutation"]="CRYSTAL", ["rarest mutation"]="CRYSTAL",
+    ["highest mutation"]="CRYSTAL", ["last mutation"]="CRYSTAL",
+    ["first mutation"]="GOLD", ["weakest mutation"]="GOLD", ["lowest mutation"]="GOLD",
+    ["evil represents"]="CURSED", ["represents evil"]="CURSED",
+    ["good represents"]="DIVINE", ["represents good"]="DIVINE",
+    ["angelic represents"]="DIVINE", ["represents angelic"]="DIVINE",
+    ["black and white represents"]="YINYANG", ["represents black and white"]="YINYANG",
+    ["what mutation is evil"]="CURSED", ["what mutation is good"]="DIVINE",
+    ["what mutation is the best"]="CRYSTAL", ["what mutation is the rarest"]="CRYSTAL",
+    ["which mutation is evil"]="CURSED", ["which mutation is good"]="DIVINE",
+    ["which mutation is the best"]="CRYSTAL", ["which mutation is the rarest"]="CRYSTAL",
+    ["what is the evil mutation"]="CURSED", ["what is the good mutation"]="DIVINE",
+    ["gold mutation multiplier"]="1.25", ["diamond mutation multiplier"]="1.5",
+    ["bloodrot multiplier"]="2", ["candy multiplier"]="4", ["lava multiplier"]="6",
+    ["galaxy multiplier"]="7", ["yinyang multiplier"]="7.5", ["radioactive multiplier"]="8.5",
+    ["cursed multiplier"]="9", ["rainbow multiplier"]="10", ["divine multiplier"]="10",
+    ["cyber multiplier"]="11", ["phantom multiplier"]="12", ["crystal multiplier"]="13",
     ["mutation 1"]="GOLD", ["mutation 2"]="DIAMOND", ["mutation 3"]="BLOODROT",
     ["mutation 4"]="RAINBOW", ["mutation 5"]="CANDY", ["mutation 6"]="LAVA",
     ["mutation 7"]="GALAXY", ["mutation 8"]="YINYANG", ["mutation 9"]="RADIOACTIVE",
@@ -332,7 +350,6 @@ local SAB_DB = {
     ["purple mutation"]="GALAXY", ["turns purple"]="GALAXY",
     ["black mutation"]="YINYANG", ["turns black"]="YINYANG",
     ["orange mutation"]="LAVA", ["turns orange"]="LAVA",
-    ["best mutation"]="GALAXY", ["rarest mutation"]="DIVINE", ["last mutation"]="CRYSTAL",
     ["newest mutation"]="CRYSTAL", ["first mutation name"]="GOLD",
     ["second mutation name"]="DIAMOND",
     -- Machines
@@ -1899,6 +1916,42 @@ local BRAINROT_SCAFFOLD = {
     rarity = true, of = true, how = true, rare = true, s = true, my = true,
 }
 
+local SAB_MUTATION_INFO = {
+    gold =        { name = "GOLD",        mult = "1.25",  color = "YELLOW" },
+    diamond =     { name = "DIAMOND",     mult = "1.5",   color = "BLUE" },
+    bloodrot =    { name = "BLOODROT",    mult = "2",     color = "DARKRED" },
+    candy =       { name = "CANDY",       mult = "4",     color = "PINK" },
+    lava =        { name = "LAVA",        mult = "6",     color = "ORANGE" },
+    galaxy =      { name = "GALAXY",      mult = "7",     color = "PURPLE" },
+    yinyang =     { name = "YINYANG",     mult = "7.5",   color = "BLACKWHITE" },
+    radioactive = { name = "RADIOACTIVE", mult = "8.5",   color = "GREEN" },
+    cursed =      { name = "CURSED",      mult = "9",     color = "RED" },
+    rainbow =     { name = "RAINBOW",     mult = "10",    color = "MULTICOLOR" },
+    divine =      { name = "DIVINE",      mult = "10",    color = "GOLD" },
+    cyber =       { name = "CYBER",       mult = "11",    color = "CYAN" },
+    phantom =     { name = "PHANTOM",     mult = "12",    color = "WHITE" },
+    crystal =     { name = "CRYSTAL",     mult = "13",    color = "PURPLE" },
+}
+
+-- Answer "what is the (X) multiplier of <mutation>" style questions
+local function mutationInfoAnswer(message)
+    if type(message) ~= "string" then return nil end
+    local raw = message:lower()
+    local wantsMult = raw:find("multiplier") or raw:find("sell") or raw:find("price") or raw:find("value") or raw:find("worth") or raw:find("boost") or raw:find("rate")
+    local wantsColor = raw:find("color") or raw:find("colour") or raw:find("shade")
+    if not wantsMult and not wantsColor then return nil end
+    local bestKey, bestLen = nil, 0
+    for key, info in pairs(SAB_MUTATION_INFO) do
+        if #key > bestLen and raw:find(key, 1, true) then
+            bestKey, bestLen = key, #key
+        end
+    end
+    if not bestKey then return nil end
+    local info = SAB_MUTATION_INFO[bestKey]
+    if wantsMult then return info.mult end
+    return info.color
+end
+
 -- Returns the answer only when the whole message is ONE brainrot question
 -- (handles names that contain " and " so multiSolve doesn't split them).
 local function brainrotWhole(message)
@@ -1968,6 +2021,33 @@ local function localSolve(message)
     if raw:find("world cup") then return "ARGENTINA" end
     if raw:find("hydra") and (raw:find("brother") or raw:find("sibling")) then return "CERBERUS" end
     if raw:find("worst secret") then return "KARKERKARKURKUR" end
+
+    -- mutation representation / theme knowledge
+    if raw:find("mutation") then
+        if raw:find("represent") or raw:find("stand for") or raw:find("symbolize") or raw:find("mean") then
+            if raw:find("evil") or raw:find("cursed") or raw:find("demon") or raw:find("dark") or raw:find("bad") then return "CURSED" end
+            if raw:find("good") or raw:find("angel") or raw:find("holy") or raw:find("heaven") or raw:find("divine") then return "DIVINE" end
+            if raw:find("black") and raw:find("white") then return "YINYANG" end
+            if raw:find("balance") or raw:find("opposite") then return "YINYANG" end
+            if raw:find("rainbow") or raw:find("colorful") or raw:find("colourful") then return "RAINBOW" end
+            if raw:find("cyber") or raw:find("robot") or raw:find("tech") then return "CYBER" end
+            if raw:find("radioactive") or raw:find("radiation") or raw:find("nuclear") then return "RADIOACTIVE" end
+            if raw:find("phantom") or raw:find("ghost") or raw:find("invisible") then return "PHANTOM" end
+            if raw:find("galaxy") or raw:find("space") or raw:find("star") then return "GALAXY" end
+            if raw:find("lava") or raw:find("fire") or raw:find("molten") or raw:find("volcano") then return "LAVA" end
+            if raw:find("candy") or raw:find("sweet") or raw:find("sugar") then return "CANDY" end
+            if raw:find("crystal") or raw:find("gem") or raw:find("shiny") then return "CRYSTAL" end
+            if raw:find("blood") then return "BLOODROT" end
+            if raw:find("diamond") or raw:find("jewel") then return "DIAMOND" end
+            if raw:find("gold") then return "GOLD" end
+        end
+    end
+    if raw:find("evil mutation") then return "CURSED" end
+    if raw:find("good mutation") or raw:find("angelic mutation") then return "DIVINE" end
+    if raw:find("black and white mutation") or raw:find("black white mutation") then return "YINYANG" end
+
+    local mutInfo = mutationInfoAnswer(message)
+    if mutInfo then return mutInfo end
 
     if raw:find("favorite color") or raw:find("favourite color") or raw:find("fav color") then return "BLUE" end
     if raw:find("favorite sport") or raw:find("favourite sport") or raw:find("fav sport") then return "FOOTBALL" end
@@ -2111,7 +2191,7 @@ local function solveOnePart(part)
     return localSolve(part)
 end
 
-local function multiSolve(message)
+local function multiSolveInner(message)
     if type(message) ~= "string" then return nil end
     local raw = message:lower():gsub("<[^>]+>", "")
     raw = raw:gsub("[%?%!%.]+", " ")
@@ -2200,6 +2280,10 @@ local function multiSolve(message)
     end
     return localSolve(message)
 end
+
+multiSolve = multiSolveInner
+
+end -- /scoped solver block
 
 -- ============================================================================
 -- AI RIDDLE SOLVER
@@ -2290,9 +2374,9 @@ favorite color: BLUE | sport: FOOTBALL | football player: RONALDO | food: PIZZA 
 === GAME ===
 name: STEALABRAINROT | genre: SIMULATOR | release date: MAY162025 | max server size: EIGHT
 first trait: LIGHTNING | trait from lightning: MATEO | total rarities: SIX
-=== MUTATIONS (in order, 14 total) ===
-1 GOLD, 2 DIAMOND, 3 BLOODROT, 4 RAINBOW, 5 CANDY, 6 LAVA, 7 GALAXY, 8 YINYANG, 9 RADIOACTIVE, 10 CURSED, 11 DIVINE, 12 CYBER, 13 PHANTOM, 14 CRYSTAL (newest)
-evil mutation: CURSED | angelic mutation: DIVINE
+=== MUTATIONS (in order, 14 total, newest is highest/rarest) ===
+1 GOLD (x1.25, yellow), 2 DIAMOND (x1.5, blue), 3 BLOODROT (x2, dark red), 4 RAINBOW (x10, multicolor), 5 CANDY (x4, pink), 6 LAVA (x6, orange), 7 GALAXY (x7, purple), 8 YINYANG (x7.5, black and white), 9 RADIOACTIVE (x8.5, green), 10 CURSED (x9, red), 11 DIVINE (x10, gold/holy), 12 CYBER (x11, cyan/tech), 13 PHANTOM (x12, white/ghostly), 14 CRYSTAL (x13, purple/shiny, best/strongest/rarest)
+evil/dark/negative mutation: CURSED | good/angelic/holy/divine mutation: DIVINE | black and white/balance: YINYANG
 === MACHINES (in order, 18 total) ===
 1 RAINBOWMACHINE, 2 BUBBLEGUMMACHINE, 3 FUSEMACHINE, 4 CRAFTMACHINE, 5 WITCHFUSE, 6 BRAINROTDEALER, 7 BRAINROTTRADER, 8 SANTASFUSE, 9 SANTASSHOP, 10 NEWYEARSMACHINE, 11 DUELSMACHINE, 12 CUPIDSMACHINE, 13 TRADEMACHINE, 14 DIVINEFUSE, 15 EGGINCUBATOR, 16 CYBERCRAFTMACHINE, 17 SUMMERFUSE, 18 LOSTRADERS
 === RARITIES ===
@@ -2728,6 +2812,10 @@ local function submitAnswer(answer)
         pcall(function() box.Text = answer end)
         _lastBox = box
         watchBoxForBlankReset(box)
+    end
+    if not _autoAccept then
+        setStatus("Answer ready: " .. answer .. " (auto-submit off)", COLORS.Yellow)
+        return true
     end
     if redeemViaBox(answer) then return true end
     redeemViaUISearch(answer)
@@ -3197,7 +3285,7 @@ task.spawn(function()
 end)
 
 makeLabel(Header, "Title", "NEXUS REDEEMER", UDim2.fromOffset(190, 24), UDim2.fromOffset(56, 13), 15, COLORS.White, Enum.Font.GothamBold)
-makeLabel(Header, "Subtitle", "CODE SNIPER Ã¢â‚¬Â¢ RIDDLE SOLVER", UDim2.fromOffset(190, 12), UDim2.fromOffset(56, 36), 8, COLORS.Dim, Enum.Font.GothamMedium)
+makeLabel(Header, "Subtitle", "CODE SNIPER - RIDDLE SOLVER", UDim2.fromOffset(190, 12), UDim2.fromOffset(56, 36), 8, COLORS.Dim, Enum.Font.GothamMedium)
 
 -- Minimize button
 local MinimizeBtn = Instance.new("TextButton")
@@ -3207,7 +3295,7 @@ MinimizeBtn.Position = UDim2.new(1, -92, 0, 18)
 MinimizeBtn.BackgroundColor3 = COLORS.Control
 MinimizeBtn.BorderSizePixel = 0
 MinimizeBtn.AutoButtonColor = false
-MinimizeBtn.Text = "Ã¢Ë†â€™"
+MinimizeBtn.Text = "−"
 MinimizeBtn.TextSize = 18
 MinimizeBtn.TextColor3 = COLORS.White
 MinimizeBtn.Font = Enum.Font.GothamBold
@@ -3342,7 +3430,7 @@ MinimizeBtn.Activated:Connect(function()
         MinimizeBtn.Text = "+"
     else
         TweenService:Create(Window, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), { Size = fullSize }):Play()
-        MinimizeBtn.Text = "Ã¢Ë†â€™"
+        MinimizeBtn.Text = "−"
     end
 end)
 
@@ -3858,7 +3946,7 @@ task.spawn(function()
         local mins = math.floor(elapsed / 60)
         local secs = elapsed % 60
         local timeStr = string.format("%02d:%02d", mins, secs)
-        Footer.Text = string.format("NEXUS  Ã¢â‚¬Â¢  %d/min  Ã¢â‚¬Â¢  %d total  Ã¢â‚¬Â¢  %s", stats.codesThisMinute, stats.totalCodes, timeStr)
+        Footer.Text = string.format("NEXUS  |  %d/min  |  %d total  |  %s", stats.codesThisMinute, stats.totalCodes, timeStr)
         task.wait(1)
     end
 end)
@@ -3962,7 +4050,7 @@ function setStatus(msg, col)
 end
 
 function flashCode(code, col)
-    if not code or code == "" or code == "Ã¢â‚¬â€" then return end
+    if not code or code == "" or code == "—" then return end
     setStatus("[code] -> " .. tostring(code), col or COLORS.White)
 end
 
