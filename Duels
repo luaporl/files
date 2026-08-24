@@ -1908,10 +1908,9 @@ pcall(function()
 sethiddenproperty(_G.NexusAntiDesync.hrp, "PhysicsRepRootPart", tr)
 end)
 end
-local targetPos = tr.Position + Vector3.new(0, 0.9, 0)
-if (_G.NexusAntiDesync.hrp.Position - targetPos).Magnitude > 8 then
-_G.NexusAntiDesync.hrp.CFrame = CFrame.new(targetPos)
-end
+local targetVel = tr.AssemblyLinearVelocity
+local predictedPos = tr.Position + targetVel * 0.1 + Vector3.new(0, 0.9, 0)
+_G.NexusAntiDesync.hrp.CFrame = CFrame.lookAt(predictedPos, tr.Position)
 local cam = workspace.CurrentCamera
 if cam then
 cam.CFrame = CFrame.new(cam.CFrame.Position, tr.Position)
