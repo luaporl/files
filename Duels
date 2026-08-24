@@ -1597,7 +1597,6 @@ if bat.Parent ~= char then
 local hum = char:FindFirstChildOfClass("Humanoid")
 if hum then pcall(function() hum:EquipTool(bat) end) end
 end
-pcall(function() bat:Activate() end)
 end
 end)
 task.delay(0.35, function()
@@ -1908,15 +1907,33 @@ pcall(function()
 sethiddenproperty(_G.NexusAntiDesync.hrp, "PhysicsRepRootPart", tr)
 end)
 end
-local targetVel = tr.AssemblyLinearVelocity
-local predictedPos = tr.Position + targetVel * 0.1 + Vector3.new(0, 0.9, 0)
-_G.NexusAntiDesync.hrp.CFrame = CFrame.lookAt(predictedPos, tr.Position)
+local tPos = tr.Position
+local tVel = tr.AssemblyLinearVelocity
+local fallingFast = tVel.Y < -40
+local predictTime = math.clamp(tVel.Magnitude / 150, 0.05, 0.2)
+if fallingFast then predictTime = math.clamp(predictTime + 0.05, 0.05, 0.25) end
+local predictedPos = tPos + tVel * predictTime
+local targetPos = predictedPos + Vector3.new(0, 0.9, 0)
+if fallingFast then targetPos = predictedPos + Vector3.new(0, 0.3, 0) end
+_G.NexusAntiDesync.hrp.CFrame = CFrame.new(targetPos)
 local cam = workspace.CurrentCamera
 if cam then
 cam.CFrame = CFrame.new(cam.CFrame.Position, tr.Position)
 end
 if (autoSwingEnabled or antiDesyncAutoSwingEnabled) then
 _G.NexusAntiDesyncTrySwing()
+local bat = _G.NexusAntiDesyncGetBat()
+if bat then
+local handle = bat:FindFirstChild("Handle")
+if handle and target.Character then
+for _, part in ipairs(target.Character:GetDescendants()) do
+if part:IsA("BasePart") then
+pcall(function() firetouchinterest(handle, part, 0) end)
+pcall(function() firetouchinterest(handle, part, 1) end)
+end
+end
+end
+end
 end
 end
 end
@@ -1954,7 +1971,7 @@ end
 -- Enemy enters 10 radius → freeze 0.5s → stop
 -- Enemy leaves 10 radius → reset, ready to pulse again
 -- ============================================================
-_G.NexusAntiAntiDesyncEnabled = false
+_G.NexusAntiAntiDesyncEnabled = _G.NexusAntiAntiDesyncEnabled == true
 _G._aadConn = nil
 _G._aadRestored = {}
 
@@ -2241,7 +2258,6 @@ while _G.NexusNormalSteal do
 if _G.NexusNormalSteal.enabled then
 pcall(scanPlots)
 end
-task.wait(3)
 end
 end)
 end
@@ -5371,8 +5387,8 @@ function disableCustomFov()
 fovEnabled=false
 if customFovConn then customFovConn:Disconnect(); customFovConn=nil end
 end
-_G.NexusStretchRezEnabled = false
-_G.NexusStretchFOV = 120
+_G.NexusStretchRezEnabled = _G.NexusStretchRezEnabled == true
+_G.NexusStretchFOV = _G.NexusStretchFOV or 120
 
 _alSeen = _alSeen or setmetatable({},{__mode="k"})
 _alNow = (os and os.clock) or tick or function() return os.time() end
@@ -7741,7 +7757,6 @@ elseif _G.NexusNormalAimbotStop then
 _G.NexusNormalAimbotStop()
 end
 end
-if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end)
 pcall(function()
 if setBatCounterVisual then setBatCounterVisual(batCounterEnabled) end
@@ -7877,6 +7892,10 @@ end)
 pcall(function()
 if _G.NexusSetStretchRezVisual then _G.NexusSetStretchRezVisual(_G.NexusStretchRezEnabled == true) end
 if _G.NexusStretchRezEnabled then enableStretchRez() else disableStretchRez() end
+end)
+pcall(function()
+if setAntiAntiDesyncVisual then setAntiAntiDesyncVisual(_G.NexusAntiAntiDesyncEnabled == true) end
+if _G.NexusAntiAntiDesyncEnabled and _G.NexusToggleAntiAntiDesync then _G.NexusToggleAntiAntiDesync(true) end
 end)
 pcall(function()
 if setAntiDieVisual then setAntiDieVisual(_G.NexusAntiDieOn == true) end
