@@ -30,61 +30,71 @@ local NS = 59.5
 local CS = 28.8
 local LAGGER_SPEED = 29
 local LAGGER_CARRY_SPEED = 15
-local currentSpeedMode = "Normal"
+currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 setAutoCarrySpeedVisual = nil
 autoSwitchEnabled = false
 autoSwitchConn = nil
 _G.NexusAutoCarryWasCarrying = false
 _G.NexusAutoCarrySavedMode = nil
-local autoStealEnabled = false
-local selectedStealMode = "Semi"
-local autoStealRadius = 9
-local semiStopPercent = 90
+grabTimerEnabled = false
+grabTimerGui = nil
+grabTimerFill = nil
+grabTimerLabel = nil
+grabTimerConn = nil
+
+autoStealEnabled = false
+selectedStealMode = "Semi"
+autoStealRadius = 9
+semiStopPercent = 90
 _G.NexusStealRadii = _G.NexusStealRadii or {Normal = 62, Semi = 9}
-local selectedAimbotMode = "Normal"
-local AIMBOT_SPEED = 58
-local LAGGER_AIMBOT_SPEED = 40
-_G.NexusAntiBypassAimbotSpeed = _G.NexusAntiBypassAimbotSpeed or 58
-if _G.NexusAntiBypassLaggerAimbotSpeed == nil or tonumber(_G.NexusAntiBypassLaggerAimbotSpeed) == 58 then _G.NexusAntiBypassLaggerAimbotSpeed = 40 end
-local autoSwingEnabled = false
-local faceTrackEnabled = false
+selectedAimbotMode = "Normal"
+normalAimbotVersion = 1
+AIMBOT_SPEED = 58
+LAGGER_AIMBOT_SPEED = 40
+
+autoSwingEnabled = false
+faceTrackEnabled = false
 _G.NexusNormalAimbotOn = _G.NexusNormalAimbotOn or false
-_G.NexusAntiBypassAimbotOn = _G.NexusAntiBypassAimbotOn or false
-local antiDesyncAutoSwingEnabled = false
+
+antiDesyncAutoSwingEnabled = false
 _G.NexusAntiDesyncAimbotOn = _G.NexusAntiDesyncAimbotOn or false
-local ANTI_DESYNC_AIMBOT_SPEED = 58
-local tpBatOnHitEnabled = false
-local tpBatOnHitDuration = 1
+ANTI_DESYNC_AIMBOT_SPEED = 58
+tpBatOnHitEnabled = false
+tpBatOnHitDuration = 1
 _G.NexusTpBatOnHitActive = false
-local batCounterEnabled = false
-local medCounterEnabled = false
-local autoMedusaEnabled = false
-local autoMedusaRange = 9.5
+batCounterEnabled = false
+medCounterEnabled = false
+autoMedusaEnabled = false
+autoMedusaRange = 9.5
 _G.NexusAutoMedusaCooldown = 0.12
 _G.NexusAutoMedusaConn = nil
 
 _G.NexusAutoMedusaCircle = nil
-local autoMedusaAttacking = false
-local antiKickEnabled = false
+autoMedusaAttacking = false
+antiKickEnabled = false
 _G.NexusSetSafeModeVisual = nil
 _G.NexusSetSafeModeVisual2 = nil
 _G.NexusAntiAntiDesyncEnabled = false
-local espEnabled = false
-local showTracerEnabled = false
-local ragdollCountdownEnabled = false
-local fpsBoostEnabled = false
-local antiLagVisualEnabled = false
-local nukeOptimiserEnabled = false
+espEnabled = false
+showTracerEnabled = false
+ragdollCountdownEnabled = false
+fpsBoostEnabled = false
+antiLagVisualEnabled = false
+nukeOptimiserEnabled = false
+_G.NexusGalaxyGravityEnabled = false
+_G.NexusGalaxyGravityStrength = 0.35
+_G.NexusGalaxyGravityConn = nil
+_G.NexusGalaxyGravityBV = nil
+_G.NexusSetGalaxyGravityVisual = nil
 
-local fovEnabled = false
-local fovValue = 80
-local fovOptions = {80, 120, 180}
-local fovIndex = 1
-local noCamCollisionEnabled = false
-_G.NexusNoPlayerCollisionEnabled = _G.NexusNoPlayerCollisionEnabled or false
-local customFontVisualEnabled = false
-local skyTheme = "Off"
+fovEnabled = false
+fovValue = 80
+fovOptions = {80, 120, 180}
+fovIndex = 1
+noCamCollisionEnabled = false
+customFontVisualEnabled = false
+skyTheme = "Off"
 _G.NexusSetPlayerESPVisual = nil
 _G.NexusSetTracerESPVisual = nil
 _G.NexusSetRagdollCountdownVisual = nil
@@ -96,8 +106,10 @@ _G.NexusSetNoCamCollisionVisual = nil
 _G.NexusSetNoPlayerCollisionVisual = _G.NexusSetNoPlayerCollisionVisual or nil
 _G.NexusSetCustomFontVisual = nil
 _G.NexusSkyValueLabel = nil
-local autoLeftEnabled = false
-local autoRightEnabled = false
+autoLeftEnabled = false
+autoRightEnabled = false
+autoPlayEnabled = false
+_G.NexusSetAutoPlayVisual = nil
 _G.NexusFreezeConns = _G.NexusFreezeConns or {}
 -- Old anti-anti-desync replaced by smart Brainrot-only pulse version below (line ~2494)
 local DEFAULT_SPEED_KEYBINDS = {
@@ -108,6 +120,7 @@ Aimbot = Enum.KeyCode.E,
 AntiDesyncAimbot = Enum.KeyCode.V,
 AutoLeft = Enum.KeyCode.Z,
 AutoRight = Enum.KeyCode.C,
+AutoPlay = Enum.KeyCode.B,
 InstaReset = Enum.KeyCode.G,
 ToggleUI = Enum.KeyCode.LeftControl,
 }
@@ -120,6 +133,7 @@ Aimbot = DEFAULT_SPEED_KEYBINDS.Aimbot,
 AntiDesyncAimbot = DEFAULT_SPEED_KEYBINDS.AntiDesyncAimbot,
 AutoLeft = DEFAULT_SPEED_KEYBINDS.AutoLeft,
 AutoRight = DEFAULT_SPEED_KEYBINDS.AutoRight,
+AutoPlay = DEFAULT_SPEED_KEYBINDS.AutoPlay,
 InstaReset = DEFAULT_SPEED_KEYBINDS.InstaReset,
 ToggleUI = DEFAULT_SPEED_KEYBINDS.ToggleUI,
 }
@@ -141,6 +155,7 @@ local char=LP.Character;if not char then return end
 local hrp=char:FindFirstChild("HumanoidRootPart");if not hrp then return end
 local hum2=char:FindFirstChildOfClass("Humanoid");if not hum2 then return end
 if not force then
+if not _G.NexusSafeModeHoldingBrainrot or not _G.NexusSafeModeHoldingBrainrot() then return end
 if hum2.FloorMaterial~=Enum.Material.Air then return end
 if not(hrp.Position.Y>=autoTPHeight) then return end
 end
@@ -228,9 +243,17 @@ runDropBrainrot()
 end
 local infJumpEnabled = false
 local antiRagdollEnabled = false
+local antiRagdollMode = "Splatter"
 local antiRagdollConn = nil
 local unwalkEnabled = false
 local unwalkSavedAnimate = nil
+local headlessEnabled = false
+local korbloxEnabled = false
+local nexusFitEnabled = false
+local NEXUS_FIT_COLOR = Color3.fromRGB(255, 255, 255)
+
+local nexusFitOriginalColors = {}
+local nexusFitOriginalBodyColors = {}
 local hitHarderAnimEnabled = false
 local hitHarderOriginalAnims = {}
 
@@ -367,7 +390,7 @@ walk = "rbxassetid://742640026", run = "rbxassetid://742638842",
 jump = "rbxassetid://742637942", fall = "rbxassetid://742637151", climb = "rbxassetid://742636889"
 },
 }
-local AnimationPackList = {"None", "Unwalk", "Tryhard", "Zombie", "Ninja", "Knight", "Elder", "Levitate", "Astronaut", "Pirate", "Toy", "Vampire", "Werewolf", "Rthro", "Stylish", "Adidas Sports", "Adidas Community", "Adidas Aura", "Wicked Popular", "Mage", "Catwalk Glam", "Wicked Dancing", "Superhero", "No Boundaries", "NFL", "Amazon Unboxed", "Robot", "Bubbly", "Cartoon"}
+local AnimationPackList = {"None", "Tryhard", "Zombie", "Ninja", "Knight", "Elder", "Levitate", "Astronaut", "Pirate", "Toy", "Vampire", "Werewolf", "Rthro", "Stylish", "Adidas Sports", "Adidas Community", "Adidas Aura", "Wicked Popular", "Mage", "Catwalk Glam", "Wicked Dancing", "Superhero", "No Boundaries", "NFL", "Amazon Unboxed", "Robot", "Bubbly", "Cartoon"}
 local AnimationPackIndex = 1
 local OriginalAnims = {}
 local enableUnwalk, disableUnwalk, enableHitHarderAnim, disableHitHarderAnim
@@ -431,20 +454,11 @@ reloadAnimate(animate)
 end
 local function applyAnimationPack(packName)
 selectedAnimationPack = packName or "None"
-if selectedAnimationPack ~= "Unwalk" and unwalkEnabled then
-disableUnwalk()
-end
     if selectedAnimationPack ~= "Tryhard" and hitHarderAnimEnabled then
 hitHarderAnimEnabled = false
 resetAnimations()
 end
-if selectedAnimationPack == "Unwalk" then
-resetAnimations()
-enableUnwalk()
-return
-end
     if selectedAnimationPack == "Tryhard" then
-disableUnwalk()
 enableHitHarderAnim()
 return
 end
@@ -469,23 +483,271 @@ reloadAnimate(animate)
 end
 enableUnwalk = function()
 unwalkEnabled = true
-local char = LP.Character
-local animate = getAnimate(char)
-if animate then
-if not unwalkSavedAnimate then
-unwalkSavedAnimate = animate:Clone()
+local c = LP.Character
+if not c then return end
+local hum = c:FindFirstChildOfClass("Humanoid")
+if hum then
+for _,t in ipairs(hum:GetPlayingAnimationTracks()) do
+t:Stop()
 end
-stopCurrentAnimations(char)
-animate:Destroy()
+end
+local anim = c:FindFirstChild("Animate")
+if anim then
+unwalkSavedAnimate = anim:Clone()
+anim:Destroy()
 end
 end
 disableUnwalk = function()
 unwalkEnabled = false
-local char = LP.Character
-if char and not char:FindFirstChild("Animate") and unwalkSavedAnimate then
-local newAnimate = unwalkSavedAnimate:Clone()
-newAnimate.Parent = char
+local c = LP.Character
+if c and unwalkSavedAnimate then
+unwalkSavedAnimate:Clone().Parent = c
+unwalkSavedAnimate = nil
 end
+end
+local function enableGalaxyGravity()
+if _G.NexusGalaxyGravityConn then return end
+local char = LP.Character; if not char then return end
+local root = char:FindFirstChild("HumanoidRootPart"); if not root then return end
+_G.NexusGalaxyGravityBV = Instance.new("BodyForce")
+_G.NexusGalaxyGravityBV.Name = "_NexusGalaxyGrav"
+_G.NexusGalaxyGravityBV.Force = Vector3.new(0, 0, 0)
+_G.NexusGalaxyGravityBV.Parent = root
+local cachedMass = 0
+local lastMassCalc = 0
+_G.NexusGalaxyGravityConn = RunService.Heartbeat:Connect(function()
+if not _G.NexusGalaxyGravityEnabled then return end
+local c = LP.Character; if not c then return end
+local r = c:FindFirstChild("HumanoidRootPart"); if not r then return end
+local bv = _G.NexusGalaxyGravityBV
+if not bv or not bv.Parent then
+bv = Instance.new("BodyForce")
+bv.Name = "_NexusGalaxyGrav"
+bv.Force = Vector3.new(0, 0, 0)
+bv.Parent = r
+_G.NexusGalaxyGravityBV = bv
+end
+local now = tick()
+if now - lastMassCalc > 2 then
+lastMassCalc = now
+cachedMass = 0
+for _, p in ipairs(c:GetDescendants()) do
+if p:IsA("BasePart") then cachedMass = cachedMass + p:GetMass() end
+end
+end
+local mass = cachedMass
+local antiGrav = mass * workspace.Gravity * _G.NexusGalaxyGravityStrength
+local extraUp = r.AssemblyLinearVelocity.Y < 0 and mass * workspace.Gravity * 0.15 or 0
+bv.Force = Vector3.new(0, antiGrav + extraUp, 0)
+end)
+end
+local function disableGalaxyGravity()
+_G.NexusGalaxyGravityEnabled = false
+if _G.NexusGalaxyGravityConn then _G.NexusGalaxyGravityConn:Disconnect(); _G.NexusGalaxyGravityConn = nil end
+if _G.NexusGalaxyGravityBV then pcall(function() _G.NexusGalaxyGravityBV:Destroy() end); _G.NexusGalaxyGravityBV = nil end
+end
+local function setGalaxyGravity(on)
+_G.NexusGalaxyGravityEnabled = on and true or false
+if _G.NexusGalaxyGravityEnabled then
+enableGalaxyGravity()
+else
+disableGalaxyGravity()
+end
+end
+local HEADLESS_MESH_ID = "rbxassetid://1095708"
+local KORBLOX_MESH_ID = "rbxassetid://101851696"
+local KORBLOX_TEXTURE_ID = "rbxassetid://101851254"
+local DARK_GREY_COLOR = Color3.fromRGB(64, 64, 64)
+local function removeFace(head)
+local face = head:FindFirstChild("face")
+if face then face:Destroy() end
+end
+local headlessEnabled = false
+local korbloxEnabled = false
+local function applyHeadlessToChar(char, enabled)
+if not char then return end
+local head = char:FindFirstChild("Head")
+if not head then return end
+if enabled then
+head.Transparency = 1
+head.CanCollide = false
+removeFace(head)
+for _, child in ipairs(head:GetChildren()) do
+if child:IsA("SpecialMesh") and child.MeshId == HEADLESS_MESH_ID then
+child:Destroy()
+end
+end
+local mesh = Instance.new("SpecialMesh")
+mesh.MeshType = Enum.MeshType.FileMesh
+mesh.MeshId = HEADLESS_MESH_ID
+mesh.Scale = Vector3.new(0.001, 0.001, 0.001)
+mesh.Name = "HeadlessMesh"
+mesh.Parent = head
+head:GetPropertyChangedSignal("Transparency"):Connect(function()
+if head.Transparency ~= 1 then head.Transparency = 1 end
+end)
+head.ChildAdded:Connect(function(child)
+if child.Name == "face" and child:IsA("Decal") then child:Destroy() end
+end)
+else
+head.Transparency = 0
+head.CanCollide = true
+for _, child in ipairs(head:GetChildren()) do
+if child:IsA("SpecialMesh") and child.Name == "HeadlessMesh" then
+child:Destroy()
+end
+end
+removeFace(head)
+end
+end
+local function applyKorbloxToChar(char, enabled)
+if not char then return end
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+if not humanoid then return end
+if enabled then
+if humanoid.RigType == Enum.HumanoidRigType.R6 then
+local rightLeg = char:FindFirstChild("Right Leg")
+if rightLeg then
+for _, child in ipairs(rightLeg:GetChildren()) do
+if child:IsA("SpecialMesh") or child:IsA("CharacterMesh") then
+child:Destroy()
+end
+end
+rightLeg.Color = DARK_GREY_COLOR
+rightLeg:GetPropertyChangedSignal("Color"):Connect(function()
+if rightLeg.Color ~= DARK_GREY_COLOR then rightLeg.Color = DARK_GREY_COLOR end
+end)
+local mesh = Instance.new("SpecialMesh")
+mesh.MeshType = Enum.MeshType.FileMesh
+mesh.MeshId = KORBLOX_MESH_ID
+mesh.TextureId = KORBLOX_TEXTURE_ID
+mesh.Scale = Vector3.new(1, 1, 1)
+mesh.Name = "KorbloxMesh"
+mesh.Parent = rightLeg
+end
+elseif humanoid.RigType == Enum.HumanoidRigType.R15 then
+local rightUpperLeg = char:FindFirstChild("RightUpperLeg")
+if rightUpperLeg then
+rightUpperLeg.Transparency = 1
+local rightLowerLeg = char:FindFirstChild("RightLowerLeg")
+local rightFoot = char:FindFirstChild("RightFoot")
+if rightLowerLeg then rightLowerLeg.Transparency = 1 end
+if rightFoot then rightFoot.Transparency = 1 end
+local oldKorblox = char:FindFirstChild("KorbloxLeg")
+if oldKorblox then oldKorblox:Destroy() end
+local korbloxLeg = Instance.new("Part")
+korbloxLeg.Name = "KorbloxLeg"
+korbloxLeg.Size = Vector3.new(1, 2, 1)
+korbloxLeg.Anchored = false
+korbloxLeg.CanCollide = false
+korbloxLeg.Color = DARK_GREY_COLOR
+korbloxLeg.Parent = char
+local kMesh = Instance.new("SpecialMesh")
+kMesh.MeshType = Enum.MeshType.FileMesh
+kMesh.MeshId = KORBLOX_MESH_ID
+kMesh.TextureId = KORBLOX_TEXTURE_ID
+kMesh.Scale = Vector3.new(1, 1, 1)
+kMesh.Name = "KorbloxMesh"
+kMesh.Parent = korbloxLeg
+local weld = Instance.new("Weld")
+weld.Part0 = rightUpperLeg
+weld.Part1 = korbloxLeg
+weld.C0 = CFrame.new(0, -0.8, 0)
+weld.Name = "KorbloxWeld"
+weld.Parent = korbloxLeg
+end
+end
+else
+if humanoid.RigType == Enum.HumanoidRigType.R6 then
+local rightLeg = char:FindFirstChild("Right Leg")
+if rightLeg then
+for _, child in ipairs(rightLeg:GetChildren()) do
+if child:IsA("SpecialMesh") and child.Name == "KorbloxMesh" then
+child:Destroy()
+end
+end
+rightLeg.Color = Color3.fromRGB(255, 255, 255)
+end
+elseif humanoid.RigType == Enum.HumanoidRigType.R15 then
+local rightUpperLeg = char:FindFirstChild("RightUpperLeg")
+if rightUpperLeg then
+rightUpperLeg.Transparency = 0
+local rightLowerLeg = char:FindFirstChild("RightLowerLeg")
+local rightFoot = char:FindFirstChild("RightFoot")
+if rightLowerLeg then rightLowerLeg.Transparency = 0 end
+if rightFoot then rightFoot.Transparency = 0 end
+local korbloxLeg = char:FindFirstChild("KorbloxLeg")
+if korbloxLeg then korbloxLeg:Destroy() end
+end
+end
+end
+end
+local function applyHeadlessKorblox()
+local char = LP.Character
+if not char then return end
+applyHeadlessToChar(char, headlessEnabled)
+applyKorbloxToChar(char, korbloxEnabled)
+end
+local function applyNexusFitToChar(char, enabled)
+if not char then return end
+local bodyColors = char:FindFirstChildOfClass("BodyColors")
+local colorProps = {"HeadColor3","LeftArmColor3","LeftLegColor3","RightArmColor3","RightLegColor3","TorsoColor3"}
+if bodyColors then
+for _, prop in ipairs(colorProps) do
+local attr = "NexusFitOriginal" .. prop
+if enabled then
+if bodyColors:GetAttribute(attr) == nil then
+bodyColors:SetAttribute(attr, bodyColors[prop])
+end
+bodyColors[prop] = NEXUS_FIT_COLOR
+else
+local orig = bodyColors:GetAttribute(attr)
+if typeof(orig) == "Color3" then bodyColors[prop] = orig end
+bodyColors:SetAttribute(attr, nil)
+end
+end
+end
+for _, part in ipairs(char:GetChildren()) do
+if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+local attr = "NexusFitOriginalColor"
+if enabled then
+if part:GetAttribute(attr) == nil then part:SetAttribute(attr, part.Color) end
+part.Color = NEXUS_FIT_COLOR
+else
+local orig = part:GetAttribute(attr)
+if typeof(orig) == "Color3" then part.Color = orig end
+part:SetAttribute(attr, nil)
+end
+end
+end
+for _, clothing in ipairs(char:GetChildren()) do
+if clothing:IsA("Shirt") then
+if enabled then
+if clothing:GetAttribute("NexusFitOrigTemplate") == nil then
+clothing:SetAttribute("NexusFitOrigTemplate", clothing.ShirtTemplate)
+end
+clothing.ShirtTemplate = ""
+elseif clothing:GetAttribute("NexusFitOrigTemplate") ~= nil then
+clothing.ShirtTemplate = clothing:GetAttribute("NexusFitOrigTemplate")
+clothing:SetAttribute("NexusFitOrigTemplate", nil)
+end
+elseif clothing:IsA("Pants") then
+if enabled then
+if clothing:GetAttribute("NexusFitOrigTemplate") == nil then
+clothing:SetAttribute("NexusFitOrigTemplate", clothing.PantsTemplate)
+end
+clothing.PantsTemplate = ""
+elseif clothing:GetAttribute("NexusFitOrigTemplate") ~= nil then
+clothing.PantsTemplate = clothing:GetAttribute("NexusFitOrigTemplate")
+clothing:SetAttribute("NexusFitOrigTemplate", nil)
+end
+end
+end
+end
+local function applyNexusFit()
+local char = LP.Character
+if not char then return end
+applyNexusFitToChar(char, nexusFitEnabled)
 end
 enableHitHarderAnim = function()
 hitHarderAnimEnabled = true
@@ -513,30 +775,26 @@ end
 local function startAntiRagdoll()
 if antiRagdollConn then return end
 antiRagdollEnabled = true
-local resetCooldown = 0
+local noSplatterCooldown = 0
 antiRagdollConn = RunService.Heartbeat:Connect(function()
 if not antiRagdollEnabled then return end
 local char = LP.Character
 if not char then return end
 local hum = char:FindFirstChildOfClass("Humanoid")
 local root = char:FindFirstChild("HumanoidRootPart")
-if not hum or not root or hum.Health <= 0 then return end
+if not hum or hum.Health <= 0 then return end
 local s = hum:GetState()
 local ragdolled = (s == Enum.HumanoidStateType.Physics or s == Enum.HumanoidStateType.Ragdoll or s == Enum.HumanoidStateType.FallingDown)
-local endTime = char:GetAttribute("RagdollEndTime")
-if endTime and (endTime - workspace:GetServerTimeNow()) > 0 then ragdolled = true end
+if antiRagdollMode == "No Splatter" then
 if ragdolled then
 local now = tick()
-if now - resetCooldown > 0.15 then
-resetCooldown = now
+if now - noSplatterCooldown > 0.15 then
+noSplatterCooldown = now
 pcall(function()
 hum:ChangeState(Enum.HumanoidStateType.GettingUp)
-if currentSpeedMode ~= "Normal" then
-local keepVel = root.AssemblyLinearVelocity
-root.AssemblyLinearVelocity = Vector3.new(keepVel.X, 0, keepVel.Z)
-else
+root.Velocity = Vector3.zero
+root.RotVelocity = Vector3.zero
 root.AssemblyLinearVelocity = Vector3.zero
-end
 root.AssemblyAngularVelocity = Vector3.zero
 for _, obj in ipairs(char:GetDescendants()) do
 if obj:IsA("Motor6D") then obj.Enabled = true end
@@ -553,6 +811,33 @@ hum.PlatformStand = false
 hum.Sit = false
 end)
 end
+end
+return
+end
+if not root then return end
+local endTime = LP:GetAttribute("RagdollEndTime")
+if endTime and (endTime - workspace:GetServerTimeNow()) > 0 then ragdolled = true end
+if ragdolled then
+pcall(function()
+LP:SetAttribute("RagdollEndTime", workspace:GetServerTimeNow())
+end)
+for _, d in ipairs(char:GetDescendants()) do
+if d:IsA("BallSocketConstraint") or (d:IsA("Attachment") and d.Name:find("RagdollAttachment")) then
+d:Destroy()
+end
+end
+for _, obj in ipairs(char:GetDescendants()) do
+if obj:IsA("Motor6D") and obj.Enabled == false then
+obj.Enabled = true
+end
+end
+if hum.Health > 0 then
+hum:ChangeState(Enum.HumanoidStateType.Running)
+end
+workspace.CurrentCamera.CameraSubject = hum
+root.Anchored = false
+root.AssemblyLinearVelocity = Vector3.zero
+root.AssemblyAngularVelocity = Vector3.zero
 end
 end)
 end
@@ -589,7 +874,8 @@ if not char then return end
 local root = char:FindFirstChild("HumanoidRootPart")
 local hum = char:FindFirstChildOfClass("Humanoid")
 if not root or not hum then return end
-local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true)
+local chatFocused = UserInputService:GetFocusedTextBox() ~= nil
+local isJumpHeld = (UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true)) and not chatFocused
 if isJumpHeld and root.AssemblyLinearVelocity.Y < 35 then
 root.AssemblyLinearVelocity = Vector3.new(root.AssemblyLinearVelocity.X, 55, root.AssemblyLinearVelocity.Z)
 end
@@ -616,6 +902,29 @@ _G._nexusStopInfJumpAll = function()
 _stopInfJumpHoldMode()
 end
 end)()
+_G.NexusJumpHeld = false
+task.spawn(function()
+local pg = PlayerGui:WaitForChild("PlayerGui", 10)
+if not pg then pg = PlayerGui end
+local function hookJumpButton(btn)
+if btn:IsA("GuiButton") and btn.Name == "JumpButton" and not btn:GetAttribute("NexusInfJumpHooked") then
+btn:SetAttribute("NexusInfJumpHooked", true)
+btn.MouseButton1Down:Connect(function()
+if infJumpEnabled then _G.NexusJumpHeld = true end
+end)
+btn.MouseButton1Up:Connect(function()
+_G.NexusJumpHeld = false
+end)
+btn.MouseLeave:Connect(function()
+_G.NexusJumpHeld = false
+end)
+end
+end
+for _, d in ipairs(pg:GetDescendants()) do
+hookJumpButton(d)
+end
+pg.DescendantAdded:Connect(hookJumpButton)
+end)
 local currentBackground = 0
 local nexusGuiScaleValue = 0.52
 local nexusProgressBarScaleValue = 0.83
@@ -709,22 +1018,24 @@ autoCarrySpeedEnabled = autoCarrySpeedEnabled == true,
 autoTPEnabled = autoTPEnabled,
 autoTPHeight = autoTPHeight,
 infJumpEnabled = infJumpEnabled,
-antiRagdollEnabled = antiRagdollEnabled,
-selectedAnimationPack = selectedAnimationPack,
+	antiRagdollEnabled = antiRagdollEnabled,
+	antiRagdollMode = antiRagdollMode,
+	headlessEnabled = headlessEnabled == true,
+	korbloxEnabled = korbloxEnabled == true,
+	nexusFitEnabled = nexusFitEnabled == true,
+	selectedAnimationPack = selectedAnimationPack,
 selectedStealMode = selectedStealMode,
 autoStealEnabled = autoStealEnabled,
 autoStealRadius = autoStealRadius,
 semiStopPercent = semiStopPercent,
 nexusStealRadii = _G.NexusStealRadii,
 selectedAimbotMode = selectedAimbotMode,
+normalAimbotVersion = normalAimbotVersion,
 AIMBOT_SPEED = AIMBOT_SPEED,
 LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,
-ANTI_BYPASS_AIMBOT_SPEED = _G.NexusAntiBypassAimbotSpeed,
-ANTI_BYPASS_LAGGER_AIMBOT_SPEED = _G.NexusAntiBypassLaggerAimbotSpeed,
 ANTI_DESYNC_AIMBOT_SPEED = ANTI_DESYNC_AIMBOT_SPEED,
 autoSwingEnabled = autoSwingEnabled,
 normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
-antiBypassAimbotEnabled = _G.NexusAntiBypassAimbotOn == true,
 antiDesyncAutoSwingEnabled = antiDesyncAutoSwingEnabled,
 tpBatOnHitEnabled = tpBatOnHitEnabled,
 tpBatOnHitDuration = tpBatOnHitDuration,
@@ -753,14 +1064,18 @@ customFontVisualEnabled = false,
 skyTheme = skyTheme,
 autoLeftEnabled = autoLeftEnabled,
 autoRightEnabled = autoRightEnabled,
+autoPlayEnabled = autoPlayEnabled,
+galaxyGravityEnabled = _G.NexusGalaxyGravityEnabled == true,
+galaxyGravityStrength = _G.NexusGalaxyGravityStrength,
 currentBackground = currentBackground,
 		nexusGuiScaleValue = nexusGuiScaleValue,
 		nexusProgressBarScaleValue = nexusProgressBarScaleValue,
 		stretchRezEnabled = _G.NexusStretchRezEnabled == true,
 		guiLocked = _G.NexusGuiLocked == true,
-hideMobileButtons = _G.NexusHideMobileButtons == true,
-nexusMobileButtonScale = _G.NexusMobileButtonScale,
-		mobileButtonPositions = collectNexusMobileButtonPositions(),
+	hideMobileButtons = _G.NexusHideMobileButtons == true,
+	nexusMobileButtonScale = _G.NexusMobileButtonScale,
+	mobileButtonPositions = collectNexusMobileButtonPositions(),
+	grabTimerEnabled = grabTimerEnabled == true,
 }
 end
 function saveNexusConfig()
@@ -814,29 +1129,26 @@ autoCarrySpeedEnabled = data.autoCarrySpeedEnabled == true
 autoTPEnabled = data.autoTPEnabled == true
 autoTPHeight = tonumber(data.autoTPHeight) or autoTPHeight
 infJumpEnabled = data.infJumpEnabled == true
-antiRagdollEnabled = data.antiRagdollEnabled == true
-selectedAnimationPack = data.selectedAnimationPack or selectedAnimationPack
+	antiRagdollEnabled = data.antiRagdollEnabled == true
+	antiRagdollMode = data.antiRagdollMode or antiRagdollMode
+	headlessEnabled = data.headlessEnabled == true
+	korbloxEnabled = data.korbloxEnabled == true
+	nexusFitEnabled = data.nexusFitEnabled == true
+	selectedAnimationPack = data.selectedAnimationPack or selectedAnimationPack
 selectedStealMode = data.selectedStealMode == "Normal" and "Normal" or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
 local loadedStopPct = tonumber(data.semiStopPercent)
 semiStopPercent = loadedStopPct == 75 and 75 or (loadedStopPct == 99 and 99 or 90)
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
-selectedAimbotMode = data.selectedAimbotMode or selectedAimbotMode
-if selectedAimbotMode ~= "Anti Bypass" then selectedAimbotMode = "Normal" end
+selectedAimbotMode = "Normal"
+normalAimbotVersion = (tonumber(data.normalAimbotVersion) == 2) and 2 or 1
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
-_G.NexusAntiBypassAimbotSpeed = tonumber(data.ANTI_BYPASS_AIMBOT_SPEED) or _G.NexusAntiBypassAimbotSpeed or 58
-if data.ANTI_BYPASS_LAGGER_AIMBOT_SPEED == nil or tonumber(data.ANTI_BYPASS_LAGGER_AIMBOT_SPEED) == 58 then
-_G.NexusAntiBypassLaggerAimbotSpeed = 40
-else
-_G.NexusAntiBypassLaggerAimbotSpeed = tonumber(data.ANTI_BYPASS_LAGGER_AIMBOT_SPEED) or 40
-end
 ANTI_DESYNC_AIMBOT_SPEED = tonumber(data.ANTI_DESYNC_AIMBOT_SPEED) or ANTI_DESYNC_AIMBOT_SPEED or 58
 autoSwingEnabled = data.autoSwingEnabled == true
 
 _G.NexusNormalAimbotOn = data.normalAimbotEnabled == true
-_G.NexusAntiBypassAimbotOn = data.antiBypassAimbotEnabled == true
 antiDesyncAutoSwingEnabled = data.antiDesyncAutoSwingEnabled == true
 tpBatOnHitEnabled = data.tpBatOnHitEnabled == true
 tpBatOnHitDuration = math.clamp(tonumber(data.tpBatOnHitDuration) or 1, 0.1, 3)
@@ -870,12 +1182,18 @@ _G.NexusNoPlayerCollisionEnabled = data.noPlayerCollisionEnabled == true
 _G.NexusAntiAntiDesyncEnabled = data.antiAntiDesyncEnabled == true
 if _G.NexusAntiAntiDesyncEnabled and _G.NexusToggleAntiAntiDesync then _G.NexusToggleAntiAntiDesync(true) end
 autoSwitchEnabled = data.autoSwitchEnabled == true
+grabTimerEnabled = data.grabTimerEnabled == true
 customFontVisualEnabled = false
 skyTheme = (type(data.skyTheme) == "string" and data.skyTheme) or skyTheme
 autoLeftEnabled = data.autoLeftEnabled == true
 autoRightEnabled = data.autoRightEnabled == true
+autoPlayEnabled = data.autoPlayEnabled == true
+_G.NexusGalaxyGravityEnabled = data.galaxyGravityEnabled == true
+_G.NexusGalaxyGravityStrength = tonumber(data.galaxyGravityStrength) or _G.NexusGalaxyGravityStrength
 _G.NexusStretchRezEnabled = data.stretchRezEnabled == true
 if autoLeftEnabled and autoRightEnabled then autoRightEnabled = false end
+if autoPlayEnabled and autoLeftEnabled then autoPlayEnabled = false end
+if autoPlayEnabled and autoRightEnabled then autoPlayEnabled = false end
 end
 loadAceConfig()
 local function syncAnimationPackIndex()
@@ -907,10 +1225,30 @@ end
 syncAnimationPackIndex()
 task.defer(function()
 applySavedAnimationPackToCharacter(LP.Character)
+if headlessEnabled or korbloxEnabled then
+task.wait(0.2)
+applyHeadlessKorblox()
+end
+if nexusFitEnabled then
+task.wait(0.2)
+applyNexusFit()
+end
 end)
 LP.CharacterAdded:Connect(function(char)
 task.wait(0.65)
 applySavedAnimationPackToCharacter(char)
+if unwalkEnabled then
+task.wait(0.2)
+enableUnwalk()
+end
+if headlessEnabled or korbloxEnabled then
+task.wait(0.1)
+applyHeadlessKorblox()
+end
+if nexusFitEnabled then
+task.wait(0.1)
+applyNexusFit()
+end
 end)
 _G.NexusCounterState = _G.NexusCounterState or {}
 _G.NexusCounterState.batConn = nil
@@ -1037,7 +1375,7 @@ _G.NexusAutoMedusaCircle.Shape = Enum.PartType.Cylinder
 _G.NexusAutoMedusaCircle.Size = Vector3.new(0.2, autoMedusaRange * 2, autoMedusaRange * 2)
 _G.NexusAutoMedusaCircle.Color = Color3.fromRGB(255, 0, 0)
 _G.NexusAutoMedusaCircle.Material = Enum.Material.Neon
-_G.NexusAutoMedusaCircle.Transparency = 0.35
+_G.NexusAutoMedusaCircle.Transparency = 1
 _G.NexusAutoMedusaCircle.Anchored = true
 _G.NexusAutoMedusaCircle.CanCollide = false
 _G.NexusAutoMedusaCircle.Parent = workspace
@@ -1304,7 +1642,6 @@ end
 function _G.NexusSafeModeForceStop(reason)
 local stopped = false
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot(); stopped = true end
-if _G.NexusAntiBypassAimbotOn and _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false); stopped = true end
 if _G.NexusAntiDesyncAimbotOn and _G.NexusStopAntiDesyncAimbot then _G.NexusStopAntiDesyncAimbot(); stopped = true end
 if autoLeftEnabled then
 autoLeftEnabled = false
@@ -1316,6 +1653,11 @@ if autoRightEnabled then
 autoRightEnabled = false
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+stopped = true
+end
+if autoPlayEnabled then
+autoPlayEnabled = false
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
 stopped = true
 end
 if stopped and showActionNotification then pcall(function() showActionNotification(reason or "SAFE MODE LOCK") end) end
@@ -1345,6 +1687,7 @@ task.wait(0.5)
 if medCounterEnabled then _G.NexusStartMedCounter(char) end
 if batCounterEnabled then _G.NexusStartBatCounter() end
 if autoMedusaEnabled then pcall(function() _G.NexusStartAutoMedusa() end) end
+if _G.NexusGalaxyGravityEnabled then task.wait(0.3); enableGalaxyGravity() end
 end)
 _G.NexusNormalAimbot = _G.NexusNormalAimbot or {conn = nil, target = nil, swingCooldown = false}
 function _G.NexusFindAimbotBat()
@@ -1390,26 +1733,12 @@ return tonumber(LAGGER_AIMBOT_SPEED) or 40
 end
 return tonumber(AIMBOT_SPEED) or 58
 end
-function _G.NexusGetAntiBypassAimbotSpeed()
-if currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry" then
-return tonumber(_G.NexusAntiBypassLaggerAimbotSpeed) or 40
-end
-return tonumber(_G.NexusAntiBypassAimbotSpeed) or 58
-end
 function _G.NexusGetSelectedAimbotSpeedValues()
-if selectedAimbotMode == "Anti Bypass" then
-return tonumber(_G.NexusAntiBypassAimbotSpeed) or 58, tonumber(_G.NexusAntiBypassLaggerAimbotSpeed) or 40
-end
 return tonumber(AIMBOT_SPEED) or 58, tonumber(LAGGER_AIMBOT_SPEED) or 40
 end
 function _G.NexusSetSelectedAimbotSpeedValues(normalValue, laggerValue)
-if selectedAimbotMode == "Anti Bypass" then
-if normalValue then _G.NexusAntiBypassAimbotSpeed = normalValue end
-if laggerValue then _G.NexusAntiBypassLaggerAimbotSpeed = laggerValue end
-else
 if normalValue then AIMBOT_SPEED = normalValue end
 if laggerValue then LAGGER_AIMBOT_SPEED = laggerValue end
-end
 end
 function _G.NexusRefreshAimbotSpeedBoxes()
 local n, l = _G.NexusGetSelectedAimbotSpeedValues()
@@ -1419,11 +1748,10 @@ end
 function _G.NexusStartNormalAimbot()
 if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
 if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false) end
-_G.NexusAntiBypassAimbotOn = false
-autoLeftEnabled = false; autoRightEnabled = false
+autoLeftEnabled = false; autoRightEnabled = false; autoPlayEnabled = false
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
 _G.NexusNormalAimbotOn = true
@@ -1481,6 +1809,55 @@ local targetPos = target.Position
 local toTarget = targetPos - myPos
 local dist = toTarget.Magnitude
 local chaseSpeed = _G.NexusGetNormalAimbotSpeed()
+if normalAimbotVersion == 1 then
+local predictPos = targetPos + targetVel * 0.14 + target.CFrame.LookVector * 0.3
+local direction = predictPos - myPos
+if direction.Magnitude < 0.01 then return end
+local flatDir = Vector3.new(direction.X, 0, direction.Z)
+if flatDir.Magnitude < 0.01 then return end
+flatDir = flatDir.Unit
+local desiredHeight = targetPos.Y + 3.7
+local yVel = (desiredHeight - myPos.Y) * 19.5 + targetVel.Y * 0.8
+if hum.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 13) end
+yVel = math.clamp(yVel, -70, 110)
+local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
+local mass = root.AssemblyMass
+if mass > 0 then root:ApplyImpulse((desiredVel - root.AssemblyLinearVelocity) * mass) end
+local speed3 = targetVel.Magnitude
+local predictTime = math.clamp(speed3 / 150, 0.05, 0.2)
+local predictedPos = targetPos + targetVel * predictTime
+local toPredict = predictedPos - myPos
+if toPredict.Magnitude > 0.1 then
+local goalCF = CFrame.lookAt(myPos, predictedPos)
+local diffCF = root.CFrame:Inverse() * goalCF
+local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
+rx = math.clamp(rx, -2.5, 2.5)
+ry = math.clamp(ry, -2.5, 2.5)
+rz = math.clamp(rz, -2.5, 2.5)
+root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * 42, ry * 42, rz * 42))
+end
+if autoSwingEnabled and not _G.NexusNormalAimbot._lastSwing then _G.NexusNormalAimbot._lastSwing = 0 end
+local now = tick()
+if autoSwingEnabled and dist <= 10 and (now - (_G.NexusNormalAimbot._lastSwing or 0)) >= 0.08 then
+local batSw = char:FindFirstChildOfClass("Tool")
+if batSw and batSw.Parent == char then
+_G.NexusNormalAimbot._lastSwing = now
+pcall(function() batSw:Activate() end)
+local handle = batSw:FindFirstChild("Handle")
+if handle then
+local tChar = target.Parent
+if tChar then
+for _, part in ipairs(tChar:GetDescendants()) do
+if part:IsA("BasePart") then
+pcall(function() firetouchinterest(handle, part, 0) end)
+pcall(function() firetouchinterest(handle, part, 1) end)
+end
+end
+end
+end
+end
+end
+else
 local fallingFast = targetVel.Y < -40
 local predictPos = targetPos + targetVel * 0.18 + target.CFrame.LookVector * 0.4
 if fallingFast then predictPos = targetPos + targetVel * 0.28 + target.CFrame.LookVector * 0.4 end
@@ -1534,6 +1911,7 @@ end
 end
 end
 end
+end
 end)
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
@@ -1560,208 +1938,22 @@ local hum2 = c and c:FindFirstChildOfClass("Humanoid")
 if hum2 then hum2.AutoRotate = true end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
-_G.NexusAntiBypassAimbot = _G.NexusAntiBypassAimbot or {conn = nil, swingCooldown = false, prevAutoRotate = nil}
-_G.NexusAntiBypassSlapList = _G.NexusAntiBypassSlapList or {"Bat","Slap","Iron Slap","Gold Slap","Diamond Slap","Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap","Nuclear Slap","Galaxy Slap","Glitched Slap"}
-function _G.NexusAntiBypassFindBat()
-local char = LP.Character
-if not char then return nil end
-for _, name in ipairs(_G.NexusAntiBypassSlapList) do
-local t = char:FindFirstChild(name)
-if t and t:IsA("Tool") then return t end
-end
-local bp = LP:FindFirstChildOfClass("Backpack")
-if bp then
-for _, name in ipairs(_G.NexusAntiBypassSlapList) do
-local t = bp:FindFirstChild(name)
-if t and t:IsA("Tool") then
-local hum = char:FindFirstChildOfClass("Humanoid")
-if hum then pcall(function() hum:EquipTool(t) end) end
-return t
-end
-end
-end
-for _, ch in ipairs(char:GetChildren()) do
-if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then return ch end
-end
-return nil
-end
-function _G.NexusAntiBypassTrySwing()
-if _G.NexusAntiBypassAimbot.swingCooldown then return end
-_G.NexusAntiBypassAimbot.swingCooldown = true
-pcall(function()
-local char = LP.Character
-if not char then return end
-local bat = _G.NexusAntiBypassFindBat()
-if bat then
-if bat.Parent ~= char then
-local hum = char:FindFirstChildOfClass("Humanoid")
-if hum then pcall(function() hum:EquipTool(bat) end) end
-end
-end
-end)
-task.delay(0.35, function()
-if _G.NexusAntiBypassAimbot then _G.NexusAntiBypassAimbot.swingCooldown = false end
-end)
-end
-function _G.NexusAntiBypassGetClosest()
-local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-if not root then return nil, math.huge end
-local closest, minDist = nil, math.huge
-for _, plr in ipairs(Players:GetPlayers()) do
-if plr ~= LP and plr.Character then
-local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
-local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-if tRoot and hum and hum.Health > 0 then
-local dist = (tRoot.Position - root.Position).Magnitude
-if dist < minDist then
-minDist = dist
-closest = tRoot
-end
-end
-end
-end
-return closest, minDist
-end
-function _G.NexusStartAntiBypassAimbot()
-if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
-if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
-if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-autoLeftEnabled = false; autoRightEnabled = false
-if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
-if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
-if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
-if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
-_G.NexusAntiBypassAimbotOn = true
-selectedAimbotMode = "Anti Bypass"
-if _G.NexusAntiBypassAimbot.conn then
-_G.NexusAntiBypassAimbot.conn:Disconnect()
-_G.NexusAntiBypassAimbot.conn = nil
-end
-local hum0 = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
-if hum0 then
-if _G.NexusAntiBypassAimbot.prevAutoRotate == nil then _G.NexusAntiBypassAimbot.prevAutoRotate = hum0.AutoRotate end
-hum0.AutoRotate = false
-end
-_G.NexusAntiBypassAimbot.conn = RunService.RenderStepped:Connect(function()
-if not _G.NexusAntiBypassAimbotOn or selectedAimbotMode ~= "Anti Bypass" then return end
-local char = LP.Character
-if not char then return end
-local root = char:FindFirstChild("HumanoidRootPart")
-if not root then return end
-local hum = char:FindFirstChildOfClass("Humanoid")
-if not hum then return end
-if _G.NexusClearLinVel then _G.NexusClearLinVel() end
-if not char:FindFirstChildOfClass("Tool") then
-local bat = _G.NexusAntiBypassFindBat()
-if bat then pcall(function() hum:EquipTool(bat) end) end
-end
-local target, targetDist = _G.NexusAntiBypassGetClosest()
-if not target then return end
-local targetVel = target.AssemblyLinearVelocity
-local myPos = root.Position
-local targetPos = target.Position
-local fallingFast = targetVel.Y < -40
-local predictPos = targetPos + targetVel * 0.18 + target.CFrame.LookVector * 0.4
-if fallingFast then predictPos = targetPos + targetVel * 0.28 + target.CFrame.LookVector * 0.4 end
-local direction = predictPos - myPos
-local flatDir = Vector3.new(direction.X, 0, direction.Z).Unit
-local chaseSpeed = _G.NexusGetAntiBypassAimbotSpeed()
-local desiredHeight = targetPos.Y + 3.7
-local yVel
-if fallingFast then
-yVel = targetVel.Y * 1.2 + (desiredHeight - myPos.Y) * 16
-else
-yVel = (desiredHeight - myPos.Y) * 24 + targetVel.Y * 0.8
-end
-if hum.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 18) end
-yVel = math.clamp(yVel, -120, 120)
-local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
-root.AssemblyLinearVelocity = root.AssemblyLinearVelocity:Lerp(desiredVel, 0.8)
-local speed3 = targetVel.Magnitude
-local predictTime = math.clamp(speed3 / 150, 0.05, 0.2)
-if fallingFast then predictTime = math.clamp(predictTime + 0.05, 0.05, 0.25) end
-local predictedPos = targetPos + targetVel * predictTime
-local toPredict = predictedPos - myPos
-if toPredict.Magnitude > 0.1 then
-local goalCF = CFrame.lookAt(myPos, predictedPos)
-local diffCF = root.CFrame:Inverse() * goalCF
-local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
-rx = math.clamp(rx, -3.2, 3.2)
-ry = math.clamp(ry, -3.2, 3.2)
-rz = math.clamp(rz, -3.2, 3.2)
-root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * 56, ry * 56, rz * 56))
-end
-local toTarget = targetPos - myPos
-local horizDist = Vector3.new(toTarget.X, 0, toTarget.Z).Magnitude
-local swingDist = targetDist
-if toTarget.Y < -3 then swingDist = horizDist + math.abs(toTarget.Y) * 0.3 end
-if autoSwingEnabled and swingDist <= 10 then _G.NexusAntiBypassTrySwing() end
-end)
-if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
-end
-function _G.NexusStopAntiBypassAimbot(keepVisual)
-_G.NexusAntiBypassAimbotOn = false
-if _G.NexusAntiBypassAimbot and _G.NexusAntiBypassAimbot.conn then
-_G.NexusAntiBypassAimbot.conn:Disconnect()
-_G.NexusAntiBypassAimbot.conn = nil
-end
-if _G.NexusAntiBypassAimbot then _G.NexusAntiBypassAimbot.swingCooldown = false end
-local c = LP.Character
-local root = c and c:FindFirstChild("HumanoidRootPart")
-if root then
-root.AssemblyLinearVelocity = Vector3.zero
-root.AssemblyAngularVelocity = Vector3.zero
-end
-local hum = c and c:FindFirstChildOfClass("Humanoid")
-if hum then
-hum.AutoRotate = (_G.NexusAntiBypassAimbot.prevAutoRotate == nil) and true or _G.NexusAntiBypassAimbot.prevAutoRotate
-hum.PlatformStand = false
-pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
-end
-if _G.NexusAntiBypassAimbot then _G.NexusAntiBypassAimbot.prevAutoRotate = nil end
-if keepVisual ~= false and _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
-end
-function _G.NexusToggleSelectedAimbot()
-if selectedAimbotMode == "Anti Bypass" then
-if _G.NexusAntiBypassAimbotOn then
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot() else _G.NexusAntiBypassAimbotOn = false end
-else
-if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-if _G.NexusStartAntiBypassAimbot then _G.NexusStartAntiBypassAimbot() else _G.NexusAntiBypassAimbotOn = true end
-end
-else
-if _G.NexusNormalAimbotOn then
-_G.NexusStopNormalAimbot()
-else
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false) else _G.NexusAntiBypassAimbotOn = false end
-_G.NexusStartNormalAimbot()
-end
-end
-if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
-saveNexusConfig()
-end
+_G.NexusNormalAimbotStart = _G.NexusStartNormalAimbot
+_G.NexusNormalAimbotStop = _G.NexusStopNormalAimbot
 function _G.NexusRefreshAimbotVisual()
 if _G.NexusAimbotSetVisual then
-if selectedAimbotMode == "Anti Bypass" then
-_G.NexusAimbotSetVisual(_G.NexusAntiBypassAimbotOn == true)
-else
 _G.NexusAimbotSetVisual(_G.NexusNormalAimbotOn == true)
 end
 end
-end
-_G.NexusNormalAimbotStart = _G.NexusStartNormalAimbot
-_G.NexusNormalAimbotStop = _G.NexusStopNormalAimbot
-_G.NexusAntiBypassStart = _G.NexusStartAntiBypassAimbot
-_G.NexusAntiBypassStop = _G.NexusStopAntiBypassAimbot
 
--- Mirror TP Down: mirror a 3-stud opponent drop while Normal, Anti Bypass, or Anti Desync Bat is active.
+-- Mirror TP Down: mirror a 3-stud opponent drop while Normal or Anti Desync Bat is active.
 local MIRROR_TP_DROP_THRESHOLD = 3
 local MIRROR_TP_DOWN_Y = -7.00
 local mirrorTPPreviousY = {}
 local mirrorTPLastTeleport = 0
 
 local function mirrorTPAimbotActive()
-return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
+return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
 end
 
 local function mirrorTPTeleportDown()
@@ -1803,7 +1995,7 @@ end
 end
 end)
 
-_G.NexusAntiDesync = _G.NexusAntiDesync or {conn = nil, hittingCooldown = false, h = nil, hrp = nil}
+_G.NexusAntiDesync = _G.NexusAntiDesync or {conn = nil, hittingCooldown = false, h = nil, hrp = nil, _godConn = nil, _godHealthConn = nil, _godDiedConn = nil, _godCharConn = nil, prevAutoRotate = nil}
 function _G.NexusAntiDesyncGetBat()
 local char = LP.Character
 if not char then return nil end
@@ -1828,7 +2020,7 @@ local bat = _G.NexusAntiDesyncGetBat()
 if bat then
 bat:Activate()
 local ev = bat:FindFirstChildWhichIsA("RemoteEvent")
-if ev then ev:FireServer() end
+if ev then pcall(function() ev:FireServer() end) end
 end
 end)
 task.delay(0.08, function()
@@ -1861,6 +2053,50 @@ if not _G.NexusAntiDesync then return end
 _G.NexusAntiDesync.h = char and char:WaitForChild("Humanoid", 5) or nil
 _G.NexusAntiDesync.hrp = char and char:WaitForChild("HumanoidRootPart", 5) or nil
 end
+function _G.NexusAntiDesyncClearGodConns()
+for _, key in ipairs({"_godConn", "_godHealthConn", "_godDiedConn", "_godCharConn"}) do
+local c = _G.NexusAntiDesync[key]
+if c then pcall(function() c:Disconnect() end); _G.NexusAntiDesync[key] = nil end
+end
+end
+function _G.NexusAntiDesyncProtectCharacter(char)
+if not char then return end
+local hum = char:FindFirstChildOfClass("Humanoid")
+if not hum then return end
+pcall(function()
+hum.MaxHealth = math.max(hum.MaxHealth, 100)
+if hum.Health < hum.MaxHealth then hum.Health = hum.MaxHealth end
+end)
+if _G.NexusAntiDesync._godHealthConn then pcall(function() _G.NexusAntiDesync._godHealthConn:Disconnect() end) end
+_G.NexusAntiDesync._godHealthConn = hum:GetPropertyChangedSignal("Health"):Connect(function()
+if not _G.NexusAntiDesyncAimbotOn then return end
+if hum.Health < hum.MaxHealth then
+pcall(function() hum.Health = hum.MaxHealth end)
+end
+end)
+if _G.NexusAntiDesync._godDiedConn then pcall(function() _G.NexusAntiDesync._godDiedConn:Disconnect() end) end
+_G.NexusAntiDesync._godDiedConn = hum.Died:Connect(function()
+if not _G.NexusAntiDesyncAimbotOn then return end
+pcall(function()
+hum.Health = hum.MaxHealth
+hum:ChangeState(Enum.HumanoidStateType.Running)
+hum.PlatformStand = false
+end)
+end)
+end
+function _G.NexusAntiDesyncEnableGodmode()
+_G.NexusAntiDesyncClearGodConns()
+local char = LP.Character
+if char then _G.NexusAntiDesyncProtectCharacter(char) end
+_G.NexusAntiDesync._godCharConn = LP.CharacterAdded:Connect(function(c)
+if not _G.NexusAntiDesyncAimbotOn then return end
+task.wait(0.15)
+_G.NexusAntiDesyncProtectCharacter(c)
+end)
+end
+function _G.NexusAntiDesyncDisableGodmode()
+_G.NexusAntiDesyncClearGodConns()
+end
 LP.CharacterAdded:Connect(function(char)
 pcall(function()
 _G.NexusAntiDesyncSetupChar(char)
@@ -1877,10 +2113,10 @@ function _G.NexusStartAntiDesyncAimbot()
 if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
 if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
 if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false) end
-autoLeftEnabled = false; autoRightEnabled = false
+autoLeftEnabled = false; autoRightEnabled = false; autoPlayEnabled = false
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
 _G.NexusAntiDesyncAimbotOn = true
@@ -1892,6 +2128,14 @@ if LP.Character then
 pcall(function()
 _G.NexusAntiDesyncSetupChar(LP.Character)
 end)
+end
+pcall(function()
+_G.NexusAntiDesyncEnableGodmode()
+end)
+local hum0 = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+if hum0 then
+if _G.NexusAntiDesync.prevAutoRotate == nil then _G.NexusAntiDesync.prevAutoRotate = hum0.AutoRotate end
+hum0.AutoRotate = false
 end
 _G.NexusAntiDesync.conn = RunService.Heartbeat:Connect(function()
 if not (_G.NexusAntiDesyncAimbotOn and _G.NexusAntiDesync.h and _G.NexusAntiDesync.hrp) then return end
@@ -1907,33 +2151,16 @@ pcall(function()
 sethiddenproperty(_G.NexusAntiDesync.hrp, "PhysicsRepRootPart", tr)
 end)
 end
-local tPos = tr.Position
-local tVel = tr.AssemblyLinearVelocity
-local fallingFast = tVel.Y < -40
-local predictTime = math.clamp(tVel.Magnitude / 150, 0.05, 0.2)
-if fallingFast then predictTime = math.clamp(predictTime + 0.05, 0.05, 0.25) end
-local predictedPos = tPos + tVel * predictTime
-local targetPos = predictedPos + Vector3.new(0, 0.9, 0)
-if fallingFast then targetPos = predictedPos + Vector3.new(0, 0.3, 0) end
+local targetPos = tr.Position + Vector3.new(0, 0.9, 0)
+if (_G.NexusAntiDesync.hrp.Position - targetPos).Magnitude > 8 then
 _G.NexusAntiDesync.hrp.CFrame = CFrame.new(targetPos)
+end
 local cam = workspace.CurrentCamera
 if cam then
 cam.CFrame = CFrame.new(cam.CFrame.Position, tr.Position)
 end
-if (autoSwingEnabled or antiDesyncAutoSwingEnabled) then
+if autoSwingEnabled or antiDesyncAutoSwingEnabled or dist <= 10 then
 _G.NexusAntiDesyncTrySwing()
-local bat = _G.NexusAntiDesyncGetBat()
-if bat then
-local handle = bat:FindFirstChild("Handle")
-if handle and target.Character then
-for _, part in ipairs(target.Character:GetDescendants()) do
-if part:IsA("BasePart") then
-pcall(function() firetouchinterest(handle, part, 0) end)
-pcall(function() firetouchinterest(handle, part, 1) end)
-end
-end
-end
-end
 end
 end
 end
@@ -1951,6 +2178,22 @@ end
 if _G.NexusAntiDesync then
 _G.NexusAntiDesync.hittingCooldown = false
 end
+pcall(function()
+_G.NexusAntiDesyncDisableGodmode()
+end)
+local c = LP.Character
+local root = c and c:FindFirstChild("HumanoidRootPart")
+if root then
+root.AssemblyLinearVelocity = Vector3.zero
+root.AssemblyAngularVelocity = Vector3.zero
+end
+local hum = c and c:FindFirstChildOfClass("Humanoid")
+if hum then
+hum.AutoRotate = (_G.NexusAntiDesync.prevAutoRotate == nil) and true or _G.NexusAntiDesync.prevAutoRotate
+hum.PlatformStand = false
+pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
+end
+if _G.NexusAntiDesync then _G.NexusAntiDesync.prevAutoRotate = nil end
 _G.NexusAntiDesyncBatTarget = nil
 if _G.NexusCurrentAimbotTarget == _aimbotTargetPlr then _G.NexusCurrentAimbotTarget = nil end
 _aimbotTargetPlr = nil
@@ -2204,6 +2447,7 @@ end
 end)
 end
 local function resetBar()
+pcall(function() if _G.NexusHideGrabTimer then _G.NexusHideGrabTimer() end end)
 pcall(function()
 if _G.StealBar then _G.StealBar.Reset() end
 end)
@@ -2420,6 +2664,7 @@ end
 end)
 end
 local function barReset()
+pcall(function() if _G.NexusHideGrabTimer then _G.NexusHideGrabTimer() end end)
 pcall(function()
 if _G.StealBar then _G.StealBar.Reset() end
 end)
@@ -3017,12 +3262,13 @@ autoLeftEnabled = on and true or false
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(autoLeftEnabled) end
 if autoLeftEnabled then
 autoRightEnabled=false
+autoPlayEnabled=false
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
 if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false) end
 if _G.NexusStopAntiDesyncAimbot then _G.NexusStopAntiDesyncAimbot() end
-_G.NexusNormalAimbotOn = false; _G.NexusAntiBypassAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
+_G.NexusNormalAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
 if _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
 else
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
@@ -3040,12 +3286,13 @@ autoRightEnabled = on and true or false
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(autoRightEnabled) end
 if autoRightEnabled then
 autoLeftEnabled=false
+autoPlayEnabled=false
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
 if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-if _G.NexusStopAntiBypassAimbot then _G.NexusStopAntiBypassAimbot(false) end
 if _G.NexusStopAntiDesyncAimbot then _G.NexusStopAntiDesyncAimbot() end
-_G.NexusNormalAimbotOn = false; _G.NexusAntiBypassAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
+_G.NexusNormalAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
 if _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
 else
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
@@ -3056,6 +3303,7 @@ function _G.NexusStartAutoLeft()
 local S=_G.NexusAutoPathState
 if S.leftConn then S.leftConn:Disconnect() end
 S.leftPhase=1
+S.leftSwingTimer=0
 S.leftConn=RunService.Heartbeat:Connect(function()
 if not autoLeftEnabled then return end
 local char=LP.Character; if not char then return end
@@ -3067,6 +3315,21 @@ if hum.PlatformStand or st==Enum.HumanoidStateType.Physics or st==Enum.HumanoidS
 local P=_G.NexusAutoPathPoints
 local spd=_G.NexusAutoPathSpeed()
 hum.WalkSpeed = 16
+if autoSwingEnabled and autoLeftEnabled then
+S.leftSwingTimer = S.leftSwingTimer + 1/60
+if S.leftSwingTimer >= 0.45 then
+S.leftSwingTimer = 0
+pcall(function()
+local bat = _G.NexusFindMedusa and _G.NexusFindMedusa()
+if bat and bat.Parent == char then
+bat:Activate()
+task.delay(0.25, function() pcall(function() bat:Deactivate() end) end)
+elseif bat and bat.Parent ~= char then
+hum:EquipTool(bat)
+end
+end)
+end
+end
 if S.leftPhase==1 then
 local tgt=Vector3.new(P.L1.X,hrp.Position.Y,P.L1.Z)
 if (tgt-hrp.Position).Magnitude<1 then
@@ -3093,9 +3356,12 @@ if (tgt-hrp.Position).Magnitude<1 then
 hum:Move(Vector3.zero,false)
 if _G.NexusClearLinVel then _G.NexusClearLinVel() end
 autoLeftEnabled=false
+autoPlayEnabled=false
 if S.leftConn then S.leftConn:Disconnect(); S.leftConn=nil end
 S.leftPhase=1
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
+if mobileButtons and mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(false) end
 if P.LFace and (P.LFace-hrp.Position).Magnitude>0.01 then
 hrp.CFrame=CFrame.new(hrp.Position,Vector3.new(P.LFace.X,hrp.Position.Y,P.LFace.Z))
 end
@@ -3116,6 +3382,7 @@ function _G.NexusStartAutoRight()
 local S=_G.NexusAutoPathState
 if S.rightConn then S.rightConn:Disconnect() end
 S.rightPhase=1
+S.rightSwingTimer=0
 S.rightConn=RunService.Heartbeat:Connect(function()
 if not autoRightEnabled then return end
 local char=LP.Character; if not char then return end
@@ -3127,6 +3394,21 @@ if hum.PlatformStand or st==Enum.HumanoidStateType.Physics or st==Enum.HumanoidS
 local P=_G.NexusAutoPathPoints
 local spd=_G.NexusAutoPathSpeed()
 hum.WalkSpeed = 16
+if autoSwingEnabled and autoRightEnabled then
+S.rightSwingTimer = S.rightSwingTimer + 1/60
+if S.rightSwingTimer >= 0.45 then
+S.rightSwingTimer = 0
+pcall(function()
+local bat = _G.NexusFindMedusa and _G.NexusFindMedusa()
+if bat and bat.Parent == char then
+bat:Activate()
+task.delay(0.25, function() pcall(function() bat:Deactivate() end) end)
+elseif bat and bat.Parent ~= char then
+hum:EquipTool(bat)
+end
+end)
+end
+end
 if S.rightPhase==1 then
 local tgt=Vector3.new(P.R1.X,hrp.Position.Y,P.R1.Z)
 if (tgt-hrp.Position).Magnitude<1 then
@@ -3153,9 +3435,12 @@ if (tgt-hrp.Position).Magnitude<1 then
 hum:Move(Vector3.zero,false)
 if _G.NexusClearLinVel then _G.NexusClearLinVel() end
 autoRightEnabled=false
+autoPlayEnabled=false
 if S.rightConn then S.rightConn:Disconnect(); S.rightConn=nil end
 S.rightPhase=1
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
+if mobileButtons and mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(false) end
 if P.RFace and (P.RFace-hrp.Position).Magnitude>0.01 then
 hrp.CFrame=CFrame.new(hrp.Position,Vector3.new(P.RFace.X,hrp.Position.Y,P.RFace.Z))
 end
@@ -3172,10 +3457,74 @@ if _G.NexusSetLinVelXZ then _G.NexusSetLinVelXZ(mv.X*spd, mv.Z*spd) end
 end
 end)
 end
+function _G.NexusStopAutoPlay()
+autoPlayEnabled = false
+autoLeftEnabled = false
+autoRightEnabled = false
+if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(false) end
+if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if mobileButtons and mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(false) end
+if mobileButtons and mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(false) end
+if mobileButtons and mobileButtons.autoRight then mobileButtons.autoRight.setActive(false) end
+end
+function _G.NexusStartAutoPlay()
+autoPlayEnabled = true
+if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+autoLeftEnabled = false
+autoRightEnabled = false
+local side = "left"
+pcall(function()
+local plots = workspace:FindFirstChild("Plots")
+local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+if plots and hrp then
+for _, p in ipairs(plots:GetChildren()) do
+local sign = p:FindFirstChild("PlotSign")
+local yb = sign and sign:FindFirstChild("YourBase")
+if yb and ((yb:IsA("BillboardGui") and yb.Enabled) or (typeof(yb.Enabled) == "boolean" and yb.Enabled)) then
+local o = p:GetAttribute("Order")
+if o == 1 or o == "1" then side = "right" else side = "left" end
+return
+end
+end
+end
+local AP_L = Vector3.new(-352, -6, 7)
+local AP_R = Vector3.new(-352, -6, 113)
+local pos = hrp and hrp.Position
+if pos then
+if (pos - AP_R).Magnitude < (pos - AP_L).Magnitude then side = "right" else side = "left" end
+end
+end)
+if side == "left" then
+autoLeftEnabled = true
+if _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
+if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(true) end
+else
+autoRightEnabled = true
+if _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
+if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(true) end
+end
+if _G.NexusSetAutoPlayVisual then _G.NexusSetAutoPlayVisual(true) end
+if mobileButtons and mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(true) end
+if mobileButtons and mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled) end
+if mobileButtons and mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled) end
+end
+function _G.NexusSetAutoPlay(on)
+if on then
+_G.NexusStartAutoPlay()
+else
+_G.NexusStopAutoPlay()
+end
+saveNexusConfig()
+end
 LP.CharacterAdded:Connect(function()
 task.wait(0.5)
-if autoLeftEnabled and _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
-if autoRightEnabled and _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
+if autoPlayEnabled and _G.NexusStartAutoPlay then _G.NexusStartAutoPlay()
+elseif autoLeftEnabled and _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
+if not autoPlayEnabled and autoRightEnabled and _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
 end)
 local overheadGui = nil
 local overheadSpeedLabel = nil
@@ -3190,49 +3539,75 @@ local head = char:FindFirstChild("Head") or char:WaitForChild("Head", 5)
 if not head then return end
 overheadGui = Instance.new("BillboardGui")
 overheadGui.Name = "NexusDuelsOverheadInfo"
-overheadGui.Size = UDim2.new(0, 250, 0, 90)
-overheadGui.StudsOffset = Vector3.new(0, 3.5, 0)
+overheadGui.Size = UDim2.new(0, 250, 0, 88)
+overheadGui.StudsOffset = Vector3.new(0, 1.75, 0)
 overheadGui.AlwaysOnTop = true
 overheadGui.LightInfluence = 0
 overheadGui.Parent = head
-local accent = Color3.fromRGB(0, 170, 255)
 ragdollCountdownLabel = Instance.new("TextLabel")
 ragdollCountdownLabel.Name = "RagdollCountdown"
-ragdollCountdownLabel.Size = UDim2.new(1, 0, 0.33, 0)
-ragdollCountdownLabel.Position = UDim2.new(0, 0, 0, 0)
+ragdollCountdownLabel.Size = UDim2.new(1, 0, 0, 48)
+ragdollCountdownLabel.Position = UDim2.new(0, 0, -0.12, 0)
 ragdollCountdownLabel.BackgroundTransparency = 1
 ragdollCountdownLabel.Text = ""
 ragdollCountdownLabel.Visible = false
-ragdollCountdownLabel.TextColor3 = accent
-ragdollCountdownLabel.Font = Enum.Font.GothamBold
-ragdollCountdownLabel.TextScaled = true
+ragdollCountdownLabel.TextColor3 = Color3.fromRGB(255, 50, 50)
+ragdollCountdownLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 ragdollCountdownLabel.TextStrokeTransparency = 0
+ragdollCountdownLabel.Font = Enum.Font.GothamBlack
+ragdollCountdownLabel.TextSize = 28
+ragdollCountdownLabel.TextWrapped = true
+ragdollCountdownLabel.TextXAlignment = Enum.TextXAlignment.Center
 ragdollCountdownLabel.ZIndex = 10
 ragdollCountdownLabel.Parent = overheadGui
 local discordLbl = Instance.new("TextLabel")
 discordLbl.Name = "Discord"
-discordLbl.Size = UDim2.new(1, 0, 0.33, 0)
-discordLbl.Position = UDim2.new(0, 0, 0.33, 0)
+discordLbl.Size = UDim2.new(1, 0, 0, 30)
+discordLbl.Position = UDim2.new(0, 0, 0, 26)
 discordLbl.BackgroundTransparency = 1
 discordLbl.Text = "discord.gg/qfeEYFRjJU"
-discordLbl.TextColor3 = Color3.fromRGB(150, 150, 150)
-discordLbl.Font = Enum.Font.GothamBold
-discordLbl.TextScaled = true
+discordLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+discordLbl.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 discordLbl.TextStrokeTransparency = 0
+discordLbl.Font = Enum.Font.GothamBlack
+discordLbl.TextSize = 21
+discordLbl.TextXAlignment = Enum.TextXAlignment.Center
 discordLbl.ZIndex = 10
 discordLbl.Parent = overheadGui
+local discordGrad = Instance.new("UIGradient")
+discordGrad.Name = "EmpireAnimGrad"
+discordGrad.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.25, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.75, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+discordGrad.Parent = discordLbl
 overheadSpeedLabel = Instance.new("TextLabel")
 overheadSpeedLabel.Name = "Speed"
-overheadSpeedLabel.Size = UDim2.new(1, 0, 0.33, 0)
-overheadSpeedLabel.Position = UDim2.new(0, 0, 0.66, 0)
+overheadSpeedLabel.Size = UDim2.new(1, 0, 0, 26)
+overheadSpeedLabel.Position = UDim2.new(0, 0, 0, 54)
 overheadSpeedLabel.BackgroundTransparency = 1
-overheadSpeedLabel.Text = "0.0"
+overheadSpeedLabel.Text = "Speed: 0"
 overheadSpeedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-overheadSpeedLabel.Font = Enum.Font.GothamBold
-overheadSpeedLabel.TextScaled = true
-overheadSpeedLabel.TextStrokeTransparency = 0
+overheadSpeedLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+overheadSpeedLabel.TextStrokeTransparency = 0.25
+overheadSpeedLabel.Font = Enum.Font.GothamBlack
+overheadSpeedLabel.TextSize = 19
+overheadSpeedLabel.TextXAlignment = Enum.TextXAlignment.Center
 overheadSpeedLabel.ZIndex = 10
 overheadSpeedLabel.Parent = overheadGui
+local speedGrad = Instance.new("UIGradient")
+speedGrad.Name = "EmpireAnimGrad"
+speedGrad.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.25, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.75, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+speedGrad.Parent = overheadSpeedLabel
 end
 local ragdollCountdownConn = nil
 local ragdollCountdownCharConn = nil
@@ -3322,55 +3697,36 @@ end)
 do
 local MOVE_KEYS={[Enum.KeyCode.W]=true,[Enum.KeyCode.A]=true,[Enum.KeyCode.S]=true,[Enum.KeyCode.D]=true,
 	[Enum.KeyCode.Up]=true,[Enum.KeyCode.Left]=true,[Enum.KeyCode.Down]=true,[Enum.KeyCode.Right]=true}
-local linVelInstance = nil
-local linVelAtt = nil
+local speedImpulseHRP = nil
 
-local function destroyLV()
-	if linVelInstance and linVelInstance.Parent then
-		linVelInstance:Destroy()
-	end
-	if linVelAtt and linVelAtt.Parent then
-		linVelAtt:Destroy()
-	end
-	linVelInstance = nil
-	linVelAtt = nil
+local function massImpulse(hrp, dir, spd)
+	local mass = hrp.AssemblyMass or 1
+	local current = hrp.AssemblyLinearVelocity
+	local desired = Vector3.new(dir.X * spd, current.Y, dir.Z * spd)
+	local delta = desired - current
+	pcall(function() hrp:ApplyImpulse(Vector3.new(delta.X, 0, delta.Z) * mass) end)
 end
 
-local function setupLV(hrp)
-	destroyLV()
-
-	linVelAtt = Instance.new("Attachment")
-	linVelAtt.Name = "WaveSpeedAttachment"
-	linVelAtt.Parent = hrp
-
-	linVelInstance = Instance.new("LinearVelocity")
-	linVelInstance.Name = "WaveSpeedLinearVelocity"
-	linVelInstance.Attachment0 = linVelAtt
-	linVelInstance.VelocityConstraintMode = Enum.VelocityConstraintMode.Plane
-	linVelInstance.PrimaryTangentAxis = Vector3.new(1, 0, 0)
-	linVelInstance.SecondaryTangentAxis = Vector3.new(0, 0, 1)
-	linVelInstance.RelativeTo = Enum.ActuatorRelativeTo.World
-	linVelInstance.MaxForce = 50000
-	linVelInstance.PlaneVelocity = Vector2.zero
-	linVelInstance.Parent = hrp
+local function ensureSpeedHRP(hrp)
+	speedImpulseHRP = hrp
 end
 
-local function clearLinVel()
-	if linVelInstance and linVelInstance.Parent then
-		linVelInstance:Destroy()
-	end
-	linVelInstance = nil
+local function clearSpeedImpulse()
+	speedImpulseHRP = nil
 end
 
-local function setLinVelXZ(x, z)
-	if linVelInstance and linVelInstance.Parent then
-		linVelInstance.PlaneVelocity = Vector2.new(x, z)
-	end
+local function setSpeedXZ(x, z)
+	local hrp = speedImpulseHRP
+	if not hrp or not hrp.Parent then return end
+	local mass = hrp.AssemblyMass or 1
+	local current = hrp.AssemblyLinearVelocity
+	local delta = Vector3.new(x - current.X, 0, z - current.Z)
+	pcall(function() hrp:ApplyImpulse(delta * mass) end)
 end
 
-_G.NexusSetLinVelXZ = setLinVelXZ
-_G.NexusClearLinVel = clearLinVel
-_G.NexusEnsureLinearVelocity = setupLV
+_G.NexusSetLinVelXZ = setSpeedXZ
+_G.NexusClearLinVel = clearSpeedImpulse
+_G.NexusEnsureLinearVelocity = ensureSpeedHRP
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
@@ -3406,22 +3762,18 @@ do
 end
 
 do
-	local _speedThrottle = 0
 	RunService.Heartbeat:Connect(function(dt)
-	_speedThrottle = _speedThrottle + dt
-	if _speedThrottle < 0.033 then return end
-	_speedThrottle = 0
 	local char = LP.Character
 	if not char then return end
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	local hrp = char:FindFirstChild("HumanoidRootPart")
 	if not hum or not hrp then return end
-	if _G.NexusNormalAimbotOn or _G.NexusAntiBypassAimbotOn or _G.NexusAntiDesyncAimbotOn then
-	clearLinVel()
+	if _G.NexusNormalAimbotOn or _G.NexusAntiDesyncAimbotOn then
+	clearSpeedImpulse()
 	return
 	end
 	if _G.NexusDropActive then
-	clearLinVel()
+	clearSpeedImpulse()
 	return
 	end
 	local state = hum:GetState()
@@ -3430,7 +3782,7 @@ do
 	or state == Enum.HumanoidStateType.Ragdoll
 	or state == Enum.HumanoidStateType.FallingDown then
 	lastMoveDir = Vector3.zero
-	clearLinVel()
+	clearSpeedImpulse()
 	return
 	end
 	if _G.NexusSpeedSpawnGrace and _G.NexusSpeedSpawnGrace > 0 then
@@ -3439,44 +3791,29 @@ do
 	end
 	local md = hum.MoveDirection
 	local spd = getCurrentSpeedValue()
+	local chatFocused = UserInputService:GetFocusedTextBox() ~= nil
 	if not autoLeftEnabled and not autoRightEnabled then
-	if md.Magnitude > 0.1 then
+	if md.Magnitude > 0.1 and not chatFocused then
 	lastMoveDir = md
-	if not linVelInstance or linVelInstance.Parent ~= hrp then
-	setupLV(hrp)
-	end
-	local flatX, flatZ = md.X, md.Z
-	local mag = math.sqrt(flatX*flatX + flatZ*flatZ)
-	if mag > 0 then
-		flatX, flatZ = flatX/mag, flatZ/mag
-	end
-	linVelInstance.PlaneVelocity = Vector2.new(flatX * spd, flatZ * spd)
-	elseif antiRagdollEnabled and lastMoveDir.Magnitude > 0.1 then
+	ensureSpeedHRP(hrp)
+	massImpulse(hrp, md, spd)
+	elseif antiRagdollEnabled and lastMoveDir.Magnitude > 0.1 and not chatFocused then
 	local anyHeld = false
 	for key in pairs(MOVE_KEYS) do if UserInputService:IsKeyDown(key) then anyHeld = true; break end end
 	if anyHeld then
-	if not linVelInstance or linVelInstance.Parent ~= hrp then
-	setupLV(hrp)
-	end
-	local lmd = lastMoveDir
-	local flatX, flatZ = lmd.X, lmd.Z
-	local mag = math.sqrt(flatX*flatX + flatZ*flatZ)
-	if mag > 0 then
-		flatX, flatZ = flatX/mag, flatZ/mag
-	end
-	linVelInstance.PlaneVelocity = Vector2.new(flatX * spd, flatZ * spd)
+	ensureSpeedHRP(hrp)
+	massImpulse(hrp, lastMoveDir, spd)
 	else
-	clearLinVel()
+	clearSpeedImpulse()
 	end
 	else
-	clearLinVel()
+	clearSpeedImpulse()
 	end
 	else
-	clearLinVel()
+	clearSpeedImpulse()
 	end
 	if overheadSpeedLabel then
-	local v = hrp.AssemblyLinearVelocity
-	overheadSpeedLabel.Text = string.format("%.1f", math.sqrt(v.X*v.X + v.Z*v.Z))
+	overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
 	end
 	end)
 end
@@ -3887,14 +4224,24 @@ Discord.Name = "Discord"
 Discord.BackgroundTransparency = 1
 Discord.Size = UDim2.new(1, -118, 0, 18)
 Discord.Position = UDim2.new(0, 87, 0, 55)
-Discord.Text = "discord.gg/nexus"
-Discord.TextColor3 = Color3.fromRGB(190, 187, 202)
-Discord.Font = Enum.Font.GothamMedium
+Discord.Text = "discord.gg/qfeEYFRjJU"
+Discord.TextColor3 = Color3.fromRGB(255, 255, 255)
+Discord.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+Discord.TextStrokeTransparency = 0
+Discord.Font = Enum.Font.GothamBlack
 Discord.TextSize = 14
 Discord.TextXAlignment = Enum.TextXAlignment.Left
-Discord.TextStrokeTransparency = 1
 Discord.ZIndex = 6
 Discord.Parent = Main
+local uiDiscordGrad = Instance.new("UIGradient")
+uiDiscordGrad.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.25, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.75, Color3.fromRGB(180, 180, 180)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+uiDiscordGrad.Parent = Discord
 local HeaderDivider = Instance.new("Frame")
 HeaderDivider.Name = "HeaderDivider"
 HeaderDivider.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
@@ -4378,33 +4725,26 @@ saveNexusConfig()
 end)
 return row, btn
 end
-local normalModeValueLabel = nil
-local laggerModeValueLabel = nil
-local aimbotButtonLabel = nil
-local aimbotSpeedLabel = nil
-local laggerAimbotSpeedLabel = nil
-local combatAimbotKeybindLabel = nil
-function getAimbotModeDisplay()
-if selectedAimbotMode == "Anti Bypass" or selectedAimbotMode == "Bypass" then
-return "Anti Bypass"
-end
-return "Normal"
-end
+normalModeValueLabel = nil
+laggerModeValueLabel = nil
+aimbotButtonLabel = nil
+aimbotSpeedLabel = nil
+laggerAimbotSpeedLabel = nil
+combatAimbotKeybindLabel = nil
 function refreshAimbotButtonLabel()
 if aimbotButtonLabel then
-aimbotButtonLabel.Text = getAimbotModeDisplay() .. " Aimbot"
+aimbotButtonLabel.Text = "Normal Aimbot"
 end
 end
 function refreshAimbotModeLabels()
-local modeName = getAimbotModeDisplay()
 if aimbotSpeedLabel then
-aimbotSpeedLabel.Text = modeName .. " Aimbot Speed"
+aimbotSpeedLabel.Text = "Normal Aimbot Speed"
 end
 if laggerAimbotSpeedLabel then
-laggerAimbotSpeedLabel.Text = modeName .. " Lagger Aimbot Speed"
+laggerAimbotSpeedLabel.Text = "Normal Lagger Aimbot Speed"
 end
 if combatAimbotKeybindLabel then
-combatAimbotKeybindLabel.Text = modeName .. " Aimbot"
+combatAimbotKeybindLabel.Text = "Normal Aimbot"
 end
 refreshAimbotButtonLabel()
 end
@@ -4464,7 +4804,7 @@ refreshSpeedModeRows()
 return row, value
 end
 function aimbotModeButtonRow(parent, order)
-local row, setVisual = toggleRow(parent, tostring(selectedAimbotMode) .. " Aimbot", false, order)
+local row, setVisual = toggleRow(parent, "Normal Aimbot", false, order)
 aimbotButtonLabel = row and row:FindFirstChild("Label")
 _G.NexusAimbotSetVisual = setVisual
 refreshAimbotButtonLabel()
@@ -4476,108 +4816,6 @@ if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
 end)
 end
 return row, setVisual
-end
-_G.NexusAimbotSelectorRow = function(parent, order)
-local holder = Instance.new("Frame")
-holder.Name = "Aimbot Mode"
-holder.BackgroundColor3 = COLORS.row
-holder.BackgroundTransparency = 0.3
-holder.Size = UDim2.new(1, -4, 0, 34)
-holder.BorderSizePixel = 0
-holder.LayoutOrder = order
-holder.ZIndex = 4
-holder.ClipsDescendants = true
-holder.Parent = parent
-corner(holder, 9)
-stroke(holder, COLORS.strokeSoft, 1.25, 0)
-local slide = Instance.new("Frame")
-slide.Name = "SelectedSlide"
-slide.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
-slide.BackgroundTransparency = 0
-slide.Size = UDim2.new(0.5, -3, 1, -8)
-slide.Position = UDim2.new(0, 4, 0, 4)
-slide.BorderSizePixel = 0
-slide.ZIndex = 5
-slide.Parent = holder
-corner(slide, 8)
-local slideStroke = Instance.new("UIStroke")
-slideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-slideStroke.Color = Color3.fromRGB(255, 255, 255)
-slideStroke.Thickness = 1
-slideStroke.Transparency = 0.08
-slideStroke.Parent = slide
-local normalText = Instance.new("TextLabel")
-normalText.Name = "NormalText"
-normalText.BackgroundTransparency = 1
-normalText.Text = "NORMAL"
-normalText.TextColor3 = Color3.fromRGB(15, 15, 15)
-normalText.TextSize = 11
-normalText.Font = Enum.Font.GothamMedium
-normalText.TextXAlignment = Enum.TextXAlignment.Center
-normalText.Size = UDim2.new(0.5, 0, 1, 0)
-normalText.Position = UDim2.new(0, 0, 0, 0)
-normalText.ZIndex = 8
-normalText.Parent = holder
-local bypassText = Instance.new("TextLabel")
-bypassText.Name = "BypassText"
-bypassText.BackgroundTransparency = 1
-bypassText.Text = "ANTI BYPASS"
-bypassText.TextColor3 = Color3.fromRGB(190, 187, 202)
-bypassText.TextSize = 11
-bypassText.Font = Enum.Font.GothamMedium
-bypassText.TextXAlignment = Enum.TextXAlignment.Center
-bypassText.Size = UDim2.new(0.5, 0, 1, 0)
-bypassText.Position = UDim2.new(0.5, 0, 0, 0)
-bypassText.ZIndex = 8
-bypassText.Parent = holder
-local normalClick = Instance.new("TextButton")
-normalClick.Name = "NormalClick"
-normalClick.BackgroundTransparency = 1
-normalClick.Text = ""
-normalClick.AutoButtonColor = false
-normalClick.Size = UDim2.new(0.5, 0, 1, 0)
-normalClick.Position = UDim2.new(0, 0, 0, 0)
-normalClick.ZIndex = 10
-normalClick.Parent = holder
-local bypassClick = Instance.new("TextButton")
-bypassClick.Name = "BypassClick"
-bypassClick.BackgroundTransparency = 1
-bypassClick.Text = ""
-bypassClick.AutoButtonColor = false
-bypassClick.Size = UDim2.new(0.5, 0, 1, 0)
-bypassClick.Position = UDim2.new(0.5, 0, 0, 0)
-bypassClick.ZIndex = 10
-bypassClick.Parent = holder
-local function setMode(mode)
-if mode == "Bypass" then
-mode = "Anti Bypass"
-elseif mode ~= "Anti Bypass" then
-mode = "Normal"
-end
-selectedAimbotMode = mode
-refreshAimbotModeLabels()
-if _G.NexusRefreshAimbotSpeedBoxes then _G.NexusRefreshAimbotSpeedBoxes() end
-if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
-saveNexusConfig()
-local onBypass = selectedAimbotMode == "Anti Bypass"
-tween(slide, {
-Position = onBypass and UDim2.new(0.5, -1, 0, 4) or UDim2.new(0, 4, 0, 4)
-}, 0.18)
-tween(normalText, {
-TextColor3 = onBypass and Color3.fromRGB(190, 187, 202) or Color3.fromRGB(15, 15, 15),
-}, 0.14)
-tween(bypassText, {
-TextColor3 = onBypass and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(190, 187, 202),
-}, 0.14)
-end
-normalClick.MouseButton1Click:Connect(function()
-setMode("Normal")
-end)
-bypassClick.MouseButton1Click:Connect(function()
-setMode("Anti Bypass")
-end)
-setMode(selectedAimbotMode)
-return holder, setMode
 end
 function autoStealSelectorRow(parent, order)
 local holder = Instance.new("Frame")
@@ -4885,21 +5123,167 @@ saveNexusConfig()
 end)
 end
 end
-_, setAntiRagdollVisual = toggleRow(Movement, "Anti Ragdoll", antiRagdollEnabled, 17)
-do
-local row = Movement:FindFirstChild("Anti Ragdoll")
-_nexusBtn = row and row:FindFirstChild("ToggleButton")
-if _nexusBtn then
-_nexusBtn.Activated:Connect(function()
-setAntiRagdoll(not antiRagdollEnabled)
-if setAntiRagdollVisual then setAntiRagdollVisual(antiRagdollEnabled == true) end
+	_, setAntiRagdollVisual = toggleRow(Movement, "Anti Ragdoll", antiRagdollEnabled, 17)
+	do
+	local row = Movement:FindFirstChild("Anti Ragdoll")
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+	_nexusBtn.Activated:Connect(function()
+	setAntiRagdoll(not antiRagdollEnabled)
+	if setAntiRagdollVisual then setAntiRagdollVisual(antiRagdollEnabled == true) end
+	saveNexusConfig()
+	end)
+	end
+	end
+	do
+	local modeRow = baseRow(Movement, "Anti Ragdoll Mode", 18)
+	modeRow.Size = UDim2.new(1, -4, 0, 34)
+	local modeLabel = modeRow:FindFirstChild("Label")
+	if modeLabel then modeLabel.Text = "Anti Ragdoll Mode" end
+	local leftBtn = Instance.new("TextButton")
+	leftBtn.Name = "LeftArrow"
+	leftBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+	leftBtn.BackgroundTransparency = 0.18
+	leftBtn.Text = "<"
+	leftBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	leftBtn.TextSize = 12
+	leftBtn.Font = Enum.Font.GothamMedium
+	leftBtn.Size = UDim2.new(0, 42, 0, 28)
+	leftBtn.Position = UDim2.new(1, -156, 0.5, -14)
+	leftBtn.BorderSizePixel = 0
+	leftBtn.ZIndex = 6
+	leftBtn.AutoButtonColor = false
+	leftBtn.Parent = modeRow
+	corner(leftBtn, 7)
+	local antiRagdollModeLabel = Instance.new("TextLabel")
+	antiRagdollModeLabel.Name = "AntiRagdollModeValue"
+	antiRagdollModeLabel.BackgroundTransparency = 1
+	antiRagdollModeLabel.Text = antiRagdollMode
+	antiRagdollModeLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+	antiRagdollModeLabel.TextSize = 11
+	antiRagdollModeLabel.Font = Enum.Font.GothamBold
+	antiRagdollModeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	antiRagdollModeLabel.Size = UDim2.new(0, 62, 1, 0)
+	antiRagdollModeLabel.Position = UDim2.new(1, -112, 0, 0)
+	antiRagdollModeLabel.ZIndex = 6
+	antiRagdollModeLabel.Parent = modeRow
+	local rightBtn = Instance.new("TextButton")
+	rightBtn.Name = "RightArrow"
+	rightBtn.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+	rightBtn.BackgroundTransparency = 0.18
+	rightBtn.Text = ">"
+	rightBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	rightBtn.TextSize = 12
+	rightBtn.Font = Enum.Font.GothamMedium
+	rightBtn.Size = UDim2.new(0, 42, 0, 28)
+	rightBtn.Position = UDim2.new(1, -48, 0.5, -14)
+	rightBtn.BorderSizePixel = 0
+	rightBtn.ZIndex = 6
+	rightBtn.AutoButtonColor = false
+	rightBtn.Parent = modeRow
+	corner(rightBtn, 7)
+	local modes = {"Splatter", "No Splatter"}
+	local function cycleMode(dir)
+	local idx = table.find(modes, antiRagdollMode) or 1
+	idx = idx + dir
+	if idx < 1 then idx = #modes end
+	if idx > #modes then idx = 1 end
+	antiRagdollMode = modes[idx]
+	antiRagdollModeLabel.Text = antiRagdollMode
+	saveNexusConfig()
+	end
+	leftBtn.MouseButton1Click:Connect(function() cycleMode(-1) end)
+	rightBtn.MouseButton1Click:Connect(function() cycleMode(1) end)
+	end
+	_, setHeadlessVisual = toggleRow(Movement, "Headless", headlessEnabled, 19)
+	do
+	local row = Movement:FindFirstChild("Headless")
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+	_nexusBtn.Activated:Connect(function()
+	headlessEnabled = not headlessEnabled
+	if setHeadlessVisual then setHeadlessVisual(headlessEnabled) end
+	applyHeadlessKorblox()
+	saveNexusConfig()
+	end)
+	end
+	end
+	_, setKorbloxVisual = toggleRow(Movement, "Korblox", korbloxEnabled, 20)
+	do
+	local row = Movement:FindFirstChild("Korblox")
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+	_nexusBtn.Activated:Connect(function()
+	korbloxEnabled = not korbloxEnabled
+	if setKorbloxVisual then setKorbloxVisual(korbloxEnabled) end
+	applyHeadlessKorblox()
+	saveNexusConfig()
+	end)
+	end
+	end
+	_, setNexusFitVisual = toggleRow(Movement, "Nexus Fit", nexusFitEnabled, 21)
+	do
+	local row = Movement:FindFirstChild("Nexus Fit")
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+	_nexusBtn.Activated:Connect(function()
+	nexusFitEnabled = not nexusFitEnabled
+	if setNexusFitVisual then setNexusFitVisual(nexusFitEnabled) end
+	applyNexusFit()
+	saveNexusConfig()
+	end)
+	end
+	end
+	animationPackRow(Movement, 15)
+	refreshSpeedModeRows()
+task.wait()
+;(function()
+local row, setVis = toggleRow(Movement, "Gravity Fall", _G.NexusGalaxyGravityEnabled, 18)
+_G.NexusSetGalaxyGravityVisual = setVis
+local swBtn = row and row:FindFirstChild("ToggleButton")
+if swBtn then
+swBtn.Activated:Connect(function()
+_G.NexusGalaxyGravityEnabled = not _G.NexusGalaxyGravityEnabled
+if _G.NexusSetGalaxyGravityVisual then _G.NexusSetGalaxyGravityVisual(_G.NexusGalaxyGravityEnabled) end
+if _G.NexusGalaxyGravityEnabled then enableGalaxyGravity() else disableGalaxyGravity() end
 saveNexusConfig()
 end)
 end
+local gRow = Movement:FindFirstChild("Gravity Fall")
+if gRow then
+local lbl = Instance.new("TextLabel")
+lbl.Size = UDim2.new(0.55, 0, 1, 0)
+lbl.Position = UDim2.new(0.02, 0, 0, 0)
+lbl.BackgroundTransparency = 1
+lbl.Text = "Str"
+lbl.TextColor3 = Color3.fromRGB(120, 120, 130)
+lbl.Font = Enum.Font.GothamBold
+lbl.TextSize = 10
+lbl.TextXAlignment = Enum.TextXAlignment.Left
+lbl.Parent = gRow
+local box = Instance.new("TextBox")
+box.Size = UDim2.new(0.22, 0, 0.65, 0)
+box.Position = UDim2.new(0.28, 0, 0.175, 0)
+box.BackgroundColor3 = Color3.fromRGB(8, 8, 12)
+box.TextColor3 = Color3.fromRGB(180, 180, 180)
+box.Font = Enum.Font.GothamBold
+box.TextSize = 11
+box.Text = tostring(_G.NexusGalaxyGravityStrength)
+box.BorderSizePixel = 0
+box.ClearTextOnFocus = false
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 5)
+box.Parent = gRow
+box.FocusLost:Connect(function()
+local n = tonumber(box.Text)
+if n and n >= 0.05 and n <= 1.0 then
+_G.NexusGalaxyGravityStrength = n
+if _G.NexusGalaxyGravityEnabled then disableGalaxyGravity(); enableGalaxyGravity() end
 end
-animationPackRow(Movement, 15)
-refreshSpeedModeRows()
-task.wait()
+box.Text = tostring(_G.NexusGalaxyGravityStrength)
+saveNexusConfig()
+end)
+end
+end)()
 end)()
 task.wait()
 Combat = pages.COMBAT
@@ -4920,11 +5304,102 @@ end)
 end
 end
 autoStealSelectorRow(Combat, 3)
-section(Combat, "NORMAL/BYPASS AIMBOT", 5)
-_G.NexusAimbotSelectorRow(Combat, 6)
+do
+local gtRow, gtSetVisual = toggleRow(Combat, "Grab Timer", grabTimerEnabled, 4)
+if gtRow then
+local gtBtn = gtRow:FindFirstChild("ToggleButton")
+if gtBtn then
+gtBtn.Activated:Connect(function()
+grabTimerEnabled = not grabTimerEnabled
+if gtSetVisual then gtSetVisual(grabTimerEnabled) end
+if not grabTimerEnabled then pcall(function() if _G.NexusHideGrabTimer then _G.NexusHideGrabTimer() end end) end
+saveNexusConfig()
+end)
+end
+end
+end
+section(Combat, "NORMAL AIMBOT", 5)
 _G.NexusAimbotSetVisual = nil
+;(function()
+local holder = Instance.new("Frame")
+holder.Name = "Normal Aimbot Version"
+holder.BackgroundColor3 = COLORS.row
+holder.BackgroundTransparency = 0.3
+holder.Size = UDim2.new(1, -4, 0, 32)
+holder.BorderSizePixel = 0
+holder.LayoutOrder = 7
+holder.ZIndex = 4
+holder.ClipsDescendants = true
+holder.Parent = Combat
+corner(holder, 9)
+stroke(holder, COLORS.strokeSoft, 1, 0)
+local slide = Instance.new("Frame")
+slide.Name = "SelectedSlide"
+slide.BackgroundColor3 = Color3.fromRGB(235, 235, 235)
+slide.BackgroundTransparency = 0
+slide.Size = UDim2.new(0.5, -3, 1, -8)
+slide.Position = normalAimbotVersion == 1 and UDim2.new(0, 4, 0, 4) or UDim2.new(0.5, -1, 0, 4)
+slide.BorderSizePixel = 0
+slide.ZIndex = 5
+slide.Parent = holder
+corner(slide, 8)
+local slideStroke = Instance.new("UIStroke")
+slideStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+slideStroke.Color = Color3.fromRGB(255, 255, 255)
+slideStroke.Thickness = 1
+slideStroke.Transparency = 0.08
+slideStroke.Parent = slide
+local v1Text = Instance.new("TextLabel")
+v1Text.BackgroundTransparency = 1
+v1Text.Text = "V1 (FIRST)"
+v1Text.TextColor3 = normalAimbotVersion == 1 and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(190, 187, 202)
+v1Text.TextSize = 11
+v1Text.Font = Enum.Font.GothamMedium
+v1Text.TextXAlignment = Enum.TextXAlignment.Center
+v1Text.Size = UDim2.new(0.5, 0, 1, 0)
+v1Text.Position = UDim2.new(0, 0, 0, 0)
+v1Text.ZIndex = 8
+v1Text.Parent = holder
+local v2Text = Instance.new("TextLabel")
+v2Text.BackgroundTransparency = 1
+v2Text.Text = "V2 (NEXUS)"
+v2Text.TextColor3 = normalAimbotVersion == 2 and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(190, 187, 202)
+v2Text.TextSize = 11
+v2Text.Font = Enum.Font.GothamMedium
+v2Text.TextXAlignment = Enum.TextXAlignment.Center
+v2Text.Size = UDim2.new(0.5, 0, 1, 0)
+v2Text.Position = UDim2.new(0.5, 0, 0, 0)
+v2Text.ZIndex = 8
+v2Text.Parent = holder
+local v1Click = Instance.new("TextButton")
+v1Click.BackgroundTransparency = 1
+v1Click.Text = ""
+v1Click.AutoButtonColor = false
+v1Click.Size = UDim2.new(0.5, 0, 1, 0)
+v1Click.Position = UDim2.new(0, 0, 0, 0)
+v1Click.ZIndex = 10
+v1Click.Parent = holder
+local v2Click = Instance.new("TextButton")
+v2Click.BackgroundTransparency = 1
+v2Click.Text = ""
+v2Click.AutoButtonColor = false
+v2Click.Size = UDim2.new(0.5, 0, 1, 0)
+v2Click.Position = UDim2.new(0.5, 0, 0, 0)
+v2Click.ZIndex = 10
+v2Click.Parent = holder
+local function setVersion(ver)
+normalAimbotVersion = ver
+local isV1 = normalAimbotVersion == 1
+tween(slide, {Position = isV1 and UDim2.new(0, 4, 0, 4) or UDim2.new(0.5, -1, 0, 4)}, 0.18)
+tween(v1Text, {TextColor3 = isV1 and Color3.fromRGB(15, 15, 15) or Color3.fromRGB(190, 187, 202)}, 0.14)
+tween(v2Text, {TextColor3 = isV1 and Color3.fromRGB(190, 187, 202) or Color3.fromRGB(15, 15, 15)}, 0.14)
+saveNexusConfig()
+end
+v1Click.MouseButton1Click:Connect(function() setVersion(1) end)
+v2Click.MouseButton1Click:Connect(function() setVersion(2) end)
+end)()
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
-_G.NexusNormalAutoSwingRow, _G.NexusNormalAutoSwingSetVisual, _G.NexusNormalAutoSwingBtn = _G.NexusActionToggleRow(Combat, "Auto Swing", autoSwingEnabled, 7)
+_G.NexusNormalAutoSwingRow, _G.NexusNormalAutoSwingSetVisual, _G.NexusNormalAutoSwingBtn = _G.NexusActionToggleRow(Combat, "Auto Swing", autoSwingEnabled, 8)
 do
 if _G.NexusNormalAutoSwingBtn then
 _G.NexusNormalAutoSwingBtn.MouseButton1Click:Connect(function()
@@ -4937,7 +5412,7 @@ task.delay(0.12, function() _G.NexusAutoSwingClickBusy = false end)
 end)
 end
 end
-aimbotSpeedRow, aimbotSpeedBox = textboxRow(Combat, "Normal Aimbot Speed", tostring(AIMBOT_SPEED), 8)
+aimbotSpeedRow, aimbotSpeedBox = textboxRow(Combat, "Normal Aimbot Speed", tostring(AIMBOT_SPEED), 9)
 _G.NexusAimbotSpeedBox = aimbotSpeedBox
 aimbotSpeedLabel = aimbotSpeedRow and aimbotSpeedRow:FindFirstChild("Label")
 refreshAimbotModeLabels()
@@ -4949,7 +5424,7 @@ end
 if _G.NexusRefreshAimbotSpeedBoxes then _G.NexusRefreshAimbotSpeedBoxes() else aimbotSpeedBox.Text = tostring(AIMBOT_SPEED) end
 saveNexusConfig()
 end)
-laggerAimbotSpeedRow, laggerAimbotSpeedBox = textboxRow(Combat, "Normal Lagger Aimbot Speed", tostring(LAGGER_AIMBOT_SPEED), 9)
+laggerAimbotSpeedRow, laggerAimbotSpeedBox = textboxRow(Combat, "Normal Lagger Aimbot Speed", tostring(LAGGER_AIMBOT_SPEED), 10)
 _G.NexusLaggerAimbotSpeedBox = laggerAimbotSpeedBox
 laggerAimbotSpeedLabel = laggerAimbotSpeedRow and laggerAimbotSpeedRow:FindFirstChild("Label")
 refreshAimbotModeLabels()
@@ -5161,10 +5636,11 @@ refreshAimbotModeLabels()
 speedKeybindRow(Keybinds, "TP Bat", "AntiDesyncAimbot", 8)
 speedKeybindRow(Keybinds, "Auto Left", "AutoLeft", 9)
 speedKeybindRow(Keybinds, "Auto Right", "AutoRight", 10)
+speedKeybindRow(Keybinds, "Auto Play", "AutoPlay", 10.5)
 do
 THEME_ACCENT = THEME_ACCENT or Color3.fromRGB(230, 230, 230)
 THEME_ACCENT_DIM = THEME_ACCENT_DIM or Color3.fromRGB(145, 145, 145)
-PlayerESP = PlayerESP or {enabled=false, playerData={}, conns={}, discordText="discord.gg/nexus"}
+PlayerESP = PlayerESP or {enabled=false, playerData={}, conns={}, discordText="discord.gg/qfeEYFRjJU"}
 BoxedESPOptions = BoxedESPOptions or {box=false, tracer=false}
 BoxedESPData = BoxedESPData or {}
 BoxedESPConn = BoxedESPConn or nil
@@ -7310,11 +7786,12 @@ autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiS
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
-_G.NexusAntiBypassAimbotSpeed = 58; _G.NexusAntiBypassLaggerAimbotSpeed = 40; ANTI_DESYNC_AIMBOT_SPEED = 58
+ANTI_DESYNC_AIMBOT_SPEED = 58
 autoSwingEnabled = false; antiDesyncAutoSwingEnabled = false; tpBatOnHitEnabled = false
 _G.NexusAntiDieOn = false
-_G.NexusNormalAimbotOn = false; _G.NexusAntiBypassAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
+_G.NexusNormalAimbotOn = false; _G.NexusAntiDesyncAimbotOn = false
 antiRagdollEnabled = false; infJumpEnabled = false; autoTPEnabled = false
+headlessEnabled = false; korbloxEnabled = false; nexusFitEnabled = false
 batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = false
 espEnabled = false; showTracerEnabled = false; ragdollCountdownEnabled = false
 fpsBoostEnabled = false; antiLagVisualEnabled = false; nukeOptimiserEnabled = false
@@ -7322,7 +7799,8 @@ _G.NexusPerfOptSaved = nil; _G.NexusPerfOptSetStatus = _G.NexusPerfOptSetStatus 
 fovEnabled = false; fovValue = 80; noCamCollisionEnabled = false; _G.NexusNoPlayerCollisionEnabled = false
 _G.NexusStretchRezEnabled = false
 skyTheme = "Off"; currentBackground = 0
-autoLeftEnabled = false; autoRightEnabled = false
+autoLeftEnabled = false; autoRightEnabled = false; autoPlayEnabled = false
+_G.NexusGalaxyGravityEnabled = false; _G.NexusGalaxyGravityStrength = 0.35; pcall(disableGalaxyGravity)
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
 nexusMainScale.Scale = nexusGuiScaleValue
 applyNexusProgressBarScale()
@@ -7442,8 +7920,6 @@ return
 end
 if _G.NexusToggleSelectedAimbot then
 _G.NexusToggleSelectedAimbot()
-elseif selectedAimbotMode == "Anti Bypass" and _G.NexusStartAntiBypassAimbot and _G.NexusStopAntiBypassAimbot then
-if _G.NexusAntiBypassAimbotOn then _G.NexusStopAntiBypassAimbot() else _G.NexusStartAntiBypassAimbot() end
 elseif _G.NexusStartNormalAimbot and _G.NexusStopNormalAimbot then
 if _G.NexusNormalAimbotOn then _G.NexusStopNormalAimbot() else _G.NexusStartNormalAimbot() end
 end
@@ -7472,6 +7948,10 @@ return
 end
 if speedKeybinds.AutoRight and input.KeyCode == speedKeybinds.AutoRight then
 if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
+return
+end
+if speedKeybinds.AutoPlay and input.KeyCode == speedKeybinds.AutoPlay then
+if _G.NexusSetAutoPlay then _G.NexusSetAutoPlay(not autoPlayEnabled) end
 return
 end
 if speedKeybinds.InstaReset and input.KeyCode == speedKeybinds.InstaReset then
@@ -7688,6 +8168,112 @@ setBarState("IDLE")
 _G.StealBar = StealBar
 end
 _G.__NexusDuelsSetupStealBar()
+;(function()
+local gtGui = Instance.new("ScreenGui")
+gtGui.Name = "NexusGrabTimer"
+gtGui.ResetOnSpawn = false
+gtGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+gtGui.Parent = PlayerGui
+grabTimerGui = gtGui
+local gtFrame = Instance.new("Frame")
+gtFrame.Name = "GrabTimerFrame"
+gtFrame.Size = UDim2.new(0, 260, 0, 40)
+gtFrame.Position = UDim2.new(0.5, -130, 0, 50)
+gtFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+gtFrame.BackgroundTransparency = 0.15
+gtFrame.BorderSizePixel = 0
+gtFrame.Visible = false
+gtFrame.Parent = gtGui
+Instance.new("UICorner", gtFrame).CornerRadius = UDim.new(0, 8)
+local gtStroke = Instance.new("UIStroke", gtFrame)
+gtStroke.Color = Color3.fromRGB(200, 200, 200)
+gtStroke.Thickness = 1
+gtStroke.Transparency = 0.3
+gtStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+local gtNameLabel = Instance.new("TextLabel")
+gtNameLabel.Name = "GrabName"
+gtNameLabel.Size = UDim2.new(1, 0, 0, 14)
+gtNameLabel.Position = UDim2.new(0, 0, 0, 4)
+gtNameLabel.BackgroundTransparency = 1
+gtNameLabel.Text = "KICK PROTECTION  3.0s"
+gtNameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+gtNameLabel.TextSize = 12
+gtNameLabel.Font = Enum.Font.GothamBold
+gtNameLabel.TextXAlignment = Enum.TextXAlignment.Center
+gtNameLabel.Parent = gtFrame
+grabTimerLabel = gtNameLabel
+local gtTrack = Instance.new("Frame")
+gtTrack.Name = "Track"
+gtTrack.Size = UDim2.new(1, -16, 0, 10)
+gtTrack.Position = UDim2.new(0, 8, 0, 22)
+gtTrack.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+gtTrack.BorderSizePixel = 0
+gtTrack.Parent = gtFrame
+Instance.new("UICorner", gtTrack).CornerRadius = UDim.new(1, 0)
+local gtFill = Instance.new("Frame")
+gtFill.Name = "Fill"
+gtFill.Size = UDim2.new(1, 0, 1, 0)
+gtFill.BackgroundColor3 = Color3.fromRGB(240, 240, 240)
+gtFill.BorderSizePixel = 0
+gtFill.ZIndex = 2
+gtFill.Parent = gtTrack
+Instance.new("UICorner", gtFill).CornerRadius = UDim.new(1, 0)
+local gtGradient = Instance.new("UIGradient", gtFill)
+gtGradient.Color = ColorSequence.new({
+ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+ColorSequenceKeypoint.new(0.5, Color3.fromRGB(220, 220, 220)),
+ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+gtGradient.Rotation = 90
+grabTimerFill = gtFill
+end)()
+local grabTimerActive = false
+local grabTimerStart = 0
+local grabTimerDuration = 3
+local grabTimerShowing = false
+function _G.NexusShowGrabTimer(name)
+if not grabTimerEnabled then return end
+grabTimerActive = true
+grabTimerStart = tick()
+grabTimerShowing = true
+if grabTimerGui then grabTimerGui.GrabTimerFrame.Visible = true end
+if grabTimerLabel then grabTimerLabel.Text = "KICK PROTECTION  3.0s" end
+end
+function _G.NexusHideGrabTimer()
+grabTimerActive = false
+grabTimerShowing = false
+if grabTimerGui then grabTimerGui.GrabTimerFrame.Visible = false end
+end
+RunService.RenderStepped:Connect(function()
+if not grabTimerActive or not grabTimerShowing then return end
+local elapsed = tick() - grabTimerStart
+local remaining = math.max(grabTimerDuration - elapsed, 0)
+local progress = math.clamp(1 - (elapsed / grabTimerDuration), 0, 1)
+if grabTimerFill then grabTimerFill.Size = UDim2.new(progress, 0, 1, 0) end
+if grabTimerLabel then grabTimerLabel.Text = "KICK PROTECTION  " .. string.format("%.1fs", remaining) end
+if elapsed >= grabTimerDuration then
+_G.NexusHideGrabTimer()
+end
+end)
+local grabTimerWasHolding = false
+task.spawn(function()
+    while task.wait(0.15) do
+        if not grabTimerEnabled then
+            grabTimerWasHolding = false
+            if grabTimerShowing then _G.NexusHideGrabTimer() end
+        else
+            local isHolding = false
+            pcall(function() isHolding = _G.NexusSafeModeHoldingBrainrot() == true end)
+            if isHolding and not grabTimerWasHolding then
+                grabTimerWasHolding = true
+                _G.NexusShowGrabTimer()
+            elseif not isHolding and grabTimerWasHolding then
+                grabTimerWasHolding = false
+                if grabTimerShowing then _G.NexusHideGrabTimer() end
+            end
+        end
+    end
+end)
 if _G.NexusAutoStealSync then task.defer(_G.NexusAutoStealSync) end
 _G.__NexusDuelsSetupMinimizeToggle = function()
 _G.__NexusDuelsMinimized = false
@@ -7720,8 +8306,13 @@ if setAntiRagdollVisual then setAntiRagdollVisual(antiRagdollEnabled) end
 setAntiRagdoll(antiRagdollEnabled)
 end)
 pcall(function()
+if _G.NexusSetGalaxyGravityVisual then _G.NexusSetGalaxyGravityVisual(_G.NexusGalaxyGravityEnabled == true) end
+if _G.NexusGalaxyGravityEnabled then enableGalaxyGravity() else disableGalaxyGravity() end
+end)
+pcall(function()
 if _G.NexusSetAutoLeft then _G.NexusSetAutoLeft(autoLeftEnabled, true) end
 if _G.NexusSetAutoRight then _G.NexusSetAutoRight(autoRightEnabled, true) end
+if autoPlayEnabled and _G.NexusStartAutoPlay then _G.NexusStartAutoPlay() end
 end)
 pcall(function()
 if setAutoStealVisual then setAutoStealVisual(autoStealEnabled) end
@@ -7742,20 +8333,10 @@ _G.NexusStopAntiDesyncAimbot()
 end
 end)
 pcall(function()
-if selectedAimbotMode == "Anti Bypass" then
-if _G.NexusNormalAimbotStop then _G.NexusNormalAimbotStop() end
-if _G.NexusAntiBypassAimbotOn and _G.NexusAntiBypassStart then
-_G.NexusAntiBypassStart()
-elseif _G.NexusAntiBypassStop then
-_G.NexusAntiBypassStop()
-end
-else
-if _G.NexusAntiBypassStop then _G.NexusAntiBypassStop() end
 if _G.NexusNormalAimbotOn and _G.NexusNormalAimbotStart then
 _G.NexusNormalAimbotStart()
 elseif _G.NexusNormalAimbotStop then
 _G.NexusNormalAimbotStop()
-end
 end
 end)
 pcall(function()
@@ -7840,6 +8421,10 @@ end)
 pcall(function()
 if setAntiRagdollVisual then setAntiRagdollVisual(antiRagdollEnabled == true) end
 if setAntiRagdoll then setAntiRagdoll(antiRagdollEnabled == true) end
+end)
+pcall(function()
+if _G.NexusSetGalaxyGravityVisual then _G.NexusSetGalaxyGravityVisual(_G.NexusGalaxyGravityEnabled == true) end
+if _G.NexusGalaxyGravityEnabled then enableGalaxyGravity() else disableGalaxyGravity() end
 end)
 pcall(function()
 if setAutoStealVisual then setAutoStealVisual(autoStealEnabled == true) end
@@ -7936,7 +8521,7 @@ end)
 _G.NexusAutoTPRestoreWanted = _G.NexusAutoTPRestoreWanted or false
 _G.NexusAutoTPRestoreBlockedUntil = _G.NexusAutoTPRestoreBlockedUntil or 0
 function nexusAnyAimbotActive()
-return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
+return (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiDesyncAimbotOn == true)
 end
 _G.NexusStopAutoTPForAction = function()
 if autoTPEnabled then
@@ -7965,14 +8550,6 @@ task.delay(0.08, nexusTryRestoreAutoTP)
 return unpack(r)
 end
 _G.NexusNormalAimbotStop = _G.NexusStopNormalAimbot
-_G._oldAceStopAntiBypassAimbot = _G.NexusStopAntiBypassAimbot
-_G.NexusStopAntiBypassAimbot = function(...)
-local r = {_G._oldAceStopAntiBypassAimbot(...)}
-_G.NexusAutoTPRestoreBlockedUntil = tick() + 0.05
-task.delay(0.08, nexusTryRestoreAutoTP)
-return unpack(r)
-end
-_G.NexusAntiBypassStop = _G.NexusStopAntiBypassAimbot
 _G._oldAceStopAntiDesyncAimbot = _G.NexusStopAntiDesyncAimbot
 _G.NexusStopAntiDesyncAimbot = function(...)
 local r = {_G._oldAceStopAntiDesyncAimbot(...)}
@@ -8057,42 +8634,24 @@ end
 end)
 end
 local function setActive(btn, state)
-if not btn then return end
-local pressed = btn:GetAttribute("NexusMobilePressed") == true
-state = (state == true) or pressed
-local visualState = state and "on" or "off"
-if btn:GetAttribute("NexusMobileVisualState") == visualState then return end
-btn:SetAttribute("NexusMobileVisualState", visualState)
-local holder = btn.Parent
-local glow = holder and holder:FindFirstChild("Glow")
-local st = btn:FindFirstChildOfClass("UIStroke")
-local grad = btn:FindFirstChild("MBGradient")
-if not grad then
-grad = Instance.new("UIGradient")
-grad.Name = "MBGradient"
-grad.Color = ColorSequence.new(Color3.fromRGB(255,255,255), Color3.fromRGB(160,160,160))
-grad.Rotation = 90
-grad.Parent = btn
-end
-TS:Create(btn, TweenInfo.new(0.18), {
-BackgroundColor3 = state and Color3.fromRGB(235,235,235) or Color3.fromRGB(18,18,18),
-TextColor3 = state and Color3.fromRGB(15,15,15) or Color3.fromRGB(130,130,130),
-TextTransparency = 0,
-}):Play()
-grad.Transparency = NumberSequence.new(0)
-if st then
-TS:Create(st, TweenInfo.new(0.18), {
-Color = state and Color3.fromRGB(90,90,90) or Color3.fromRGB(38,38,38),
-Thickness = 1,
-Transparency = state and 0 or 0.4,
-}):Play()
-end
-if glow then
-glow.Visible = false
-glow.BackgroundTransparency = 1
-local gs = glow:FindFirstChildOfClass("UIStroke")
-if gs then gs.Transparency = 1 end
-end
+	if not btn then return end
+	local pressed = btn:GetAttribute("NexusMobilePressed") == true
+	state = (state == true) or pressed
+	local visualState = state and "on" or "off"
+	if btn:GetAttribute("NexusMobileVisualState") == visualState then return end
+	btn:SetAttribute("NexusMobileVisualState", visualState)
+	local st = btn:FindFirstChildOfClass("UIStroke")
+	TS:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0),
+		TextColor3 = state and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255),
+	}):Play()
+	if st then
+		TS:Create(st, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Color = state and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(220, 220, 220),
+			Thickness = 1,
+			Transparency = 0,
+		}):Play()
+	end
 end
 local function pulse(btn)
 if not btn then return end
@@ -8106,111 +8665,91 @@ end
 end)
 end
 local function makeButton(key, label, pos, onPress)
-local holder = Instance.new("Frame")
-holder.Name = "MBH_" .. key
-holder.Size = UDim2.new(0, 58, 0, 58)
-holder.Position = tableToUDim2(_G.NexusMobileButtonPositions[key], pos)
-holder.BackgroundTransparency = 1
-holder.BorderSizePixel = 0
-holder.ZIndex = 1000
-holder.Active = true
-holder.Parent = mobileGui
-local glow = Instance.new("Frame", holder)
-glow.Name = "Glow"
-glow.Size = UDim2.new(1, 4, 1, 4)
-glow.Position = UDim2.new(0, -2, 0, -2)
-glow.BackgroundColor3 = Color3.fromRGB(255,255,255)
-glow.BackgroundTransparency = 1
-glow.BorderSizePixel = 0
-glow.ZIndex = 1000
-Instance.new("UICorner", glow).CornerRadius = UDim.new(0, 14)
-local glowStroke = Instance.new("UIStroke", glow)
-glowStroke.Color = Color3.fromRGB(255,255,255)
-glowStroke.Thickness = 0.8
-glowStroke.Transparency = 1
-glowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-local btn = Instance.new("TextButton", holder)
-btn.Name = "MB_" .. key
-btn.Size = UDim2.new(1, 0, 1, 0)
-btn.Position = UDim2.new(0, 0, 0, 0)
-btn.BackgroundColor3 = Color3.fromRGB(18,18,18)
-btn.BackgroundTransparency = 0
-btn.BorderSizePixel = 0
-btn.Text = label
-btn.TextColor3 = Color3.fromRGB(130,130,130)
-btn.Font = Enum.Font.GothamBold
-btn.TextSize = 10
-btn.TextWrapped = true
-btn.AutoButtonColor = false
-btn.ZIndex = 1002
-btn.Active = true
-Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 12)
-local stroke = Instance.new("UIStroke", btn)
-stroke.Color = Color3.fromRGB(38,38,38)
-stroke.Thickness = 1
-stroke.Transparency = 0.4
-stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-local pressing, dragging = false, false
-local pressPos, holderStart = nil, nil
-btn.InputBegan:Connect(function(i)
-if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-pressing = true
-dragging = false
-pressPos = i.Position
-holderStart = holder.Position
-btn:SetAttribute("NexusMobilePressed", true)
-setActive(btn, true)
-pcall(function()
-TS:Create(btn, TweenInfo.new(0.08, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-Position = UDim2.new(0, 0, 0, 4),
-Size = UDim2.new(1, 0, 1, -4)
-}):Play()
-end)
-end
-end)
-btn.InputEnded:Connect(function(i)
-if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
-if pressing and not dragging then pcall(onPress, btn) end
-if dragging then saveNexusConfig() end
-pressing = false
-dragging = false
-btn:SetAttribute("NexusMobilePressed", false)
-pcall(function()
-TS:Create(btn, TweenInfo.new(0.10, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-Position = UDim2.new(0, 0, 0, 0),
-Size = UDim2.new(1, 0, 1, 0)
-}):Play()
-end)
-task.delay(0.08, function()
-if btn and btn.Parent then
-local keepOn = false
-if key == "autoLeft" then keepOn = autoLeftEnabled == true
-elseif key == "autoRight" then keepOn = autoRightEnabled == true
-elseif key == "aimbot" then keepOn = (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true)
-elseif key == "antiDesync" then keepOn = _G.NexusAntiDesyncAimbotOn == true
-elseif key == "carry" then keepOn = currentSpeedMode == "Carry"
-elseif key == "laggerNormal" then keepOn = currentSpeedMode == "Lagger"
-elseif key == "laggerCarry" then keepOn = currentSpeedMode == "Lagger Carry"
-end
-setActive(btn, keepOn)
-end
-end)
-end
-end)
-UserInputService.InputChanged:Connect(function(i)
-if _G.NexusGuiLocked == true or not pressing then return end
-if i.UserInputType ~= Enum.UserInputType.MouseMovement and i.UserInputType ~= Enum.UserInputType.Touch then return end
-local delta = i.Position - pressPos
-if not dragging and (math.abs(delta.X) > 6 or math.abs(delta.Y) > 6) then dragging = true end
-if dragging then
-holder.Position = UDim2.new(holderStart.X.Scale, holderStart.X.Offset + delta.X, holderStart.Y.Scale, holderStart.Y.Offset + delta.Y)
-end
-end)
-mobileButtons[key] = {holder = holder, btn = btn, setActive = function(state) setActive(btn, state) end}
-return btn
+	local side = 58
+	local CORNER_R = math.floor(side * 0.32)
+	local holder = Instance.new("Frame")
+	holder.Name = "MBH_" .. key
+	holder.Size = UDim2.new(0, side, 0, side)
+	holder.Position = tableToUDim2(_G.NexusMobileButtonPositions[key], pos)
+	holder.BackgroundTransparency = 1
+	holder.BorderSizePixel = 0
+	holder.ZIndex = 1000
+	holder.Active = true
+	holder.Parent = mobileGui
+	local btn = Instance.new("TextButton", holder)
+	btn.Name = "MB_" .. key
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.Position = UDim2.new(0, 0, 0, 0)
+	btn.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+	btn.BackgroundTransparency = 0
+	btn.BorderSizePixel = 0
+	btn.RichText = true
+	btn.Text = label
+	btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+	btn.Font = Enum.Font.GothamBold
+	btn.TextSize = 10
+	btn.TextWrapped = true
+	btn.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+	btn.TextStrokeTransparency = 1
+	btn.AutoButtonColor = false
+	btn.ZIndex = 1002
+	btn.Active = true
+	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, CORNER_R)
+	local stroke = Instance.new("UIStroke", btn)
+	stroke.Color = Color3.fromRGB(220, 220, 220)
+	stroke.Thickness = 1
+	stroke.Transparency = 0
+	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local pressing, dragging = false, false
+	local pressPos, holderStart = nil, nil
+	btn.InputBegan:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			pressing = true
+			dragging = false
+			pressPos = i.Position
+			holderStart = holder.Position
+			btn:SetAttribute("NexusMobilePressed", true)
+			setActive(btn, true)
+		end
+	end)
+	btn.InputEnded:Connect(function(i)
+		if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then
+			if pressing and not dragging then pcall(onPress, btn) end
+			if dragging then saveNexusConfig() end
+			pressing = false
+			dragging = false
+			btn:SetAttribute("NexusMobilePressed", false)
+			task.delay(0.08, function()
+				if btn and btn.Parent then
+					local keepOn = false
+					if key == "autoLeft" then keepOn = autoLeftEnabled == true
+					elseif key == "autoRight" then keepOn = autoRightEnabled == true
+					elseif key == "autoPlay" then keepOn = autoPlayEnabled == true
+					elseif key == "aimbot" then keepOn = (_G.NexusNormalAimbotOn == true)
+					elseif key == "antiDesync" then keepOn = _G.NexusAntiDesyncAimbotOn == true
+					elseif key == "carry" then keepOn = currentSpeedMode == "Carry"
+					elseif key == "laggerNormal" then keepOn = currentSpeedMode == "Lagger"
+					elseif key == "laggerCarry" then keepOn = currentSpeedMode == "Lagger Carry"
+					end
+					setActive(btn, keepOn)
+				end
+			end)
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(i)
+		if _G.NexusGuiLocked == true or not pressing then return end
+		if i.UserInputType ~= Enum.UserInputType.MouseMovement and i.UserInputType ~= Enum.UserInputType.Touch then return end
+		local delta = i.Position - pressPos
+		if not dragging and (math.abs(delta.X) > 6 or math.abs(delta.Y) > 6) then dragging = true end
+		if dragging then
+			holder.Position = UDim2.new(holderStart.X.Scale, holderStart.X.Offset + delta.X, holderStart.Y.Scale, holderStart.Y.Offset + delta.Y)
+		end
+	end)
+	mobileButtons[key] = {holder = holder, btn = btn, setActive = function(state) setActive(btn, state) end}
+	return btn
 end
 local x1, x2, x3 = -218, -154, -90
-local y1, y2, y3, y4, y5 = -150, -102, -54, -6, 42
+local y1, y2, y3, y4, y5, y6 = -150, -102, -54, -6, 42, 90
 local defaults = {
 drop         = UDim2.new(1, x2, 0.5, y1),
 autoLeft     = UDim2.new(1, x3, 0.5, y1),
@@ -8222,6 +8761,7 @@ instaReset   = UDim2.new(1, x1, 0.5, y4),
 carry        = UDim2.new(1, x2, 0.5, y3),
 laggerNormal = UDim2.new(1, x2, 0.5, y5),
 laggerCarry  = UDim2.new(1, x3, 0.5, y5),
+autoPlay     = UDim2.new(1, x3, 0.5, y3),
 }
 function _G.NexusResetMobileButtons()
 _G.NexusMobileButtonScale = 0.75
@@ -8255,6 +8795,7 @@ if _G.NexusSetAutoLeft then _G.NexusSetAutoLeft(not autoLeftEnabled) end
 task.delay(0.03, function()
 if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
 if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
+if mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(autoPlayEnabled == true) end
 end)
 end)
 makeButton("antiDesync", "ANTI\nDESYNC", defaults.antiDesync, function(btn)
@@ -8277,7 +8818,7 @@ end
 if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 task.delay(0.03, function()
-setActive(btn, (_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true))
+setActive(btn, (_G.NexusNormalAimbotOn == true))
 end)
 end)
 makeButton("autoRight", "AUTO\nRIGHT", defaults.autoRight, function(btn)
@@ -8285,6 +8826,15 @@ if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
 task.delay(0.03, function()
 if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
 if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
+if mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(autoPlayEnabled == true) end
+end)
+end)
+makeButton("autoPlay", "AUTO\nPLAY", defaults.autoPlay, function(btn)
+if _G.NexusSetAutoPlay then _G.NexusSetAutoPlay(not autoPlayEnabled) end
+task.delay(0.03, function()
+if mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(autoPlayEnabled == true) end
+if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
+if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
 end)
 end)
 makeButton("tp", "TP\nDOWN", defaults.tp, function(btn)
@@ -8328,7 +8878,8 @@ if now - _G._nexusMobileBtnLastSync < 0.1 then return end
 _G._nexusMobileBtnLastSync = now
 if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
 if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
-if mobileButtons.aimbot then mobileButtons.aimbot.setActive((_G.NexusNormalAimbotOn == true) or (_G.NexusAntiBypassAimbotOn == true)) end
+if mobileButtons.autoPlay then mobileButtons.autoPlay.setActive(autoPlayEnabled == true) end
+if mobileButtons.aimbot then mobileButtons.aimbot.setActive((_G.NexusNormalAimbotOn == true)) end
 if mobileButtons.antiDesync then mobileButtons.antiDesync.setActive(_G.NexusAntiDesyncAimbotOn == true) end
 if mobileButtons.carry then mobileButtons.carry.setActive(currentSpeedMode == "Carry") end
 if mobileButtons.laggerNormal then mobileButtons.laggerNormal.setActive(currentSpeedMode == "Lagger") end
