@@ -1945,6 +1945,14 @@ if _G.NexusAimbotSetVisual then
 _G.NexusAimbotSetVisual(_G.NexusNormalAimbotOn == true)
 end
 end
+function _G.NexusToggleSelectedAimbot()
+if _G.NexusNormalAimbotOn then
+if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+else
+if _G.NexusStartNormalAimbot then _G.NexusStartNormalAimbot() end
+end
+if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+end
 
 -- Mirror TP Down: mirror a 3-stud opponent drop while Normal or Anti Desync Bat is active.
 local MIRROR_TP_DROP_THRESHOLD = 3
@@ -4812,6 +4820,10 @@ if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 _nexusBtn = row and row:FindFirstChild("ToggleButton")
 if _nexusBtn then
 _nexusBtn.Activated:Connect(function()
+if _G.NexusSafeModeIsLocked and _G.NexusSafeModeIsLocked() then
+if _G.NexusSafeModeForceStop then _G.NexusSafeModeForceStop("SAFE MODE LOCK") end
+return
+end
 if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
 end)
 end
