@@ -6533,8 +6533,24 @@ nexusGuiScaleValue = math.clamp(tonumber(nexusGuiScaleValue) or 1, 0.90, 1.10)
 nexusProgressBarScaleValue = tonumber(savedConfig.nexusProgressBarScaleValue) or nexusProgressBarScaleValue
 nexusMainScale = Main:FindFirstChild("NexusMainScale") or Instance.new("UIScale")
 nexusMainScale.Name = "NexusMainScale"
-nexusMainScale.Scale = nexusGuiScaleValue
+do
+local viewSize = workspace.CurrentCamera.ViewportSize
+local fitW = math.clamp((viewSize.X * 0.55) / 380, 0.35, 1.2)
+local fitH = math.clamp((viewSize.Y * 0.55) / 520, 0.35, 1.2)
+nexusMainScale.Scale = math.min(fitW, fitH)
+end
 nexusMainScale.Parent = Main
+local function _nexusAutoFitScale()
+local viewSize = workspace.CurrentCamera.ViewportSize
+local fitW = math.clamp((viewSize.X * 0.55) / 380, 0.35, 1.2)
+local fitH = math.clamp((viewSize.Y * 0.55) / 520, 0.35, 1.2)
+nexusMainScale.Scale = math.min(fitW, fitH)
+end
+pcall(function()
+workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
+if Main and Main.Parent then _nexusAutoFitScale() end
+end)
+end)
 local function applyNexusProgressBarScale()
 local sg = PlayerGui:FindFirstChild("NexusHud")
 local bar = sg and sg:FindFirstChild("NexusHudBar")
@@ -7250,7 +7266,7 @@ skyTheme = "Off"; currentBackground = 0
 autoLeftEnabled = false; autoRightEnabled = false; autoPlayEnabled = false
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
 bodyLockEnabled = false; bodyLockRadius = 60; pcall(stopBodyLock)
-nexusMainScale.Scale = nexusGuiScaleValue
+if _nexusAutoFitScale then _nexusAutoFitScale() end
 applyNexusProgressBarScale()
 applyBackground(0)
 applyDefaultAceKeybinds()
