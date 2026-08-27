@@ -982,13 +982,14 @@ end
 
 local function startAntibatDesync()
 	if antibatDesyncConn then return end
-	antibatDesyncConn = RunService.Heartbeat:Connect(function(deltaTime)
+		antibatDesyncConn = RunService.Heartbeat:Connect(function(deltaTime)
 		if not antibatEnabled or antibatSuspended then return end
 		local char = LP.Character
 		if not char then return end
 		local hrp = char:FindFirstChild("HumanoidRootPart")
 		local hum = char:FindFirstChildOfClass("Humanoid")
 		if not hrp or not hum or hum.Health <= 0 then return end
+		if not hum.Jump then antibatSpaceHeld = false end
 		local oldVelocity = hrp.AssemblyLinearVelocity
 		hrp.AssemblyLinearVelocity = Vector3.new(999, 0, 999)
 		RunService.RenderStepped:Wait()
@@ -1006,6 +1007,8 @@ local function startAntibatDesync()
 	if antibatJumpReqConn then return end
 	antibatJumpReqConn = UserInputService.JumpRequest:Connect(function()
 		if not antibatEnabled or antibatSuspended then return end
+		antibatSpaceHeld = true
+		antibatJumpTimer = ANTIBAT_JUMP_INTERVAL
 		local c = LP.Character
 		if not c then return end
 		local root = c:FindFirstChild("HumanoidRootPart")
