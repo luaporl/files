@@ -6535,15 +6535,15 @@ nexusMainScale = Main:FindFirstChild("NexusMainScale") or Instance.new("UIScale"
 nexusMainScale.Name = "NexusMainScale"
 do
 local viewSize = workspace.CurrentCamera.ViewportSize
-local fitW = math.clamp((viewSize.X * 0.55) / 380, 0.35, 1.2)
-local fitH = math.clamp((viewSize.Y * 0.55) / 520, 0.35, 1.2)
+local fitW = math.clamp((viewSize.X * 0.65) / 380, 0.35, 1.2)
+local fitH = math.clamp((viewSize.Y * 0.65) / 520, 0.35, 1.2)
 nexusMainScale.Scale = math.min(fitW, fitH)
 end
 nexusMainScale.Parent = Main
 local function _nexusAutoFitScale()
 local viewSize = workspace.CurrentCamera.ViewportSize
-local fitW = math.clamp((viewSize.X * 0.55) / 380, 0.35, 1.2)
-local fitH = math.clamp((viewSize.Y * 0.55) / 520, 0.35, 1.2)
+local fitW = math.clamp((viewSize.X * 0.65) / 380, 0.35, 1.2)
+local fitH = math.clamp((viewSize.Y * 0.65) / 520, 0.35, 1.2)
 nexusMainScale.Scale = math.min(fitW, fitH)
 end
 pcall(function()
