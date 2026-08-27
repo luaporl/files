@@ -6548,7 +6548,7 @@ nexusMainScale.Scale = math.min(fitW, fitH)
 end
 pcall(function()
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-if Main and Main.Parent then _nexusAutoFitScale() end
+if Main and Main.Parent and not _G.NexusManualScale then _nexusAutoFitScale() end
 end)
 end)
 local function applyNexusProgressBarScale()
@@ -7090,6 +7090,12 @@ setValue(value + 0.05)
 end)
 return row
 end
+stepperRow(Settings, "GUI Scale", nexusGuiScaleValue, 3, function(v)
+nexusGuiScaleValue = v
+nexusMainScale.Scale = v
+_G.NexusManualScale = true
+saveNexusConfig()
+end)
 stepperRow(Settings, "Progress Bar Size", nexusProgressBarScaleValue, 4, function(v)
 nexusProgressBarScaleValue = v
 applyNexusProgressBarScale()
@@ -7267,6 +7273,7 @@ autoLeftEnabled = false; autoRightEnabled = false; autoPlayEnabled = false
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
 bodyLockEnabled = false; bodyLockRadius = 60; pcall(stopBodyLock)
 if _nexusAutoFitScale then _nexusAutoFitScale() end
+_G.NexusManualScale = false
 applyNexusProgressBarScale()
 applyBackground(0)
 applyDefaultAceKeybinds()
