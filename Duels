@@ -48,7 +48,7 @@ selectedStealMode = "Semi"
 autoStealRadius = 9
 semiStopPercent = 90
 _G.NexusStealRadii = _G.NexusStealRadii or {Normal = 62, Semi = 9}
-stealTriggerMode = stealTriggerMode or "Tryhard"
+stealTriggerMode = "Tryhard"
 selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58
 LAGGER_AIMBOT_SPEED = 40
@@ -76,7 +76,7 @@ _G.NexusAutoMedusaConn = nil
 
 _G.NexusAutoMedusaCircle = nil
 autoMedusaAttacking = false
-antiKickEnabled = false
+antiKickEnabled = true
 _G.NexusSetSafeModeVisual = nil
 _G.NexusSetSafeModeVisual2 = nil
 espEnabled = false
@@ -987,98 +987,38 @@ end)()
 _G.NexusJumpHeld = false
 do
 local antibatDesyncConn
-local antibatJumpReqConn
-local antibatSpaceHeld = false
-local antibatJumpTimer = 0
 local antibatSuspended = false
-local ANTIBAT_JUMP_HEIGHT = 7.2
-local ANTIBAT_HEALTH_THRESHOLD = 25
-local ANTIBAT_JUMP_INTERVAL = 0.15
-
-local function antibatApplyJump(rootPart, humanoid)
-	if not rootPart or not humanoid then return end
-	if humanoid.Health < ANTIBAT_HEALTH_THRESHOLD then return end
-	local currentVel = rootPart.AssemblyLinearVelocity
-	local jumpVelocity = math.sqrt(2 * workspace.Gravity * ANTIBAT_JUMP_HEIGHT)
-	rootPart.AssemblyLinearVelocity = Vector3.new(currentVel.X, jumpVelocity, currentVel.Z)
-end
-
 local function startAntibatDesync()
-	if antibatDesyncConn then return end
-		antibatDesyncConn = RunService.Heartbeat:Connect(function(deltaTime)
-		if not antibatEnabled or antibatSuspended then return end
-		local char = LP.Character
-		if not char then return end
-		local hrp = char:FindFirstChild("HumanoidRootPart")
-		local hum = char:FindFirstChildOfClass("Humanoid")
-		if not hrp or not hum or hum.Health <= 0 then return end
-		local oldVelocity = hrp.AssemblyLinearVelocity
-		hrp.AssemblyLinearVelocity = Vector3.new(999, 0, 999)
-		RunService.RenderStepped:Wait()
-		if hrp and hrp.Parent then
-			hrp.AssemblyLinearVelocity = oldVelocity
-		end
-		if antibatSpaceHeld then
-			antibatJumpTimer = antibatJumpTimer + deltaTime
-			if antibatJumpTimer >= ANTIBAT_JUMP_INTERVAL then
-				antibatJumpTimer = 0
-				antibatApplyJump(hrp, hum)
-			end
-		end
-	end)
-	if antibatJumpReqConn then return end
-	antibatJumpReqConn = UserInputService.JumpRequest:Connect(function()
-		if not antibatEnabled or antibatSuspended then return end
-		antibatSpaceHeld = true
-		antibatJumpTimer = ANTIBAT_JUMP_INTERVAL
-		local c = LP.Character
-		if not c then return end
-		local root = c:FindFirstChild("HumanoidRootPart")
-		local h = c:FindFirstChildOfClass("Humanoid")
-		antibatApplyJump(root, h)
-	end)
+    local char=LP.Character
+    if not char then return end
+    local root=char:FindFirstChild("HumanoidRootPart")
+    if not root then return end
+    if antibatDesyncConn then antibatDesyncConn:Disconnect() end
+    antibatDesyncConn=RunService.Heartbeat:Connect(function()
+        if not antibatEnabled or antibatSuspended then return end
+        if not root or not root.Parent then return end
+        local origXZ=Vector3.new(root.Velocity.X,0,root.Velocity.Z)
+        root.Velocity=Vector3.new(1000,root.Velocity.Y,1000)
+        RunService.RenderStepped:Wait()
+        if root and root.Parent then
+            root.Velocity=Vector3.new(origXZ.X,root.Velocity.Y,origXZ.Z)
+        end
+    end)
 end
-
 local function stopAntibatDesync()
-	if antibatDesyncConn then antibatDesyncConn:Disconnect(); antibatDesyncConn = nil end
-	if antibatJumpReqConn then antibatJumpReqConn:Disconnect(); antibatJumpReqConn = nil end
-	antibatSpaceHeld = false
-	antibatJumpTimer = 0
+    if antibatDesyncConn then
+        antibatDesyncConn:Disconnect()
+        antibatDesyncConn=nil
+    end
 end
-
-UserInputService.InputBegan:Connect(function(input, processed)
-	if processed then return end
-	if input.KeyCode == Enum.KeyCode.Space then
-		antibatSpaceHeld = true
-		antibatJumpTimer = ANTIBAT_JUMP_INTERVAL
-		if antibatEnabled and not antibatSuspended then
-			local char = LP.Character
-			if char then
-				local root = char:FindFirstChild("HumanoidRootPart")
-				local hum = char:FindFirstChildOfClass("Humanoid")
-				antibatApplyJump(root, hum)
-			end
-		end
-	end
-end)
-UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.Space then
-		antibatSpaceHeld = false
-	end
-end)
-
-_G._nexusAntibatStart = startAntibatDesync
-_G._nexusAntibatStop = stopAntibatDesync
-_G.NexusSuspendAntibat = function()
-	antibatSuspended = true
-end
-_G.NexusResumeAntibat = function()
-	antibatSuspended = false
-end
+_G._nexusAntibatStart=startAntibatDesync
+_G._nexusAntibatStop=stopAntibatDesync
+_G.NexusSuspendAntibat=function() antibatSuspended=true end
+_G.NexusResumeAntibat=function() antibatSuspended=false end
 if antibatEnabled then startAntibatDesync() end
 LP.CharacterAdded:Connect(function()
-	antibatSpaceHeld = false
-	antibatJumpTimer = 0
+    task.wait(0.3)
+    if antibatEnabled then startAntibatDesync() end
 end)
 end
 task.spawn(function()
@@ -1216,7 +1156,6 @@ selectedAimbotMode = selectedAimbotMode,
 AIMBOT_SPEED = AIMBOT_SPEED,
 AIMBOT_VERT_SPEED = AIMBOT_VERT_SPEED,
 LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,
-autoSwingEnabled = autoSwingEnabled,
 tpBatEnabled = _G.NexusTpBatEnabled == true,
 normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
 laggerIntensity = _G.NexusLaggerIntensity or 7,
@@ -1226,7 +1165,6 @@ batCounterEnabled = batCounterEnabled,
 medCounterEnabled = medCounterEnabled,
 autoMedusaEnabled = autoMedusaEnabled,
 antiDieOn = _G.NexusAntiDieOn == true,
-safeMode = antiKickEnabled == true,
 espEnabled = espEnabled,
 showTracerEnabled = showTracerEnabled,
 ragdollCountdownEnabled = ragdollCountdownEnabled,
@@ -1325,12 +1263,12 @@ autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
 local loadedStopPct = tonumber(data.semiStopPercent)
 semiStopPercent = loadedStopPct == 75 and 75 or 90
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
-if data.stealTriggerMode then stealTriggerMode = data.stealTriggerMode end
-selectedAimbotMode = (data.selectedAimbotMode == "Bypass") and "Bypass" or "Normal"
+stealTriggerMode = "Tryhard"
+selectedAimbotMode = "Normal"
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
-autoSwingEnabled = data.autoSwingEnabled == true
+autoSwingEnabled = true
 _G.NexusTpBatEnabled = data.tpBatEnabled == true
 
 _G.NexusNormalAimbotOn = data.normalAimbotEnabled == true
@@ -1349,7 +1287,7 @@ batCounterEnabled = data.batCounterEnabled == true
 medCounterEnabled = data.medCounterEnabled == true
 autoMedusaEnabled = data.autoMedusaEnabled == true
 _G.NexusAntiDieOn = data.antiDieOn == true
-antiKickEnabled = data.safeMode == true
+antiKickEnabled = true
 espEnabled = data.espEnabled == true
 showTracerEnabled = data.showTracerEnabled == true
 ragdollCountdownEnabled = data.ragdollCountdownEnabled == true
@@ -2083,10 +2021,6 @@ _G.NexusNormalAimbotOn = false
 if _G.NexusNormalAimbot and _G.NexusNormalAimbot.conn then
 _G.NexusNormalAimbot.conn:Disconnect()
 _G.NexusNormalAimbot.conn = nil
-end
-if _G.NexusBypassAimbot and _G.NexusBypassAimbot.conn then
-_G.NexusBypassAimbot.conn:Disconnect()
-_G.NexusBypassAimbot.conn = nil
 end
 if _G.NexusNormalAimbot then
 _G.NexusNormalAimbot.target = nil
@@ -3569,11 +3503,12 @@ if not autoPlayEnabled and autoRightEnabled and _G.NexusStartAutoRight then _G.N
 end)
 local overheadGui = nil
 local overheadSpeedLabel = nil
+
 local function setupOverheadInfo(char)
 if overheadGui then
 pcall(function() overheadGui:Destroy() end)
 overheadGui = nil
-overheadSpeedLabel = nil
+
 end
 if not char then return end
 local head = char:FindFirstChild("Head") or char:WaitForChild("Head", 5)
@@ -3736,38 +3671,76 @@ end
 end
 end)
 do
-local MOVE_KEYS={[Enum.KeyCode.W]=true,[Enum.KeyCode.A]=true,[Enum.KeyCode.S]=true,[Enum.KeyCode.D]=true,
-	[Enum.KeyCode.Up]=true,[Enum.KeyCode.Left]=true,[Enum.KeyCode.Down]=true,[Enum.KeyCode.Right]=true}
-local speedImpulseHRP = nil
+local spoofedVelocity = Vector3.zero
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
+    if not checkcaller() and (key == "AssemblyLinearVelocity" or key == "Velocity") then
+        if typeof(self) == "Instance" and self:IsA("BasePart") and self.Name == "HumanoidRootPart" and self:IsDescendantOf(LP.Character) then
+            return spoofedVelocity
+        end
+    end
+    return oldIndex(self, key)
+end))
 
-local function massImpulse(hrp, dir, spd)
-	local mass = hrp.AssemblyMass or 1
-	local current = hrp.AssemblyLinearVelocity
-	local desired = Vector3.new(dir.X * spd, current.Y, dir.Z * spd)
-	local delta = desired - current
-	pcall(function() hrp:ApplyImpulse(Vector3.new(delta.X, 0, delta.Z) * mass) end)
+local oldNewIndex
+oldNewIndex = hookmetamethod(game, "__newindex", newcclosure(function(self, key, value)
+    if not checkcaller() and (key == "AssemblyLinearVelocity" or key == "Velocity") then
+        if typeof(self) == "Instance" and self:IsA("BasePart") and self.Name == "HumanoidRootPart" and self:IsDescendantOf(LP.Character) then
+            spoofedVelocity = value
+            return
+        end
+    end
+    return oldNewIndex(self, key, value)
+end))
+
+_G.NexusSetLinVelXZ = function(x, z)
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp or not hrp.Parent then return end
+    pcall(function()
+        hrp.AssemblyLinearVelocity = Vector3.new(x, hrp.AssemblyLinearVelocity.Y, z)
+    end)
 end
 
-local function ensureSpeedHRP(hrp)
-	speedImpulseHRP = hrp
+_G.NexusClearLinVel = function()
+    spoofedVelocity = Vector3.zero
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if hrp and hrp.Parent then
+        pcall(function()
+            hrp.AssemblyLinearVelocity = Vector3.new(0, hrp.AssemblyLinearVelocity.Y, 0)
+        end)
+    end
 end
 
-local function clearSpeedImpulse()
-	speedImpulseHRP = nil
-end
+_G.NexusEnsureLinearVelocity = function(hrp) end
 
-local function setSpeedXZ(x, z)
-	local hrp = speedImpulseHRP
-	if not hrp or not hrp.Parent then return end
-	local mass = hrp.AssemblyMass or 1
-	local current = hrp.AssemblyLinearVelocity
-	local delta = Vector3.new(x - current.X, 0, z - current.Z)
-	pcall(function() hrp:ApplyImpulse(delta * mass) end)
-end
+RunService.PreSimulation:Connect(function()
+    local char = LP.Character
+    if not char then return end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if not hum or not root or hum.Health <= 0 then return end
 
-_G.NexusSetLinVelXZ = setSpeedXZ
-_G.NexusClearLinVel = clearSpeedImpulse
-_G.NexusEnsureLinearVelocity = ensureSpeedHRP
+    local dir = hum.MoveDirection
+    local spd = getCurrentSpeedValue()
+
+    if dir.Magnitude > 0.05 then
+        pcall(function()
+            if root.SetNetworkOwner then root:SetNetworkOwner(LP) end
+        end)
+        local unit = dir.Unit
+        spoofedVelocity = Vector3.new(unit.X * 16, root.AssemblyLinearVelocity.Y, unit.Z * 16)
+        root.AssemblyLinearVelocity = Vector3.new(unit.X * spd, root.AssemblyLinearVelocity.Y, unit.Z * spd)
+    else
+        spoofedVelocity = Vector3.new(0, root.AssemblyLinearVelocity.Y, 0)
+    end
+
+    if overheadSpeedLabel then
+        overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
+    end
+end)
+end
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
@@ -3797,67 +3770,8 @@ do
 		if vy > 3 then
 			isJumping = true
 		elseif vy < -1 then
-			isJumping = false
-		end
-	end)
-end
-
-do
-	RunService.RenderStepped:Connect(function(dt)
-	local char = LP.Character
-	if not char then return end
-	local hum = char:FindFirstChildOfClass("Humanoid")
-	local hrp = char:FindFirstChild("HumanoidRootPart")
-	if not hum or not hrp then return end
-	if _G.NexusNormalAimbotOn or _G.NexusTpBatEnabled then
-	clearSpeedImpulse()
-	return
-	end
-	if _G.NexusDropActive then
-	clearSpeedImpulse()
-	return
-	end
-	local state = hum:GetState()
-	if hum.PlatformStand
-	or state == Enum.HumanoidStateType.Physics
-	or state == Enum.HumanoidStateType.Ragdoll
-	or state == Enum.HumanoidStateType.FallingDown then
-	lastMoveDir = Vector3.zero
-	clearSpeedImpulse()
-	return
-	end
-	if _G.NexusSpeedSpawnGrace and _G.NexusSpeedSpawnGrace > 0 then
-	_G.NexusSpeedSpawnGrace = math.max(0, _G.NexusSpeedSpawnGrace - dt)
-	return
-	end
-	local md = hum.MoveDirection
-	local spd = getCurrentSpeedValue()
-	local chatFocused = UserInputService:GetFocusedTextBox() ~= nil
-	if not autoLeftEnabled and not autoRightEnabled then
-	if md.Magnitude > 0.1 and not chatFocused then
-	lastMoveDir = md
-	ensureSpeedHRP(hrp)
-	massImpulse(hrp, md, spd)
-	elseif antiRagdollEnabled and lastMoveDir.Magnitude > 0.1 and not chatFocused then
-	local anyHeld = false
-	for key in pairs(MOVE_KEYS) do if UserInputService:IsKeyDown(key) then anyHeld = true; break end end
-	if anyHeld then
-	ensureSpeedHRP(hrp)
-	massImpulse(hrp, lastMoveDir, spd)
-	else
-	clearSpeedImpulse()
-	end
-	else
-	clearSpeedImpulse()
-	end
-	else
-	clearSpeedImpulse()
-	end
-	if overheadSpeedLabel then
-	overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
-	end
-	end)
-end
+			isJumping = false        end
+    end)
 end
 
 
@@ -3986,30 +3900,9 @@ function watchCustomBackground(index, callback)
 end
 
 local Gui, Main, Content, MiniFrame, FULL_MAIN_SIZE, pages, BackgroundIDs, Close = (function()
-local Gui = Instance.new("ScreenGui")
-Gui.Name = "NexusDuelsToo"
-Gui.ResetOnSpawn = false
-Gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-Gui.Parent = PlayerGui
-local FULL_MAIN_SIZE = UDim2.new(0, 380, 0, 520)
-local Main = Instance.new("Frame")
-Main.Name = "Main"
-Main.AnchorPoint = Vector2.new(0, 0.5)
-Main.Size = FULL_MAIN_SIZE
-Main.Position = tableToUDim2(savedMainPositionTable, UDim2.new(0, 20, 0.5, 0))
-savedMainPositionTable = udim2ToTable(Main.Position)
-Main.BackgroundColor3 = COLORS.bg
-Main.BackgroundTransparency = 0.18
-Main.BorderSizePixel = 0
-Main.Active = true
-Main.ClipsDescendants = false
-Main.Parent = Gui
-corner(Main, 10)
-stroke(Main, COLORS.accentDim, 1.2, 0.3)
-makeDraggable(Main)
-Main:GetPropertyChangedSignal("Position"):Connect(function()
-savedMainPositionTable = udim2ToTable(Main.Position)
-end)
+local Gui=Instance.new("ScreenGui"); Gui.Name="NexusDuelsToo"; Gui.ResetOnSpawn=false; Gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; Gui.Parent=PlayerGui
+local FULL_MAIN_SIZE=UDim2.new(0,326,0,444)
+local Main=Instance.new("Frame"); Main.Name="Main"; Main.AnchorPoint=Vector2.new(0,0.5); Main.Size=FULL_MAIN_SIZE; Main.Position=tableToUDim2(savedMainPositionTable,UDim2.new(0,20,0.5,0)); savedMainPositionTable=udim2ToTable(Main.Position); Main.BackgroundColor3=COLORS.bg; Main.BackgroundTransparency=0.02; Main.BorderSizePixel=0; Main.Active=true; Main.ClipsDescendants=true; Main.Parent=Gui; corner(Main,11); stroke(Main,COLORS.strokeSoft,1,0.22); makeDraggable(Main); Main:GetPropertyChangedSignal("Position"):Connect(function() savedMainPositionTable=udim2ToTable(Main.Position) end)
 local MiniFrame = Instance.new("Frame")
 MiniFrame.Name = "MiniFrame"
 MiniFrame.Size = UDim2.new(0, 80, 0, 32)
@@ -4039,17 +3932,7 @@ MiniButton.ScaleType = Enum.ScaleType.Fit
 MiniButton.AutoButtonColor = false
 MiniButton.ZIndex = 21
 MiniButton.Parent = MiniFrame
-task.spawn(function()
-local ok, img = pcall(function() return game:HttpGet("https://files.catbox.moe/n9pcba.png") end)
-if ok and img and #img > 500 then
-pcall(function() writefile("NexusMiniLogo.png", img) end)
-local asset = nil
-local okA = pcall(function() asset = getcustomasset("NexusMiniLogo.png") end)
-if okA and asset then
-MiniButton.Image = asset
-end
-end
-end)
+task.spawn(function() local ok,img=pcall(function() return game:HttpGet("https://files.catbox.moe/n9pcba.png") end); if ok and img and #img>500 then pcall(function() writefile("NexusMiniLogo.png",img) end); local a=nil; pcall(function() a=getcustomasset("NexusMiniLogo.png") end); if a then MiniButton.Image=a end end end)
 local MiniShade = Instance.new("Frame")
 MiniShade.Name = "MiniShade"
 MiniShade.Size = UDim2.new(1, -4, 1, -4)
@@ -4063,218 +3946,40 @@ corner(MiniShade, 8)
 task.spawn(function()
     while MiniFrame and MiniFrame.Parent do
         if MiniFrame.Visible then
-        TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5, Thickness = 1.5}):Play()
+            TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5, Thickness = 1.5}):Play()
             task.wait(1.2)
             if MiniFrame and MiniFrame.Parent then
-            TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.3, Thickness = 1}):Play()
+                TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.3, Thickness = 1}):Play()
                 task.wait(1.2)
-            else
-                break
             end
-            else
-                task.wait(0.3)
-end
-end
+        else
+            task.wait(0.4)
+        end
+    end
 end)
-local miniDragging = false
-local miniDragStart = nil
-local miniStartPos = nil
-local miniMoved = false
-local miniHeldInput = nil
-local DRAG_DEADZONE = 6
-MiniButton.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-miniDragging = true
-miniMoved = false
-miniHeldInput = input
-miniDragStart = input.Position
-miniStartPos = MiniFrame.Position
-end
-end)
-UserInputService.InputChanged:Connect(function(input)
-if not miniDragging then return end
-if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-if not miniDragStart or not miniStartPos then return end
-local delta = input.Position - miniDragStart
-if math.abs(delta.X) > DRAG_DEADZONE or math.abs(delta.Y) > DRAG_DEADZONE then
-miniMoved = true
-end
-MiniFrame.Position = UDim2.new(
-miniStartPos.X.Scale,
-miniStartPos.X.Offset + delta.X,
-miniStartPos.Y.Scale,
-miniStartPos.Y.Offset + delta.Y
-)
-end)
-UserInputService.InputEnded:Connect(function(input)
-if input ~= miniHeldInput then return end
-local wasDrag = miniMoved
-miniDragging = false
-miniHeldInput = nil
-miniDragStart = nil
-miniStartPos = nil
-if wasDrag then
-return
-end
-Main.Visible = true
-MiniFrame.Visible = false
-Main.Size = FULL_MAIN_SIZE
-savedMainPositionTable = udim2ToTable(Main.Position)
-end)
-local BackgroundIDs = {}
-function applyBackground(index)
-Main.BackgroundColor3 = COLORS.bg
-return "None"
-end
-local Logo = Instance.new("ImageLabel")
-Logo.Name = "Logo"
-Logo.BackgroundTransparency = 0
-Logo.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-Logo.ImageTransparency = 1
-Logo.ScaleType = Enum.ScaleType.Fit
-Logo.Size = UDim2.new(0, 48, 0, 48)
-Logo.Position = UDim2.new(0, 16, 0, 12)
-Logo.ZIndex = 6
-Logo.Parent = Main
-local logoCorner = Instance.new("UICorner")
-logoCorner.CornerRadius = UDim.new(0, 10)
-logoCorner.Parent = Logo
-local logoStroke = Instance.new("UIStroke")
-logoStroke.Color = COLORS.accent
-logoStroke.Thickness = 1.2
-logoStroke.Transparency = 0.4
-logoStroke.Parent = Logo
-local function setLogoImage(asset)
-if asset and Logo and Logo.Parent then
-Logo.Image = asset
-Logo.ImageTransparency = 0
-end
-end
-setLogoImage(getImageAsset and getImageAsset("https://files.catbox.moe/qnr6m8.png", "NexusDuelsLogo.png"))
-watchImageAsset("https://files.catbox.moe/qnr6m8.png", "NexusDuelsLogo.png", function(asset)
-setLogoImage(asset)
-end)
-task.delay(4, function()
-if Logo and Logo.Parent and Logo.ImageTransparency == 1 then
-local again = getImageAsset and getImageAsset("https://files.catbox.moe/qnr6m8.png", "NexusDuelsLogo.png")
-if again then setLogoImage(again) end
-end
-end)
-local Title = Instance.new("TextLabel")
-Title.Name = "Title"
-Title.BackgroundTransparency = 1
-Title.Size = UDim2.new(1, -130, 0, 28)
-Title.Position = UDim2.new(0, 90, 0, 18)
-Title.Text = "NEXUS DUELS"
-Title.TextColor3 = COLORS.white
-Title.TextStrokeTransparency = 1
-Title.Font = Enum.Font.GothamBlack
-Title.TextSize = 22
-Title.TextColor3 = COLORS.accent
-Title.TextXAlignment = Enum.TextXAlignment.Left
-Title.ZIndex = 6
-Title.Parent = Main
-local Discord = Instance.new("TextLabel")
-Discord.Name = "Discord"
-Discord.BackgroundTransparency = 1
-Discord.Size = UDim2.new(1, -130, 0, 16)
-Discord.Position = UDim2.new(0, 91, 0, 46)
-Discord.Text = "discord.gg/nexushub"
-Discord.TextColor3 = COLORS.textDim
-Discord.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-Discord.TextStrokeTransparency = 0
-Discord.Font = Enum.Font.GothamBlack
-Discord.TextSize = 14
-Discord.TextXAlignment = Enum.TextXAlignment.Left
-Discord.ZIndex = 6
-Discord.Parent = Main
-local uiDiscordGrad = Instance.new("UIGradient")
-uiDiscordGrad.Color = ColorSequence.new({
-	ColorSequenceKeypoint.new(0, COLORS.textDim),
-	ColorSequenceKeypoint.new(0.25, Color3.fromRGB(60, 60, 70)),
-	ColorSequenceKeypoint.new(0.5, COLORS.textDim),
-	ColorSequenceKeypoint.new(0.75, Color3.fromRGB(60, 60, 70)),
-	ColorSequenceKeypoint.new(1, COLORS.textDim)
-})
-uiDiscordGrad.Parent = Discord
-local HeaderDivider = Instance.new("Frame")
-HeaderDivider.Name = "HeaderDivider"
-HeaderDivider.BackgroundColor3 = COLORS.accent
-HeaderDivider.BackgroundTransparency = 0
-HeaderDivider.BorderSizePixel = 0
-HeaderDivider.Size = UDim2.new(1, -34, 0, 1)
-HeaderDivider.Position = UDim2.new(0, 17, 0, 70)
-HeaderDivider.ZIndex = 6
-HeaderDivider.Parent = Main
-local headerDivGrad = Instance.new("UIGradient", HeaderDivider)
-headerDivGrad.Transparency = NumberSequence.new({
-	NumberSequenceKeypoint.new(0, 0.7),
-	NumberSequenceKeypoint.new(0.18, 0),
-	NumberSequenceKeypoint.new(0.5, 0),
-	NumberSequenceKeypoint.new(0.82, 0),
-	NumberSequenceKeypoint.new(1, 0.7),
-})
-headerDivGrad.Rotation = 0
-local Close = Instance.new("TextButton")
-Close.Name = "Close"
-Close.BackgroundColor3 = COLORS.accentDim
-Close.BackgroundTransparency = 0.15
-Close.Text = "-"
-Close.TextColor3 = COLORS.white
-Close.TextSize = 16
-Close.Font = Enum.Font.GothamBold
-Close.Size = UDim2.new(0, 30, 0, 30)
-Close.Position = UDim2.new(1, -40, 0, 14)
-Close.AutoButtonColor = false
-Close.ZIndex = 5
-Close.Parent = Main
-local closeCorner = Instance.new("UICorner", Close)
-closeCorner.CornerRadius = UDim.new(1, 0)
-local closeStroke = Instance.new("UIStroke", Close)
-closeStroke.Color = COLORS.accent
-closeStroke.Thickness = 1
-closeStroke.Transparency = 0.5
-local Content = Instance.new("ScrollingFrame")
-Content.Name = "Content"
-Content.BackgroundTransparency = 1
-Content.BorderSizePixel = 0
-Content.Position = UDim2.new(0, 8, 0, 78)
-Content.Size = UDim2.new(1, -16, 1, -88)
-Content.ZIndex = 3
-Content.ScrollBarThickness = 0
-Content.AutomaticCanvasSize = Enum.AutomaticSize.Y
-Content.CanvasSize = UDim2.new(0, 0, 0, 0)
-Content.ScrollingDirection = Enum.ScrollingDirection.Y
-Content.Parent = Main
-local ContentLayout = Instance.new("UIListLayout")
-ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder
-ContentLayout.Padding = UDim.new(0, 4)
-ContentLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-ContentLayout.Parent = Content
-local ContentPad = Instance.new("UIPadding")
-ContentPad.PaddingTop = UDim.new(0, 4)
-ContentPad.PaddingBottom = UDim.new(0, 8)
-ContentPad.Parent = Content
-local pages = {}
-local pageOrder = 0
-function addPage(name, displayName)
-pageOrder = pageOrder + 1
-local page = Instance.new("Frame")
-page.Name = name
-page.BackgroundTransparency = 1
-page.Size = UDim2.new(1, 0, 0, 0)
-page.AutomaticSize = Enum.AutomaticSize.Y
-page.ZIndex = 3
-page.LayoutOrder = pageOrder * 1000
-page.Parent = Content
-local layout = Instance.new("UIListLayout")
-layout.Padding = UDim.new(0, 5)
-layout.SortOrder = Enum.SortOrder.LayoutOrder
-layout.Parent = page
-pages[name] = page
+local dragging,ds,sp,held,moved=false,nil,nil,nil,false
+MiniButton.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=true;moved=false;held=input;ds=input.Position;sp=MiniFrame.Position end end)
+UserInputService.InputChanged:Connect(function(input) if not dragging or not ds or not sp then return end; if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end; local d=input.Position-ds; if math.abs(d.X)>6 or math.abs(d.Y)>6 then moved=true end; MiniFrame.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end)
+UserInputService.InputEnded:Connect(function(input) if input~=held then return end; local was=moved; dragging=false;held=nil;ds=nil;sp=nil;if was then return end;Main.Visible=true;MiniFrame.Visible=false;Main.Size=FULL_MAIN_SIZE end)
+local BackgroundIDs={}; function applyBackground(index) Main.BackgroundColor3=COLORS.bg return "None" end
+local Header=Instance.new("Frame",Main); Header.BackgroundColor3=COLORS.row; Header.BackgroundTransparency=0.18; Header.BorderSizePixel=0; Header.Size=UDim2.new(1,0,0,44); Header.ZIndex=6; corner(Header,10)
+local Logo=Instance.new("ImageLabel",Header); Logo.Size=UDim2.new(0,28,0,28); Logo.Position=UDim2.new(0,9,0,8); Logo.BackgroundColor3=Color3.fromRGB(0,0,0); Logo.BackgroundTransparency=0; Logo.ScaleType=Enum.ScaleType.Fit; Logo.ImageTransparency=1; Logo.ZIndex=7; corner(Logo,7); stroke(Logo,COLORS.accentDim,1,0.25)
+local function setLogoImage(asset) if asset and Logo and Logo.Parent then Logo.Image=asset;Logo.ImageTransparency=0 end end
+setLogoImage(getImageAsset and getImageAsset("https://files.catbox.moe/qnr6m8.png","NexusDuelsLogo.png")); watchImageAsset("https://files.catbox.moe/qnr6m8.png","NexusDuelsLogo.png",setLogoImage)
+local Title=Instance.new("TextLabel",Header); Title.BackgroundTransparency=1; Title.Position=UDim2.new(0,47,0,0); Title.Size=UDim2.new(1,-90,1,0); Title.Text="NEXUS DUELS"; Title.TextColor3=COLORS.white; Title.Font=Enum.Font.GothamBlack; Title.TextSize=14; Title.TextXAlignment=Enum.TextXAlignment.Left; Title.ZIndex=7
+local Close=Instance.new("TextButton",Header); Close.Size=UDim2.new(0,26,0,26); Close.Position=UDim2.new(1,-34,0,9); Close.BackgroundColor3=COLORS.input; Close.Text="−"; Close.TextColor3=COLORS.textDim; Close.Font=Enum.Font.GothamBold; Close.TextSize=15; Close.AutoButtonColor=false; Close.ZIndex=8; corner(Close,7); stroke(Close,COLORS.strokeSoft,1,0.25)
+local Content=Instance.new("ScrollingFrame",Main); Content.Name="Content"; Content.BackgroundTransparency=1; Content.BorderSizePixel=0; Content.Position=UDim2.new(0,0,0,44); Content.Size=UDim2.new(1,0,1,-44); Content.ZIndex=3; Content.ScrollBarThickness=0; Content.ScrollBarImageTransparency=1; Content.CanvasSize=UDim2.new(0,0,0,0); Content.AutomaticCanvasSize=Enum.AutomaticSize.Y; Content.ScrollingDirection=Enum.ScrollingDirection.Y; Content.ClipsDescendants=true
+local layout=Instance.new("UIListLayout",Content); layout.SortOrder=Enum.SortOrder.LayoutOrder; layout.Padding=UDim.new(0,2)
+local pad=Instance.new("UIPadding",Content); pad.PaddingLeft=UDim.new(0,7); pad.PaddingRight=UDim.new(0,7); pad.PaddingTop=UDim.new(0,7); pad.PaddingBottom=UDim.new(0,10)
+local pages={}; local pageOrder=0
+function addPage(name,displayName)
+pageOrder=pageOrder+1
+local page=Instance.new("Frame"); page.Name=name; page.BackgroundTransparency=1; page.Size=UDim2.new(1,0,0,0); page.AutomaticSize=Enum.AutomaticSize.Y; page.ZIndex=3; page.LayoutOrder=pageOrder; page.Visible=true; page.Parent=Content
+local pl=Instance.new("UIListLayout",page); pl.SortOrder=Enum.SortOrder.LayoutOrder; pl.Padding=UDim.new(0,4)
+pages[name]=page
 return page
 end
-return Gui, Main, Content, MiniFrame, FULL_MAIN_SIZE, pages, BackgroundIDs, Close
+return Gui,Main,Content,MiniFrame,FULL_MAIN_SIZE,pages,BackgroundIDs,Close
 end)()
 function totalBackgroundCount()
 return 0
@@ -4328,7 +4033,7 @@ function uiExpandSection(parent, labelText, order)
 	local rStroke = Instance.new("UIStroke", r)
 	rStroke.Color = COLORS.stroke
 	rStroke.Thickness = 1
-	rStroke.Transparency = 0.6
+	rStroke.Transparency = 0.82
 	local lbl = Instance.new("TextLabel")
 	lbl.Position = UDim2.new(0, 9, 0, 0)
 	lbl.Size = UDim2.new(1, -50, 1, 0)
@@ -4396,7 +4101,7 @@ corner(row, 7)
 local bs = Instance.new("UIStroke", row)
 bs.Color = COLORS.stroke
 bs.Thickness = 1
-bs.Transparency = 0.6
+bs.Transparency = 0.82
 row.MouseEnter:Connect(function()
 tween(row, {BackgroundColor3 = COLORS.row2}, 0.08)
 end)
@@ -4916,7 +4621,7 @@ Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
 local rStroke = Instance.new("UIStroke", row)
 rStroke.Color = COLORS.stroke
 rStroke.Thickness = 1
-rStroke.Transparency = 0.6
+rStroke.Transparency = 0.82
 local lbl = Instance.new("TextLabel")
 lbl.BackgroundTransparency = 1
 lbl.Text = "Stop At"
@@ -5374,60 +5079,6 @@ do
 		pcol.Padding = UDim.new(0, 4)
 		pcol.Parent = stealPanel
 		autoStealSelectorRow(stealPanel, 1)
-		do
-		local trigRow = Instance.new("Frame")
-		trigRow.Name = "TriggerMode"
-		trigRow.BackgroundColor3 = COLORS.row
-		trigRow.BackgroundTransparency = 0.1
-		trigRow.Size = UDim2.new(1, -4, 0, 30)
-		trigRow.BorderSizePixel = 0
-		trigRow.LayoutOrder = 2
-		trigRow.ZIndex = 4
-		trigRow.Parent = stealPanel
-		Instance.new("UICorner", trigRow).CornerRadius = UDim.new(0, 7)
-		local tlbl = Instance.new("TextLabel")
-		tlbl.BackgroundTransparency = 1
-		tlbl.Text = "Trigger"
-		tlbl.TextColor3 = COLORS.white
-		tlbl.TextSize = 11
-		tlbl.Font = Enum.Font.GothamBold
-		tlbl.Size = UDim2.new(0, 70, 1, 0)
-		tlbl.Position = UDim2.new(0, 9, 0, 0)
-		tlbl.TextXAlignment = Enum.TextXAlignment.Left
-		tlbl.ZIndex = 5
-		tlbl.Parent = trigRow
-		local function makeTrigBtn(name, text, x)
-		local b = Instance.new("TextButton")
-		b.Name = name
-		b.Text = text
-		b.Font = Enum.Font.GothamBold
-		b.TextSize = 9
-		b.TextColor3 = (stealTriggerMode == name) and COLORS.white or COLORS.textDim
-		b.BackgroundColor3 = (stealTriggerMode == name) and COLORS.accent or COLORS.input
-		b.BackgroundTransparency = 0.2
-		b.Size = UDim2.new(0, 50, 0, 20)
-		b.Position = UDim2.new(0, x, 0.5, -10)
-		b.BorderSizePixel = 0
-		b.ZIndex = 5
-		b.Parent = trigRow
-		Instance.new("UICorner", b).CornerRadius = UDim.new(0, 5)
-		return b
-		end
-		local tryBtn2 = makeTrigBtn("Tryhard", "Tryhard", 80)
-		local avgBtn2 = makeTrigBtn("Average", "Average", 136)
-		tryBtn2.Activated:Connect(function()
-		stealTriggerMode = "Tryhard"
-		tryBtn2.BackgroundColor3 = COLORS.accent; tryBtn2.TextColor3 = COLORS.white
-		avgBtn2.BackgroundColor3 = COLORS.input; avgBtn2.TextColor3 = COLORS.textDim
-		saveNexusConfig()
-		end)
-		avgBtn2.Activated:Connect(function()
-		stealTriggerMode = "Average"
-		avgBtn2.BackgroundColor3 = COLORS.accent; avgBtn2.TextColor3 = COLORS.white
-		tryBtn2.BackgroundColor3 = COLORS.input; tryBtn2.TextColor3 = COLORS.textDim
-		saveNexusConfig()
-		end)
-		end
 		local expanded = false
 		arrow.MouseButton1Click:Connect(function()
 			expanded = not expanded
@@ -5435,7 +5086,8 @@ do
 			stealPanel.Visible = expanded
 		end)
 	end
-end
+	end
+end)()
 _nexusBtn = _nexusRow and _nexusRow:FindFirstChild("ToggleButton")
 if _nexusBtn then
 	_nexusBtn.Position = UDim2.new(1, -56, 0.5, -9.5)
@@ -5549,24 +5201,7 @@ do
 			saveNexusConfig()
 		end)
 	end
-	local autoSwingRow, autoSwingSetVisual = _G.NexusActionToggleRow(aimbotPanel, "Auto Swing", autoSwingEnabled, 1)
-	if autoSwingRow then autoSwingRow.BackgroundTransparency = 0.75 end
-	_G.NexusNormalAutoSwingRow = autoSwingRow
-	_G.NexusNormalAutoSwingSetVisual = autoSwingSetVisual
-	if autoSwingRow then
-		local abtn = autoSwingRow:FindFirstChild("ToggleButton")
-		_G.NexusNormalAutoSwingBtn = abtn
-		if abtn then
-			abtn.MouseButton1Click:Connect(function()
-				if _G.NexusAutoSwingClickBusy then return end
-				_G.NexusAutoSwingClickBusy = true
-				autoSwingEnabled = not autoSwingEnabled
-				if autoSwingSetVisual then autoSwingSetVisual(autoSwingEnabled) end
-				saveNexusConfig()
-				task.delay(0.12, function() _G.NexusAutoSwingClickBusy = false end)
-			end)
-		end
-	end
+
 	do
 		local row = baseRow(aimbotPanel, "Aimbot Speed", 2)
 		row.Size = UDim2.new(1, -4, 0, 34)
@@ -5731,7 +5366,6 @@ saveNexusConfig()
 end)
 end
 end
-end)()
 task.wait()
 Keybinds = pages.KEYBINDS
 section(Keybinds, "MOVEMENT KEYBINDS", 1)
@@ -5991,20 +5625,60 @@ _G.NexusStretchFOV = _G.NexusStretchFOV or 0.7
 
 -- No Player Collision (always on)
 do
-local function setNoCollide(char)
-if not char then return end
-for _, part in ipairs(char:GetDescendants()) do
-if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+_G.NexusNoPlayerCollisionState = _G.NexusNoPlayerCollisionState or {connections = {}, running = false}
+_G.NexusNoPlayerCollisionEnabled = true
+
+local function _nexusSetOtherPlayerCollision(state)
+for _, plr in ipairs(Players:GetPlayers()) do
+if plr ~= LP and plr.Character then
+for _, part in ipairs(plr.Character:GetDescendants()) do
+if part:IsA("BasePart") then
+pcall(function() part.CanCollide = state end)
+end
+end
+end
+end
+end
+
+local function _nexusEnableNoPlayerCollision()
+if _G.NexusNoPlayerCollisionState.running then return end
+_G.NexusNoPlayerCollisionEnabled = true
+_G.NexusNoPlayerCollisionState.running = true
+for _, conn in ipairs(_G.NexusNoPlayerCollisionState.connections or {}) do
+pcall(function() conn:Disconnect() end)
+end
+_G.NexusNoPlayerCollisionState.connections = {}
+_nexusSetOtherPlayerCollision(false)
+table.insert(_G.NexusNoPlayerCollisionState.connections, LP.CharacterAdded:Connect(function()
+task.wait(0.5)
+if _G.NexusNoPlayerCollisionEnabled then _nexusSetOtherPlayerCollision(false) end
+end))
+table.insert(_G.NexusNoPlayerCollisionState.connections, Players.PlayerAdded:Connect(function(plr)
+local c = plr.CharacterAdded:Connect(function()
+task.wait(0.5)
+if _G.NexusNoPlayerCollisionEnabled then _nexusSetOtherPlayerCollision(false) end
+end)
+table.insert(_G.NexusNoPlayerCollisionState.connections, c)
+end))
+local collisionScanElapsed = 0
+table.insert(_G.NexusNoPlayerCollisionState.connections, RunService.Heartbeat:Connect(function(dt)
+if not _G.NexusNoPlayerCollisionEnabled then return end
+collisionScanElapsed = collisionScanElapsed + (dt or 0)
+if collisionScanElapsed < 0.25 then return end
+collisionScanElapsed = 0
+for _, plr in ipairs(Players:GetPlayers()) do
+if plr ~= LP and plr.Character then
+for _, part in ipairs(plr.Character:GetDescendants()) do
+if part:IsA("BasePart") and part.CanCollide == true then
 pcall(function() part.CanCollide = false end)
 end
 end
 end
-LP.CharacterAdded:Connect(function(char)
-task.wait(0.5)
-setNoCollide(char)
-char.DescendantAdded:Connect(function() task.wait(0.1); setNoCollide(char) end)
-end)
-if LP.Character then setNoCollide(LP.Character) end
+end
+end))
+end
+
+_nexusEnableNoPlayerCollision()
 end
 
 -- No Camera Collision (always on)
@@ -7027,22 +6701,7 @@ saveNexusConfig()
 end)
 end
 end
-section(Settings, "SAFE MODE", 12)
-do
-local row, _setSafeModeVis = _G.NexusActionToggleRow(Settings, "Safe Mode", antiKickEnabled, 13)
-_G.NexusSetSafeModeVisual = _setSafeModeVis
-_G.NexusSetSafeModeVisual2 = _G.NexusSetSafeModeVisual
-local btn = row and row:FindFirstChild("ToggleButton")
-if btn then
-btn.Activated:Connect(function()
-antiKickEnabled = not antiKickEnabled
-if _G.NexusSetSafeModeVisual then _G.NexusSetSafeModeVisual(antiKickEnabled) end
-if _G.NexusSetSafeModeVisual2 then _G.NexusSetSafeModeVisual2(antiKickEnabled) end
-if antiKickEnabled and _G.NexusSafeModeForceStop then _G.NexusSafeModeForceStop("SAFE MODE") end
-saveNexusConfig()
-end)
-end
-end
+
 section(Settings, "NEXUS LAGGER", 14)
 do
 local row = baseRow(Settings, "Lagger Panel", 15)
@@ -7101,7 +6760,7 @@ Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
 local bs = Instance.new("UIStroke", row)
 bs.Color = COLORS.stroke
 bs.Thickness = 1
-bs.Transparency = 0.6
+bs.Transparency = 0.82
 local label = Instance.new("TextLabel")
 label.Name = "Label"
 label.BackgroundTransparency = 1
@@ -7352,13 +7011,13 @@ autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiS
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
-autoSwingEnabled = false
+autoSwingEnabled = true
 _G.NexusTpBatEnabled = false
 _G.NexusAntiDieOn = false
 _G.NexusNormalAimbotOn = false
 antiRagdollEnabled = false; infJumpEnabled = false; antibatEnabled = false; autoTPEnabled = false
 headlessEnabled = false; korbloxEnabled = false; nexusFitEnabled = false
-batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = false
+batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = true
 espEnabled = false; showTracerEnabled = false; ragdollCountdownEnabled = false
 fpsBoostEnabled = false; antiLagVisualEnabled = false
 _G.NexusStretchRezEnabled = false
@@ -7615,6 +7274,20 @@ radiusLabel.TextSize = 9
 radiusLabel.Font = Enum.Font.Gotham
 radiusLabel.TextXAlignment = Enum.TextXAlignment.Left
 radiusLabel.Parent = pbFrame
+radiusLabel.Visible = false
+local statsLabel = Instance.new("TextLabel", gui)
+statsLabel.Name = "NexusPerformanceStats"
+statsLabel.AnchorPoint = Vector2.new(1, 0)
+statsLabel.Position = UDim2.new(1, -12, 0, 12)
+statsLabel.Size = UDim2.new(0, 190, 0, 22)
+statsLabel.BackgroundTransparency = 1
+statsLabel.Text = "Ping: 0ms  •  FPS: 60"
+statsLabel.TextColor3 = COLORS.white
+statsLabel.TextTransparency = 0.08
+statsLabel.TextSize = 11
+statsLabel.Font = Enum.Font.GothamBold
+statsLabel.TextXAlignment = Enum.TextXAlignment.Right
+statsLabel.ZIndex = 50
 local fillRegion = Instance.new("Frame", pbFrame)
 fillRegion.Size = UDim2.new(1, -16, 0, 14)
 fillRegion.Position = UDim2.new(0, 8, 0, 20)
@@ -7695,7 +7368,7 @@ while pbFrame and pbFrame.Parent do
 		local stat = Stats.Network.ServerStatsItem["Data Ping"]
 		if stat then ping = tonumber(stat:GetValue()) or 0 end
 	end)
-	radiusLabel.Text = string.format("Ping: %dms  •  FPS: %d", math.floor(ping + 0.5), math.floor(fpsAvg + 0.5))
+	if statsLabel and statsLabel.Parent then statsLabel.Text = string.format("Ping: %dms  •  FPS: %d", math.floor(ping + 0.5), math.floor(fpsAvg + 0.5)) end
 	if barState == "IDLE" and nameLabel then
 		local dots = string.rep(".", (math.floor(tick() * 2) % 4))
 		nameLabel.Text = "WAITING" .. dots
@@ -8186,18 +7859,10 @@ local function setActive(btn, state)
 	local visualState = state and "on" or "off"
 	if btn:GetAttribute("NexusMobileVisualState") == visualState then return end
 	btn:SetAttribute("NexusMobileVisualState", visualState)
-	local st = btn:FindFirstChildOfClass("UIStroke")
 	TS:Create(btn, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		BackgroundColor3 = state and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(0, 0, 0),
-		TextColor3 = state and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(255, 255, 255),
+		BackgroundColor3 = state and Color3.fromRGB(235, 235, 235) or Color3.fromRGB(12, 12, 14),
+		TextColor3 = state and Color3.fromRGB(15, 15, 16) or Color3.fromRGB(235, 235, 235),
 	}):Play()
-	if st then
-		TS:Create(st, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Color = state and Color3.fromRGB(0, 0, 0) or Color3.fromRGB(220, 220, 220),
-			Thickness = 1,
-			Transparency = 0,
-		}):Play()
-	end
 end
 local function pulse(btn)
 if not btn then return end
@@ -8241,11 +7906,6 @@ local function makeButton(key, label, pos, onPress)
 	btn.ZIndex = 1002
 	btn.Active = true
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, CORNER_R)
-	local stroke = Instance.new("UIStroke", btn)
-	stroke.Color = Color3.fromRGB(220, 220, 220)
-	stroke.Thickness = 1
-	stroke.Transparency = 0
-	stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
 	local pressing, dragging = false, false
 	local pressPos, holderStart = nil, nil
 	btn.InputBegan:Connect(function(i)
