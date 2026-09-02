@@ -58,6 +58,9 @@ AIMBOT_HEIGHT = 1.5
 AIMBOT_V_OFF = 0.5
 AIMBOT_TURN_SPEED = 300
 AIMBOT_MAX_TURN_RATE = 32
+VYSE_HIT_DIST = 5
+SWING_COOLDOWN = 0.08
+_nexusNormalAimbotSwingCooldown = false
 
 autoSwingEnabled = true
 faceTrackEnabled = false
@@ -1102,7 +1105,7 @@ out[keyId] = keyToString(key)
 end
 return out
 end
-function collectAceKeybindConfig()
+function collectNexusKeybindConfig()
 return {
 keybinds = keybindsToTable(),
 tpDownKeybind = keyToString(tpDownKeybind),
@@ -1116,13 +1119,13 @@ speedKeybinds[keyId] = stringToKeyCode(t[keyId])
 end
 end
 end
-function applyDefaultAceKeybinds()
+function applyDefaultNexusKeybinds()
 for keyId, key in pairs(DEFAULT_SPEED_KEYBINDS) do
 speedKeybinds[keyId] = key
 end
 tpDownKeybind = DEFAULT_TP_DOWN_KEYBIND
 end
-function collectAceConfig()
+function collectNexusConfig()
 return {
 mainPosition = savedMainPositionTable,
 keybinds = keybindsToTable(),
@@ -1192,17 +1195,21 @@ currentBackground = currentBackground,
 	grabTimerEnabled = grabTimerEnabled == true,bodyLockEnabled = bodyLockEnabled == true,
 bodyLockRadius = bodyLockRadius,
 tpBatOnHitEnabled = tpBatOnHitEnabled == true,
+tpBatMode = _G.NexusTpBatMode or "Orbit",
+tpBatSilentAim = _G.NexusTpBatSilentAim == true,
+tpBatOrbitSpeed = _G.NexusTpBatOrbitSpeed or 25,
+tpBatOrbitRadius = _G.NexusTpBatOrbitRadius or 2.5,
 faceTrackEnabled = faceTrackEnabled == true,
 }
 end
 function saveNexusConfig()
 if not canSaveConfig then return end
 pcall(function()
-_nexus_writefile(CONFIG_FILE, HttpService:JSONEncode(collectAceConfig()))
-_nexus_writefile(KEYBINDS_CONFIG_FILE, HttpService:JSONEncode(collectAceKeybindConfig()))
+_nexus_writefile(CONFIG_FILE, HttpService:JSONEncode(collectNexusConfig()))
+_nexus_writefile(KEYBINDS_CONFIG_FILE, HttpService:JSONEncode(collectNexusKeybindConfig()))
 end)
 end
-function loadAceConfig()
+function loadNexusConfig()
 if not canSaveConfig or not _nexus_isfile(CONFIG_FILE) then return end
 local ok, data = pcall(function()
 return HttpService:JSONDecode(_nexus_readfile(CONFIG_FILE))
@@ -1257,14 +1264,14 @@ infJumpEnabled = data.infJumpEnabled == true
 	headlessEnabled = nexusFitEnabled
 	korbloxEnabled = nexusFitEnabled
 	selectedAnimationPack = data.selectedAnimationPack or selectedAnimationPack
-selectedStealMode = "Semi"
+selectedStealMode = data.selectedStealMode or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
 local loadedStopPct = tonumber(data.semiStopPercent)
 semiStopPercent = loadedStopPct == 75 and 75 or 90
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
-stealTriggerMode = "Tryhard"
-selectedAimbotMode = "Normal"
+stealTriggerMode = data.stealTriggerMode or "Tryhard"
+selectedAimbotMode = data.selectedAimbotMode or "Normal"
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
@@ -1307,12 +1314,16 @@ bodyLockEnabled = data.bodyLockEnabled == true
 bodyLockRadius = tonumber(data.bodyLockRadius) or 60
 if data.fovIndex then fovIndex = tonumber(data.fovIndex) or fovIndex end
 tpBatOnHitEnabled = data.tpBatOnHitEnabled == true
+if data.tpBatMode then _G.NexusTpBatMode = data.tpBatMode end
+if data.tpBatSilentAim ~= nil then _G.NexusTpBatSilentAim = data.tpBatSilentAim == true end
+if data.tpBatOrbitSpeed then _G.NexusTpBatOrbitSpeed = tonumber(data.tpBatOrbitSpeed) or 25 end
+if data.tpBatOrbitRadius then _G.NexusTpBatOrbitRadius = tonumber(data.tpBatOrbitRadius) or 2.5 end
 faceTrackEnabled = data.faceTrackEnabled == true
 if autoLeftEnabled and autoRightEnabled then autoRightEnabled = false end
 if autoPlayEnabled and autoLeftEnabled then autoPlayEnabled = false end
 if autoPlayEnabled and autoRightEnabled then autoPlayEnabled = false end
 end
-loadAceConfig()
+loadNexusConfig()
 local function syncAnimationPackIndex()
 for i, name in ipairs(AnimationPackList) do
 if name == selectedAnimationPack then
@@ -1833,37 +1844,17 @@ end
 return nil
 end
 function _G.NexusGetClosestAimbotTarget()
-local root = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-if not root then return nil end
-local ab = _G.NexusNormalAimbot
-local now = tick()
-local stickyChar = ab._stickyTarget
-if stickyChar and stickyChar.Parent then
-local sRoot = stickyChar:FindFirstChild("HumanoidRootPart")
-local sHum = stickyChar:FindFirstChildOfClass("Humanoid")
-if sRoot and sHum and sHum.Health > 0 then
-local sDist = (sRoot.Position - root.Position).Magnitude
-if sDist < 75 then
-ab._lastScan = now
-ab.target = sRoot
-return sRoot
-end
-end
-ab._stickyTarget = nil
-ab._velHistory = {}
-end
-if now - (ab._lastScan or 0) <= 0.08 and ab.target and ab.target.Parent then
-local hum = ab.target.Parent:FindFirstChildOfClass("Humanoid")
-if hum and hum.Health > 0 then return ab.target end
-end
-ab._lastScan = now
+local char = LP.Character
+if not char then return nil, math.huge end
+local root = char:FindFirstChild("HumanoidRootPart")
+if not root then return nil, math.huge end
 local closest, minDist = nil, math.huge
 for _, plr in ipairs(Players:GetPlayers()) do
 if plr ~= LP and plr.Character then
 local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
 local hum = plr.Character:FindFirstChildOfClass("Humanoid")
 if tRoot and hum and hum.Health > 0 then
-local dist = (tRoot.Position - root.Position).Magnitude
+local dist = (root.Position - tRoot.Position).Magnitude
 if dist < minDist then
 minDist = dist
 closest = tRoot
@@ -1871,14 +1862,7 @@ end
 end
 end
 end
-if closest then
-local sChar = closest.Parent
-if sChar and Players:GetPlayerFromCharacter(sChar) then
-ab._stickyTarget = sChar
-end
-end
-ab.target = closest
-return closest
+return closest, minDist
 end
 function _G.NexusGetNormalAimbotSpeed()
 if currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry" then
@@ -1960,12 +1944,12 @@ if not char then return end
 local root = char:FindFirstChild("HumanoidRootPart")
 if not root then return end
 local hum = char:FindFirstChildOfClass("Humanoid")
-if not hum then return end
+if not hum or hum.Health <= 0 then return end
 if not char:FindFirstChildOfClass("Tool") then
 local bat2 = _G.NexusFindAimbotBat()
 if bat2 then pcall(function() hum:EquipTool(bat2) end) end
 end
-local target = _G.NexusGetClosestAimbotTarget()
+local target, dist = _G.NexusGetClosestAimbotTarget()
 if not target then
 _G.NexusNormalAimbot.target = nil
 hum.AutoRotate = true
@@ -1977,20 +1961,13 @@ _G.NexusNormalAimbot.target = target
 local targetVel = target.AssemblyLinearVelocity
 local myPos = root.Position
 local targetPos = target.Position
-local predictPos = targetPos + targetVel * 0.14
-predictPos = predictPos + target.CFrame.LookVector * 0.3
+local predictPos = targetPos + targetVel * 0.14 + target.CFrame.LookVector * 0.3
 local direction = predictPos - myPos
-local flatDir = Vector3.new(direction.X, 0, direction.Z)
-if flatDir.Magnitude > 0.01 then
-flatDir = flatDir.Unit
-else flatDir = Vector3.new(0, 0, 1)
-end
+local flatDir = Vector3.new(direction.X, 0, direction.Z).Unit
 local chaseSpeed = 58
 local desiredHeight = targetPos.Y + 3.7
 local yVel = (desiredHeight - myPos.Y) * 19.5 + targetVel.Y * 0.8
-if hum.FloorMaterial ~= Enum.Material.Air then
-    yVel = math.max(yVel, 13)
-end
+if hum.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 13) end
 yVel = math.clamp(yVel, -70, 110)
 local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
 root.AssemblyLinearVelocity = root.AssemblyLinearVelocity:Lerp(desiredVel, 0.8)
@@ -1999,19 +1976,27 @@ local predictTime = math.clamp(speed3 / 150, 0.05, 0.2)
 local predictedPos = targetPos + targetVel * predictTime
 local toPredict = predictedPos - myPos
 if toPredict.Magnitude > 0.1 then
-    local goalCF = CFrame.lookAt(myPos, predictedPos)
-    local diffCF = root.CFrame:Inverse() * goalCF
-    local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
-    rx = math.clamp(rx, -2.5, 2.5)
-    ry = math.clamp(ry, -2.5, 2.5)
-    rz = math.clamp(rz, -2.5, 2.5)
-    root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * 42, ry * 42, rz * 42))
+local goalCF = CFrame.lookAt(myPos, predictedPos)
+local curCF = root.CFrame
+local diffCF = curCF:Inverse() * goalCF
+local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
+rx = math.clamp(rx, -2.5, 2.5); ry = math.clamp(ry, -2.5, 2.5); rz = math.clamp(rz, -2.5, 2.5)
+local tiltSpeed = 42
+root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * tiltSpeed, ry * tiltSpeed, rz * tiltSpeed))
 end
-if autoSwingEnabled then
-    local bat = char:FindFirstChild("Bat") or _G.NexusFindAimbotBat()
-    if bat and bat:IsA("Tool") then
-        pcall(function() bat:Activate() end)
-    end
+if dist <= VYSE_HIT_DIST and autoSwingEnabled then
+if not _nexusNormalAimbotSwingCooldown then
+_nexusNormalAimbotSwingCooldown = true
+pcall(function()
+local bat = _G.NexusFindAimbotBat()
+if bat then
+pcall(function() bat:Activate() end)
+local remote = bat:FindFirstChildWhichIsA("RemoteEvent")
+if remote then pcall(function() remote:FireServer() end) end
+end
+end)
+task.delay(SWING_COOLDOWN, function() _nexusNormalAimbotSwingCooldown = false end)
+end
 end
 end)
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
@@ -2109,7 +2094,6 @@ function _G.NexusStartBypassAimbot()
     local ba = _G.NexusBypassAimbot
     if ba.conn then ba.conn:Disconnect(); ba.conn = nil end
     _G.NexusNormalAimbotOn = true
-    autoSwingEnabled = true
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then ba.prevAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
@@ -2250,112 +2234,163 @@ end)
 -- TP BAT (Bypass Aimbot) — from Cursed Hub
 -- Teleports behind closest enemy and swings bat.
 -- Modes: Regular (orbit), OP, V3, OP V4
--- ============================================================local _tpBatHittingCooldown = false
+-- ============================================================
+local _tpBatHittingCooldown = false
 local _tpBatHittingCooldownTime = 0.08
 
+_G.NexusTpBatMode = _G.NexusTpBatMode or "Orbit"
+_G.NexusTpBatSilentAim = _G.NexusTpBatSilentAim or false
+_G.NexusTpBatOrbitSpeed = _G.NexusTpBatOrbitSpeed or 25
+_G.NexusTpBatOrbitRadius = _G.NexusTpBatOrbitRadius or 2.5
+
+local XLU0_TP_BAT_NAMES = {
+    "Bat","Slap","Iron Slap","Gold Slap","Diamond Slap",
+    "Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap",
+    "Nuclear Slap","Galaxy Slap","Glitched Slap"
+}
+
 local function _nexusTpBatGetBat()
-local char = LP.Character
-if not char then return nil end
-local tool = char:FindFirstChild("Bat")
-if tool then return tool end
-local bp = LP:FindFirstChild("Backpack")
-if bp then
-tool = bp:FindFirstChild("Bat")
-if tool then
-tool.Parent = char
-return tool
-end
-end
-return nil
+    local char = LP.Character
+    if not char then return nil end
+    for _, name in ipairs(XLU0_TP_BAT_NAMES) do
+        local tool = char:FindFirstChild(name)
+        if tool and tool:IsA("Tool") then return tool end
+    end
+    for _, ch in ipairs(char:GetChildren()) do
+        if ch:IsA("Tool") and ch.Name:lower():find("bat") then return ch end
+    end
+    local bp = LP:FindFirstChild("Backpack")
+    if bp then
+        for _, name in ipairs(XLU0_TP_BAT_NAMES) do
+            local tool = bp:FindFirstChild(name)
+            if tool and tool:IsA("Tool") then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then pcall(function() hum:EquipTool(tool) end) end
+                return tool
+            end
+        end
+        for _, ch in ipairs(bp:GetChildren()) do
+            if ch:IsA("Tool") and ch.Name:lower():find("bat") then
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                if hum then pcall(function() hum:EquipTool(ch) end) end
+                return ch
+            end
+        end
+    end
+    return nil
 end
 
 local function _nexusTpBatTryHit()
-if _tpBatHittingCooldown then return end
-_tpBatHittingCooldown = true
-pcall(function()
-local bat = _nexusTpBatGetBat()
-if bat then
-bat:Activate()
-local ev = bat:FindFirstChildWhichIsA("RemoteEvent")
-if ev then ev:FireServer() end
-end
-end)
-task.delay(_tpBatHittingCooldownTime, function() _tpBatHittingCooldown = false end)
+    if _tpBatHittingCooldown then return end
+    _tpBatHittingCooldown = true
+    pcall(function()
+        local bat = _nexusTpBatGetBat()
+        if bat then
+            bat:Activate()
+            local ev = bat:FindFirstChildWhichIsA("RemoteEvent")
+            if ev then ev:FireServer() end
+        end
+    end)
+    task.delay(_tpBatHittingCooldownTime, function() _tpBatHittingCooldown = false end)
 end
 
 local function _nexusTpBatGetClosestPlayer()
-if not _G.NexusTpBatHrp then return nil, math.huge end
-local closest, closestDist = nil, math.huge
-for _, p in pairs(Players:GetPlayers()) do
-if p ~= LP and p.Character then
-local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
-if tRoot then
-local dist = (_G.NexusTpBatHrp.Position - tRoot.Position).Magnitude
-if dist < closestDist then
-closestDist = dist
-closest = p
-end
-end
-end
-end
-return closest, closestDist
+    if not _G.NexusTpBatHrp then return nil, math.huge end
+    local closest, closestDist = nil, math.huge
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LP and p.Character then
+            local tRoot = p.Character:FindFirstChild("HumanoidRootPart")
+            local tHum = p.Character:FindFirstChildOfClass("Humanoid")
+            if tRoot and tHum and tHum.Health > 0 then
+                local dist = (_G.NexusTpBatHrp.Position - tRoot.Position).Magnitude
+                if dist < closestDist then
+                    closestDist = dist
+                    closest = p
+                end
+            end
+        end
+    end
+    return closest, closestDist
 end
 
 function _G.NexusStartTpBat()
-if _G.NexusTpBatConn then return end
-if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
-if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
-if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-_G.NexusTpBatEnabled = true
-_G.NexusTpBatRemoteCache = nil
+    if _G.NexusTpBatConn then return end
+    if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
+    if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
+    if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+    _G.NexusTpBatEnabled = true
+    _G.NexusTpBatRemoteCache = nil
 
-local function setupChar(char)
-if not char then return end
-_G.NexusTpBatH = char:FindFirstChildOfClass("Humanoid")
-_G.NexusTpBatHrp = char:FindFirstChild("HumanoidRootPart")
-end
-if LP.Character then setupChar(LP.Character) end
-LP.CharacterAdded:Connect(function(char)
-if _G.NexusTpBatEnabled then task.wait(0.2); setupChar(char) end
-end)
+    local function setupChar(char)
+        if not char then return end
+        _G.NexusTpBatH = char:FindFirstChildOfClass("Humanoid")
+        _G.NexusTpBatHrp = char:FindFirstChild("HumanoidRootPart")
+    end
+    if LP.Character then setupChar(LP.Character) end
+    LP.CharacterAdded:Connect(function(char)
+        if _G.NexusTpBatEnabled then task.wait(0.2); setupChar(char) end
+    end)
 
-_G.NexusTpBatConn = RunService.Heartbeat:Connect(function()
-if not _G.NexusTpBatEnabled then return end
+    _G.NexusTpBatConn = RunService.Heartbeat:Connect(function()
+        if not _G.NexusTpBatEnabled then return end
 
-if not _G.NexusTpBatHrp or not _G.NexusTpBatHrp.Parent then
-if LP.Character then setupChar(LP.Character) end
-if not _G.NexusTpBatHrp then return end
-end
+        if not _G.NexusTpBatHrp or not _G.NexusTpBatHrp.Parent then
+            if LP.Character then setupChar(LP.Character) end
+            if not _G.NexusTpBatHrp then return end
+        end
 
-local target, dist = _nexusTpBatGetClosestPlayer()
-if target and target.Character then
-local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
-if tRoot then
-pcall(function()
-if sethiddenproperty then
-sethiddenproperty(_G.NexusTpBatHrp, "PhysicsRepRootPart", tRoot)
-end
-end)
-local targetPos = tRoot.Position + Vector3.new(0, 0.9, 0)
-if (_G.NexusTpBatHrp.Position - targetPos).Magnitude > 8 then
-_G.NexusTpBatHrp.CFrame = CFrame.new(targetPos)
-end
-local cam = workspace.CurrentCamera
-if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
-_nexusTpBatTryHit()
-end
-end
-end)
+        local target, dist = _nexusTpBatGetClosestPlayer()
+        if target and target.Character then
+            local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
+            if tRoot then
+                pcall(function()
+                    if sethiddenproperty then
+                        sethiddenproperty(_G.NexusTpBatHrp, "PhysicsRepRootPart", tRoot)
+                        pcall(function() sethiddenproperty(_G.NexusTpBatHrp, "NetworkOwnership", 9999) end)
+                    end
+                end)
 
-_G.NexusAutoTPRestoreWanted = false
-if not _G.NexusAntiDieOn then
-_G.NexusTpBatAutoAntiDie = true
-if _G.NexusStartAntiDie then pcall(_G.NexusStartAntiDie) end
-end
+                if _G.NexusTpBatMode == "Orbit" then
+                    local currentTime = tick()
+                    local speed = _G.NexusTpBatOrbitSpeed
+                    local radius = _G.NexusTpBatOrbitRadius
+                    local offsetX = math.sin(currentTime * speed) * radius
+                    local offsetZ = math.cos(currentTime * speed) * radius
+                    _G.NexusTpBatHrp.CFrame = CFrame.new(
+                        tRoot.Position + Vector3.new(offsetX, 0, offsetZ),
+                        tRoot.Position
+                    )
+                elseif _G.NexusTpBatMode == "Behind" then
+                    local behind = tRoot.CFrame * CFrame.new(0, 0, 3)
+                    _G.NexusTpBatHrp.CFrame = CFrame.new(behind.Position, tRoot.Position)
+                    _G.NexusTpBatHrp.AssemblyLinearVelocity = Vector3.zero
+                    _G.NexusTpBatHrp.AssemblyAngularVelocity = Vector3.zero
+                else
+                    local targetPos = tRoot.Position + Vector3.new(0, 0.9, 0)
+                    if (_G.NexusTpBatHrp.Position - targetPos).Magnitude > 8 then
+                        _G.NexusTpBatHrp.CFrame = CFrame.new(targetPos)
+                    end
+                end
 
-if _G.NexusSetTpBatVisual then _G.NexusSetTpBatVisual(true) end
-saveNexusConfig()
-return true
+                if not _G.NexusTpBatSilentAim then
+                    local cam = workspace.CurrentCamera
+                    if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
+                end
+
+                _nexusTpBatTryHit()
+            end
+        end
+    end)
+
+    _G.NexusAutoTPRestoreWanted = false
+    if not _G.NexusAntiDieOn then
+        _G.NexusTpBatAutoAntiDie = true
+        if _G.NexusStartAntiDie then pcall(_G.NexusStartAntiDie) end
+    end
+
+    if _G.NexusSetTpBatVisual then _G.NexusSetTpBatVisual(true) end
+    saveNexusConfig()
+    return true
 end
 
 function _G.NexusStopTpBat()
@@ -2384,6 +2419,24 @@ end
 
 function _G.NexusToggleTpBat()
 if _G.NexusTpBatEnabled then _G.NexusStopTpBat() else _G.NexusStartTpBat() end
+end
+
+function _G.NexusSetTpBatMode(mode)
+if mode == "Orbit" or mode == "Behind" or mode == "Default" then
+_G.NexusTpBatMode = mode
+saveNexusConfig()
+end
+end
+
+function _G.NexusToggleTpBatSilentAim()
+_G.NexusTpBatSilentAim = not _G.NexusTpBatSilentAim
+saveNexusConfig()
+end
+
+function _G.NexusSetTpBatOrbit(speed, radius)
+if speed then _G.NexusTpBatOrbitSpeed = speed end
+if radius then _G.NexusTpBatOrbitRadius = radius end
+saveNexusConfig()
 end
 
 _G.NexusTpBatSwing = function(bat)
@@ -7029,7 +7082,7 @@ if _nexusAutoFitScale then _nexusAutoFitScale() end
 _G.NexusManualScale = false
 applyNexusProgressBarScale()
 applyBackground(0)
-applyDefaultAceKeybinds()
+applyDefaultNexusKeybinds()
 refreshAllSpeedKeybinds()
 if stopAutoTP then stopAutoTP() end
 if stopAntiRagdoll then stopAntiRagdoll() end
@@ -7768,9 +7821,9 @@ if setAutoTPVisual then setAutoTPVisual(true) end
 saveNexusConfig()
 end
 RunService.Heartbeat:Connect(nexusTryRestoreAutoTP)
-_G._oldAceStopNormalAimbot = _G.NexusStopNormalAimbot
+_G._oldNexusStopNormalAimbot = _G.NexusStopNormalAimbot
 _G.NexusStopNormalAimbot = function(...)
-local r = {_G._oldAceStopNormalAimbot(...)}
+local r = {_G._oldNexusStopNormalAimbot(...)}
 _G.NexusAutoTPRestoreBlockedUntil = tick() + 0.05
 task.delay(0.08, nexusTryRestoreAutoTP)
 return unpack(r)
@@ -7798,10 +7851,10 @@ if tpDownKeybind == Enum.KeyCode.Unknown then tpDownKeybind = DEFAULT_TP_DOWN_KE
 if refreshAllSpeedKeybinds then refreshAllSpeedKeybinds() end
 if refreshTPDownKeybind then refreshTPDownKeybind() end
 end
-_G._oldSaveAceConfigStable = saveNexusConfig
+_G._oldSaveNexusConfigStable = saveNexusConfig
 saveNexusConfig = function()
 nexusRepairKeybinds()
-return _G._oldSaveAceConfigStable()
+return _G._oldSaveNexusConfigStable()
 end
 nexusRepairKeybinds()
 task.defer(function()
