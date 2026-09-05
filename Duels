@@ -4232,10 +4232,11 @@ end)
 local MainUIScale = Instance.new("UIScale", Main)
 MainUIScale.Name = "NexusMainUIScale"
 MainUIScale.Scale = 1
+_G.NexusMainUIScaleRef = MainUIScale
 local dragging,ds,sp,held,moved=false,nil,nil,nil,false
 OpenPill.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=true;moved=false;held=input;ds=input.Position;sp=OpenPill.Position end end)
 UserInputService.InputChanged:Connect(function(input) if not dragging or not ds or not sp then return end; if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end; local d=input.Position-ds; if math.abs(d.X)>6 or math.abs(d.Y)>6 then moved=true end; OpenPill.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end)
-UserInputService.InputEnded:Connect(function(input) if input~=held then return end; local was=moved; dragging=false;held=nil;ds=nil;sp=nil;if was then return end; _G.__NexusDuelsMinimized=false; local TS=game:GetService("TweenService"); local cf=Main:FindFirstChild("ChromeFade"); local pillUiScale=OpenPill:FindFirstChildOfClass("UIScale"); if not pillUiScale then pillUiScale=Instance.new("UIScale",OpenPill) end; pillUiScale.Scale=1; TS:Create(pillUiScale,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Scale=0.85}):Play(); TS:Create(OpenPill,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=0.5}):Play(); task.delay(0.12,function() OpenPill.Visible=false; OpenPill.BackgroundTransparency=0; Main.Visible=true; if MainUIScale then MainUIScale.Scale=0.82 end; Main.BackgroundTransparency=0.35; if cf then cf.GroupTransparency=1 end; Main.Size=FULL_MAIN_SIZE; if MainUIScale then TS:Create(MainUIScale,TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1}):Play() end; TS:Create(Main,TweenInfo.new(0.25,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{BackgroundTransparency=0.02}):Play(); if cf then TS:Create(cf,TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{GroupTransparency=0}):Play() end; saveNexusConfig() end) end)
+UserInputService.InputEnded:Connect(function(input) if input~=held then return end; local was=moved; dragging=false;held=nil;ds=nil;sp=nil;if was then return end; _G.__NexusDuelsMinimized=false; local TS=game:GetService("TweenService"); local cf=Main:FindFirstChild("ChromeFade"); local pillUiScale=OpenPill:FindFirstChildOfClass("UIScale"); if not pillUiScale then pillUiScale=Instance.new("UIScale",OpenPill) end; pillUiScale.Scale=1; TS:Create(pillUiScale,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Scale=0.85}):Play(); TS:Create(OpenPill,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=0.5}):Play(); task.delay(0.12,function() OpenPill.Visible=false; OpenPill.BackgroundTransparency=0; Main.Visible=true; local _mr=_G.NexusMainUIScaleRef; if _mr then _mr.Scale=nexusGuiScaleValue*0.82 end; Main.BackgroundTransparency=0.35; if cf then cf.GroupTransparency=1 end; Main.Size=FULL_MAIN_SIZE; if _mr then TS:Create(_mr,TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=nexusGuiScaleValue}):Play() end; TS:Create(Main,TweenInfo.new(0.25,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{BackgroundTransparency=0.02}):Play(); if cf then TS:Create(cf,TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{GroupTransparency=0}):Play() end; saveNexusConfig() end) end)
 local BackgroundIDs={}
 function applyBackground(index)
 currentBackground = tonumber(index) or 0
@@ -6882,22 +6883,22 @@ nexusGuiScaleValue = tonumber(savedConfig.nexusGuiScaleValue) or 1
 nexusGuiScaleValue = math.clamp(tonumber(nexusGuiScaleValue) or 1, 0.35, 1.2)
 _G.NexusManualScale = savedConfig.nexusManualScale == true
 nexusProgressBarScaleValue = tonumber(savedConfig.nexusProgressBarScaleValue) or nexusProgressBarScaleValue
-nexusMainScale = Main:FindFirstChild("NexusMainScale") or Instance.new("UIScale")
-nexusMainScale.Name = "NexusMainScale"
+if _G.NexusMainUIScaleRef then
 if _G.NexusManualScale then
-nexusMainScale.Scale = nexusGuiScaleValue
+_G.NexusMainUIScaleRef.Scale = nexusGuiScaleValue
 else
 local viewSize = workspace.CurrentCamera.ViewportSize
 local fitW = math.clamp((viewSize.X * 0.75) / 380, 0.35, 1.2)
 local fitH = math.clamp((viewSize.Y * 0.75) / 520, 0.35, 1.2)
-nexusMainScale.Scale = math.min(fitW, fitH)
+_G.NexusMainUIScaleRef.Scale = math.min(fitW, fitH)
 end
-nexusMainScale.Parent = Main
+end
 local function _nexusAutoFitScale()
 local viewSize = workspace.CurrentCamera.ViewportSize
 local fitW = math.clamp((viewSize.X * 0.75) / 380, 0.35, 1.2)
 local fitH = math.clamp((viewSize.Y * 0.75) / 520, 0.35, 1.2)
-nexusMainScale.Scale = math.min(fitW, fitH)
+local scale = _G.NexusMainUIScaleRef or Main:FindFirstChild("NexusMainUIScale")
+if scale then scale.Scale = math.min(fitW, fitH) end
 end
 pcall(function()
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
@@ -7430,7 +7431,8 @@ return row
 end
 stepperRow(Settings, "GUI Scale", nexusGuiScaleValue, 3, function(v)
 nexusGuiScaleValue = v
-nexusMainScale.Scale = v
+local scale = _G.NexusMainUIScaleRef or Main:FindFirstChild("NexusMainUIScale")
+if scale then scale.Scale = v end
 _G.NexusManualScale = true
 saveNexusConfig()
 end)
@@ -7658,13 +7660,13 @@ if Main.Visible then
 	_G.__NexusDuelsMinimized = true
 	local TS = game:GetService("TweenService")
 	local cf = Main:FindFirstChild("ChromeFade")
-	if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.82}):Play() end
+	if _G.NexusMainUIScaleRef then TS:Create(_G.NexusMainUIScaleRef, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = nexusGuiScaleValue * 0.82}):Play() end
 	TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.35}):Play()
 	if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {GroupTransparency = 1}):Play() end
 	task.delay(0.3, function()
 		Main.Visible = false
 		OpenPill.Visible = true
-		if MainUIScale then MainUIScale.Scale = 1 end
+		if _G.NexusMainUIScaleRef then _G.NexusMainUIScaleRef.Scale = nexusGuiScaleValue end
 		Main.BackgroundTransparency = 0.02
 		if cf then cf.GroupTransparency = 0 end
 		Main.Size = FULL_MAIN_SIZE
@@ -7686,11 +7688,11 @@ else
 		OpenPill.Visible = false
 		OpenPill.BackgroundTransparency = 0
 		Main.Visible = true
-		if MainUIScale then MainUIScale.Scale = 0.82 end
+		if _G.NexusMainUIScaleRef then _G.NexusMainUIScaleRef.Scale = nexusGuiScaleValue * 0.82 end
 		Main.BackgroundTransparency = 0.35
 		if cf then cf.GroupTransparency = 1 end
 		Main.Size = FULL_MAIN_SIZE
-		if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
+		if _G.NexusMainUIScaleRef then TS:Create(_G.NexusMainUIScaleRef, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = nexusGuiScaleValue}):Play() end
 		TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.02}):Play()
 		if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play() end
 	end)
@@ -8126,13 +8128,13 @@ Close.Activated:Connect(function()
 	_G.__NexusDuelsMinimized = true
 	local TS = game:GetService("TweenService")
 	local cf = Main:FindFirstChild("ChromeFade")
-	if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.82}):Play() end
+	if _G.NexusMainUIScaleRef then TS:Create(_G.NexusMainUIScaleRef, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = nexusGuiScaleValue * 0.82}):Play() end
 	TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.35}):Play()
 	if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {GroupTransparency = 1}):Play() end
 	task.delay(0.3, function()
 		Main.Visible = false
 		OpenPill.Visible = true
-		if MainUIScale then MainUIScale.Scale = 1 end
+		if _G.NexusMainUIScaleRef then _G.NexusMainUIScaleRef.Scale = nexusGuiScaleValue end
 		Main.BackgroundTransparency = 0.02
 		if cf then cf.GroupTransparency = 0 end
 		Main.Size = FULL_MAIN_SIZE
@@ -8157,11 +8159,11 @@ OpenPill.Activated:Connect(function()
 		OpenPill.Visible = false
 		OpenPill.BackgroundTransparency = 0
 		Main.Visible = true
-		if MainUIScale then MainUIScale.Scale = 0.82 end
+		if _G.NexusMainUIScaleRef then _G.NexusMainUIScaleRef.Scale = nexusGuiScaleValue * 0.82 end
 		Main.BackgroundTransparency = 0.35
 		if cf then cf.GroupTransparency = 1 end
 		Main.Size = FULL_MAIN_SIZE
-		if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
+		if _G.NexusMainUIScaleRef then TS:Create(_G.NexusMainUIScaleRef, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = nexusGuiScaleValue}):Play() end
 		TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.02}):Play()
 		if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play() end
 		saveNexusConfig()
