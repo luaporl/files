@@ -36,6 +36,8 @@ local savedConfig = {
     autoSubmit    = true,
     submitAfter   = 3,
     riddleSolver  = true,
+    spamRedeem    = true,
+    listenKeybind = "V",
     background    = "122844405016323",
 }
 
@@ -47,6 +49,8 @@ pcall(function()
             if type(decoded.autoSubmit)    == "boolean" then savedConfig.autoSubmit    = decoded.autoSubmit    end
             if type(decoded.submitAfter)   == "number"  then savedConfig.submitAfter   = math.max(1, math.floor(decoded.submitAfter)) end
             if type(decoded.riddleSolver)  == "boolean" then savedConfig.riddleSolver  = decoded.riddleSolver  end
+            if type(decoded.spamRedeem)     == "boolean" then savedConfig.spamRedeem     = decoded.spamRedeem     end
+            if type(decoded.listenKeybind)  == "string"  and #decoded.listenKeybind == 1 then savedConfig.listenKeybind = decoded.listenKeybind:upper() end
             if type(decoded.background)    == "string"  then
                 for _, bg in ipairs(BACKGROUNDS) do
                     if bg.id == decoded.background then savedConfig.background = decoded.background; break end
@@ -67,6 +71,8 @@ local function saveConfig()
                 autoSubmit   = savedConfig.autoSubmit,
                 submitAfter  = savedConfig.submitAfter,
                 riddleSolver = savedConfig.riddleSolver,
+                spamRedeem   = savedConfig.spamRedeem,
+                listenKeybind = savedConfig.listenKeybind,
                 background   = savedConfig.background,
             }))
         end)
@@ -86,6 +92,9 @@ local _submitAfter         = savedConfig.submitAfter
 local _capturedParts       = {}
 local _lastWatchedBox      = nil
 local _riddleSolver        = savedConfig.riddleSolver
+local _spamRedeem          = savedConfig.spamRedeem
+local _listenKeybind       = savedConfig.listenKeybind or "V"
+local _listenKeyConn       = nil
 local _backgroundChoice    = savedConfig.background
 local _lastNonBlankBoxText = ""
 local _lastStatusMsg       = nil
@@ -2674,7 +2683,7 @@ local function nexusRedeem(code)
 end
 
 -- ============================================================================
--- REDEEM QUEUE + STATS (server-friendly, no spam)
+-- REDEEM QUEUE + STATS
 -- ============================================================================
 local function processQueue()
     if isProcessingQueue then return end
@@ -2691,6 +2700,40 @@ local function processQueue()
         local t0 = tick()
         local ok, res = nexusRedeem(code)
         local latency = math.floor((tick() - t0) * 1000)
+
+        if _spamRedeem and ok then
+            local box = nexusCodeBox()
+            if box then
+                for i = 1, 15 do
+                    task.wait(0.05)
+                    pcall(function()
+                        box.Text = code
+                        box.Active = true
+                        box.Selectable = true
+                    end)
+                    fireBoxFocusLost(box)
+                    local searchNames = {"submit","redeem","claim","confirm","enter","send","apply","ok","use","go","check"}
+                    local p = box.Parent
+                    for _ = 1, 6 do
+                        if not p then break end
+                        for _, d in ipairs(p:GetDescendants()) do
+                            if (d:IsA("TextButton") or d:IsA("ImageButton")) and not isOurGui(d) then
+                                local n = d.Name:lower()
+                                local txt = ""
+                                pcall(function() txt = d.Text:lower() end)
+                                for _, sn in ipairs(searchNames) do
+                                    if (n:find(sn) or txt:find(sn)) and isVisibleChain(d) then
+                                        clickButton(d)
+                                        break
+                                    end
+                                end
+                            end
+                        end
+                        p = p and p.Parent
+                    end
+                end
+            end
+        end
 
         stats.totalCodes += 1
         stats.codesThisMinute += 1
@@ -3173,7 +3216,7 @@ if not pcall(function() GUI.Parent = game.CoreGui end) then GUI.Parent = playerG
 
 local Window = Instance.new("Frame")
 Window.Name = "Window"
-Window.Size = UDim2.fromOffset(310, 404)
+    Window.Size = UDim2.fromOffset(310, 504)
 Window.AnchorPoint = Vector2.new(1, 0)
 Window.Position = UDim2.new(1, -8, 0, 8)
 Window.BackgroundColor3 = COLORS.Window
@@ -3213,7 +3256,7 @@ local function updateInterfaceScale()
     local camera = workspace.CurrentCamera
     if not camera then InterfaceScale.Scale = 0.92; return end
     local viewport = camera.ViewportSize
-    local fitScale = math.min((viewport.X - 16) / 310, (viewport.Y - 16) / 404)
+    local fitScale = math.min((viewport.X - 16) / 310, (viewport.Y - 16) / 504)
     if UserInputService.TouchEnabled then
         InterfaceScale.Scale = math.max(0.45, math.min(0.72, fitScale))
     else
@@ -3284,8 +3327,31 @@ task.spawn(function()
     end
 end)
 
-makeLabel(Header, "Title", "NEXUS REDEEMER", UDim2.fromOffset(190, 24), UDim2.fromOffset(56, 13), 15, COLORS.White, Enum.Font.GothamBold)
-makeLabel(Header, "Subtitle", "CODE SNIPER - RIDDLE SOLVER", UDim2.fromOffset(190, 12), UDim2.fromOffset(56, 36), 8, COLORS.Dim, Enum.Font.GothamMedium)
+do
+    local AvatarFrame = Instance.new("ImageLabel")
+    AvatarFrame.Name = "Avatar"
+    AvatarFrame.Size = UDim2.fromOffset(26, 26)
+    AvatarFrame.Position = UDim2.fromOffset(50, 17)
+    AvatarFrame.BackgroundColor3 = COLORS.Control
+    AvatarFrame.BackgroundTransparency = 1
+    AvatarFrame.ScaleType = Enum.ScaleType.Fit
+    AvatarFrame.ZIndex = 4
+    AvatarFrame.Parent = Header
+    addCorner(AvatarFrame, 13)
+    addStroke(AvatarFrame, COLORS.White, 1, 0.25)
+    task.spawn(function()
+        pcall(function()
+            local plr = Players.LocalPlayer
+            local thumbType = Enum.ThumbnailType.HeadShot
+            local thumbSize = Enum.ThumbnailSize.Size100x100
+            local content, _ = Players:GetUserThumbnailAsync(plr.UserId, thumbType, thumbSize)
+            AvatarFrame.Image = content
+        end)
+    end)
+end
+
+makeLabel(Header, "Title", "NEXUS REDEEMER", UDim2.fromOffset(190, 24), UDim2.fromOffset(82, 13), 15, COLORS.White, Enum.Font.GothamBold)
+makeLabel(Header, "Subtitle", "CODE SNIPER - RIDDLE SOLVER", UDim2.fromOffset(190, 12), UDim2.fromOffset(82, 36), 8, COLORS.Dim, Enum.Font.GothamMedium)
 
 -- Minimize button
 local MinimizeBtn = Instance.new("TextButton")
@@ -3421,7 +3487,7 @@ end)
 
 -- Minimize logic
 local isMinimized = false
-local fullSize = UDim2.fromOffset(310, 404)
+local fullSize = UDim2.fromOffset(310, 504)
 local minSize  = UDim2.fromOffset(310, 64)
 MinimizeBtn.Activated:Connect(function()
     isMinimized = not isMinimized
@@ -3445,7 +3511,7 @@ HeaderAccent.Parent = Header
 
 local Settings = Instance.new("Frame")
 Settings.Name = "Settings"
-Settings.Size = UDim2.new(1, 0, 0, 154)
+Settings.Size = UDim2.new(1, 0, 0, 254)
 Settings.Position = UDim2.fromOffset(0, 88)
 Settings.BackgroundTransparency = 1
 Settings.ZIndex = 3
@@ -3592,6 +3658,58 @@ Plus.MouseButton1Click:Connect(function()
     saveConfig()
 end)
 
+local SpamCard = makeCard("SpamRedeem", UDim2.fromOffset(17, 150), UDim2.fromOffset(276, 43))
+makeLabel(SpamCard, "Title", "Spam redeem", UDim2.new(1, -58, 1, 0), UDim2.fromOffset(12, 0), 11, COLORS.White, Enum.Font.GothamMedium)
+makeStateButton(SpamCard, _spamRedeem, "Spam redeem", function(state)
+    _spamRedeem = state
+    savedConfig.spamRedeem = state
+    saveConfig()
+end)
+
+local ListenCard = makeCard("ListenKey", UDim2.fromOffset(17, 200), UDim2.fromOffset(276, 43))
+makeLabel(ListenCard, "Title", "Listen key", UDim2.new(1, -58, 1, 0), UDim2.fromOffset(12, 0), 11, COLORS.White, Enum.Font.GothamMedium)
+do
+    local shell = Instance.new("Frame")
+    shell.Name = "KeyShell"
+    shell.Size = UDim2.fromOffset(96, 31)
+    shell.Position = UDim2.new(1, -105, 0.5, -15)
+    shell.BackgroundColor3 = COLORS.Window
+    shell.BackgroundTransparency = 0.05
+    shell.BorderSizePixel = 0
+    shell.Parent = ListenCard
+    addCorner(shell, 10)
+    addStroke(shell, COLORS.White, 1, 0.2)
+    local keyBtn = Instance.new("TextButton")
+    keyBtn.Name = "KeyBtn"
+    keyBtn.Size = UDim2.fromOffset(96, 31)
+    keyBtn.Position = UDim2.fromOffset(0, 0)
+    keyBtn.BackgroundTransparency = 1
+    keyBtn.BorderSizePixel = 0
+    keyBtn.Text = _listenKeybind:upper()
+    keyBtn.TextSize = 14
+    keyBtn.TextColor3 = COLORS.Accent
+    keyBtn.Font = Enum.Font.GothamBold
+    keyBtn.Parent = shell
+    keyBtn.Activated:Connect(function()
+        keyBtn.Text = "..."
+        keyBtn.TextColor3 = COLORS.Yellow
+        local conn
+        conn = UserInputService.InputBegan:Connect(function(inp, gp)
+            if gp then return end
+            if inp.UserInputType == Enum.UserInputType.Keyboard then
+                local letter = inp.KeyCode.Name
+                if letter == "Unknown" then return end
+                _listenKeybind = letter
+                savedConfig.listenKeybind = letter
+                saveConfig()
+                keyBtn.Text = letter
+                keyBtn.TextColor3 = COLORS.Accent
+                if conn then conn:Disconnect() end
+            end
+        end)
+    end)
+end
+
 local TabBar = Instance.new("Frame")
 TabBar.Name = "TabBar"
 TabBar.Size = UDim2.new(1, -34, 0, 30)
@@ -3693,7 +3811,7 @@ connectTab(AppearanceTab, "appearance")
 Console = Instance.new("ScrollingFrame")
 Console.Name = "Console"
 Console.Size = UDim2.new(1, -34, 0, 96)
-Console.Position = UDim2.fromOffset(17, 246)
+Console.Position = UDim2.fromOffset(17, 346)
 Console.BackgroundColor3 = COLORS.Log
 Console.BorderSizePixel = 0
 Console.ClipsDescendants = true
@@ -3850,7 +3968,7 @@ selectTab("main")
 local InjectShell = Instance.new("Frame")
 InjectShell.Name = "QuickInject"
 InjectShell.Size = UDim2.new(1, -34, 0, 32)
-InjectShell.Position = UDim2.fromOffset(17, 346)
+InjectShell.Position = UDim2.fromOffset(17, 446)
 InjectShell.BackgroundColor3 = COLORS.Control
 InjectShell.BackgroundTransparency = 0.3
 InjectShell.BorderSizePixel = 0
@@ -3916,14 +4034,14 @@ InjectBtn.MouseButton1Click:Connect(doManualInject)
 local FooterLine = Instance.new("Frame")
 FooterLine.Name = "FooterLine"
 FooterLine.Size = UDim2.new(1, -34, 0, 1)
-FooterLine.Position = UDim2.fromOffset(17, 382)
+FooterLine.Position = UDim2.fromOffset(17, 482)
 FooterLine.BackgroundColor3 = COLORS.White
 FooterLine.BackgroundTransparency = 0.9
 FooterLine.BorderSizePixel = 0
 FooterLine.ZIndex = 3
 FooterLine.Parent = Window
 
-local Footer = makeLabel(Window, "Footer", "NEXUS REDEEMER", UDim2.fromOffset(140, 19), UDim2.new(0.5, -70, 0, 384), 9, COLORS.Dim, Enum.Font.GothamBold)
+local Footer = makeLabel(Window, "Footer", "NEXUS REDEEMER", UDim2.fromOffset(140, 19), UDim2.new(0.5, -70, 0, 484), 9, COLORS.Dim, Enum.Font.GothamBold)
 Footer.TextXAlignment = Enum.TextXAlignment.Center
 Footer.BackgroundColor3 = COLORS.Window
 Footer.BackgroundTransparency = 1
@@ -4067,6 +4185,16 @@ UserInputService.InputBegan:Connect(function(input, gameProcessed)
             enqueueCode(box.Text)
         end
     end
+    if _listenKeybind and input.KeyCode and input.KeyCode.Name == _listenKeybind then
+        local box = nexusCodeBox()
+        if box and box.Text ~= "" then
+            enqueueCode(box.Text)
+        else
+            _enabled = not _enabled
+            savedConfig.codeSniper = _enabled
+            saveConfig()
+        end
+    end
 end)
 
 -- ============================================================================
@@ -4077,6 +4205,10 @@ if getgenv then
         if notifyConnection then
             pcall(function() notifyConnection:Disconnect() end)
             notifyConnection = nil
+        end
+        if _listenKeyConn then
+            pcall(function() _listenKeyConn:Disconnect() end)
+            _listenKeyConn = nil
         end
         if antiLagHeartbeat then
             pcall(function() antiLagHeartbeat:Disconnect() end)
