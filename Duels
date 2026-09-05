@@ -64,6 +64,7 @@ _nexusNormalAimbotSwingCooldown = false
 
 autoSwingEnabled = true
 faceTrackEnabled = false
+aimbotAfterHitEnabled = false -- Void.Vs-style: auto-start the selected aimbot after getting ragdolled
 _G.NexusNormalAimbotOn = _G.NexusNormalAimbotOn or false
 
 _G.NexusTpBatEnabled = false
@@ -163,13 +164,10 @@ local function doAutoTPDown(force)
 local char=LP.Character;if not char then return end;local hrp=char:FindFirstChild("HumanoidRootPart");if not hrp then return end
 local hum2=char:FindFirstChildOfClass("Humanoid");if not hum2 then return end
 if not force then
-if not (_G.NexusSafeModeHoldingBrainrot and _G.NexusSafeModeHoldingBrainrot()) then return end
 if hum2.FloorMaterial~=Enum.Material.Air then return end
 if not(hrp.Position.Y>=autoTPHeight) then return end
 end
-hrp.CFrame=CFrame.new(hrp.Position.X,-7.00,hrp.Position.Z)*CFrame.Angles(0,select(2,hrp.CFrame:ToEulerAnglesYXZ()),0)
-hrp.AssemblyLinearVelocity=Vector3.zero
-if _G.NexusClearLinVel then _G.NexusClearLinVel() end
+hrp.CFrame=CFrame.new(hrp.Position.X,-7.00,hrp.Position.Z)*CFrame.Angles(0,select(2,hrp.CFrame:ToEulerAnglesYXZ()),0);hrp.Velocity=Vector3.zero
 end
 local function _clearAutoTPConnection()
 if autoTPConn then
@@ -358,232 +356,258 @@ local NEXUS_FIT_COLOR = Color3.fromRGB(255, 255, 255)
 
 local nexusFitOriginalColors = {}
 local nexusFitOriginalBodyColors = {}
-local hitHarderAnimEnabled = false
-local hitHarderOriginalAnims = {}
 
-local selectedAnimationPack = "OFF"
+local enableUnwalk, disableUnwalk
+local resetAnimations, applyAnimationPack
+local AnimationPackList = {"None", "Adidas Sports", "Adidas Community", "Adidas Aura", "Wicked Popular", "Elder", "Zombie", "Mage", "Catwalk Glam", "Astronaut", 'Wicked "Dancing Through Life"', "Werewolf", "Superhero", "Toy", "No Boundaries", "NFL", "Amazon Unboxed", "Vampire", "Ninja", "Robot", "Levitation", "Stylish", "Bubbly", "Cartoon"}
+local AnimationPackIndex = 1
+-- ORVYN HUB animation pack engine (ported from ORVYN_HUB.lua; do..end keeps its
+-- helpers out of the Luau top-level register count)
+do
+local savedAnimate = nil
+local applyingAnim = false
 local AnimationPacks = {
-["Zombie"] = {
-idle = {{"rbxassetid://616158929", 1}, {"rbxassetid://616158929", 1}},
-walk = "rbxassetid://616168032", run = "rbxassetid://616163682",
-jump = "rbxassetid://616161997", fall = "rbxassetid://616157476", climb = "rbxassetid://616156119"
-},
-["Ninja"] = {
-idle = {{"rbxassetid://656117400", 1}, {"rbxassetid://656117400", 1}},
-walk = "rbxassetid://656121766", run = "rbxassetid://656118852",
-jump = "rbxassetid://656117878", fall = "rbxassetid://656115606", climb = "rbxassetid://656114359"
-},
-["Knight"] = {
-idle = {{"rbxassetid://657595757", 1}, {"rbxassetid://657595757", 1}},
-walk = "rbxassetid://657552124", run = "rbxassetid://657564596",
-jump = "rbxassetid://658409194", fall = "rbxassetid://657600338", climb = "rbxassetid://658360781"
-},
-["Elder"] = {
-idle = {{"rbxassetid://845397899", 1}, {"rbxassetid://845397899", 1}},
-walk = "rbxassetid://845403856", run = "rbxassetid://845386501",
-jump = "rbxassetid://845398858", fall = "rbxassetid://845397673", climb = "rbxassetid://845392038"
-},
-["Levitate"] = {
-idle = {{"rbxassetid://616006778", 1}, {"rbxassetid://616006778", 1}},
-walk = "rbxassetid://616013216", run = "rbxassetid://616013216",
-jump = "rbxassetid://616008936", fall = "rbxassetid://616005863", climb = "rbxassetid://616003713"
-},
-["Astronaut"] = {
-idle = {{"rbxassetid://891621366", 1}, {"rbxassetid://891621366", 1}},
-walk = "rbxassetid://891636393", run = "rbxassetid://891636393",
-jump = "rbxassetid://891627522", fall = "rbxassetid://891617961", climb = "rbxassetid://891609353"
-},
-["Pirate"] = {
-idle = {{"rbxassetid://750781874", 1}, {"rbxassetid://750781874", 1}},
-walk = "rbxassetid://750785693", run = "rbxassetid://750783738",
-jump = "rbxassetid://750782230", fall = "rbxassetid://750780242", climb = "rbxassetid://750779899"
-},
-["Toy"] = {
-idle = {{"rbxassetid://782841498", 1}, {"rbxassetid://782841498", 1}},
-walk = "rbxassetid://782843345", run = "rbxassetid://782842708",
-jump = "rbxassetid://782847020", fall = "rbxassetid://782846423", climb = "rbxassetid://782843869"
-},
-["Vampire"] = {
-idle = {{"rbxassetid://1083445855", 1}, {"rbxassetid://1083445855", 1}},
-walk = "rbxassetid://1083473930", run = "rbxassetid://1083462077",
-jump = "rbxassetid://1083455352", fall = "rbxassetid://1083443587", climb = "rbxassetid://1083439238"
-},
-["Werewolf"] = {
-idle = {{"rbxassetid://1083195517", 1}, {"rbxassetid://1083195517", 1}},
-walk = "rbxassetid://1083178339", run = "rbxassetid://1083216690",
-jump = "rbxassetid://1083218792", fall = "rbxassetid://1083189019", climb = "rbxassetid://1083182000"
-},
-["Rthro"] = {
-idle = {{"rbxassetid://2510196951", 1}, {"rbxassetid://2510196951", 1}},
-walk = "rbxassetid://2510202577", run = "rbxassetid://2510198475",
-jump = "rbxassetid://2510197830", fall = "rbxassetid://2510195892", climb = "rbxassetid://2510192778"
-},
-["Stylish"] = {
-idle = {{"rbxassetid://616136790", 1}, {"rbxassetid://616136790", 1}},
-walk = "rbxassetid://616146177", run = "rbxassetid://616140816",
-jump = "rbxassetid://616139451", fall = "rbxassetid://616134815", climb = "rbxassetid://616133594"
-},
 ["Adidas Sports"] = {
-idle = {{"rbxassetid://18537376492", 1}, {"rbxassetid://18537371272", 1}},
-walk = "rbxassetid://18537392113", run = "rbxassetid://18537384940",
-jump = "rbxassetid://18537380791", fall = "rbxassetid://18537367238", climb = "rbxassetid://18537363391"
+WalkAnim = 18537392113, RunAnim = 18537384940, JumpAnim = 18537380791, FallAnim = 18537367238,
+SwimIdle = 18537387180, Swim = 18537389531, Animation1 = 18537376492, Animation2 = 18537371272, ClimbAnim = 18537363391
 },
 ["Adidas Community"] = {
-idle = {{"rbxassetid://122257458498464", 1}, {"rbxassetid://102357151005774", 1}},
-walk = "rbxassetid://122150855457006", run = "rbxassetid://82598234841035",
-jump = "rbxassetid://75290611992385", fall = "rbxassetid://98600215928904", climb = "rbxassetid://88763136693023"
+WalkAnim = 122150855457006, RunAnim = 82598234841035, JumpAnim = 75290611992385, FallAnim = 98600215928904,
+SwimIdle = 109346520324160, Swim = 133308483266208, Animation1 = 122257458498464, Animation2 = 102357151005774, ClimbAnim = 88763136693023
 },
 ["Adidas Aura"] = {
-idle = {{"rbxassetid://110211186840347", 1}, {"rbxassetid://114191137265065", 1}},
-walk = "rbxassetid://83842218823011", run = "rbxassetid://118320322718866",
-jump = "rbxassetid://109996626521204", fall = "rbxassetid://95603166884636", climb = "rbxassetid://97824616490448"
+WalkAnim = 83842218823011, RunAnim = 118320322718866, JumpAnim = 109996626521204, FallAnim = 95603166884636,
+SwimIdle = 94922130551805, Swim = 134530128383903, Animation1 = 110211186840347, Animation2 = 114191137265065, ClimbAnim = 97824616490448
 },
 ["Wicked Popular"] = {
-idle = {{"rbxassetid://118832222982049", 1}, {"rbxassetid://76049494037641", 1}},
-walk = "rbxassetid://92072849924640", run = "rbxassetid://72301599441680",
-jump = "rbxassetid://104325245285198", fall = "rbxassetid://121152442762481", climb = "rbxassetid://131326830509784"
+WalkAnim = 92072849924640, RunAnim = 72301599441680, JumpAnim = 104325245285198, FallAnim = 121152442762481,
+Animation1 = 118832222982049, ClimbAnim = 131326830509784, SwimIdle = 113199415118199, Swim = 99384245425157, Animation2 = 76049494037641
 },
-["Mage"] = {
-idle = {{"rbxassetid://10921144709", 1}, {"rbxassetid://10921145797", 1}},
-walk = "rbxassetid://10921152678", run = "rbxassetid://10921148209",
-jump = "rbxassetid://10921149743", fall = "rbxassetid://10921148939", climb = "rbxassetid://10921143404"
+Elder = {
+WalkAnim = 10921111375, RunAnim = 10921104374, JumpAnim = 10921107367, FallAnim = 10921105765,
+SwimIdle = 10921110146, Swim = 10921108971, ClimbAnim = 10921100400, Animation1 = 10921101664, Animation2 = 10921102574
+},
+Zombie = {
+WalkAnim = 10921355261, RunAnim = 616163682, JumpAnim = 10921351278, FallAnim = 10921350320,
+SwimIdle = 10921353442, Swim = 10921352344, Animation1 = 10921344533, Animation2 = 10921345304, ClimbAnim = 10921343576
+},
+Mage = {
+WalkAnim = 10921152678, RunAnim = 10921148209, JumpAnim = 10921149743, FallAnim = 10921148939,
+SwimIdle = 10921151661, Swim = 10921150788, ClimbAnim = 10921143404, Animation1 = 10921144709, Animation2 = 10921145797
 },
 ["Catwalk Glam"] = {
-idle = {{"rbxassetid://133806214992291", 1}, {"rbxassetid://94970088341563", 1}},
-walk = "rbxassetid://109168724482748", run = "rbxassetid://81024476153754",
-jump = "rbxassetid://116936326516985", fall = "rbxassetid://92294537340807", climb = "rbxassetid://119377220967554"
+WalkAnim = 109168724482748, RunAnim = 81024476153754, JumpAnim = 116936326516985, FallAnim = 92294537340807,
+SwimIdle = 98854111361360, Swim = 134591743181628, ClimbAnim = 119377220967554, Animation1 = 133806214992291, Animation2 = 94970088341563
 },
-["Wicked Dancing"] = {
-idle = {{"rbxassetid://92849173543269", 1}, {"rbxassetid://132238900951109", 1}},
-walk = "rbxassetid://73718308412641", run = "rbxassetid://135515454877967",
-jump = "rbxassetid://78508480717326", fall = "rbxassetid://78147885297412", climb = "rbxassetid://129447497744818"
+Astronaut = {
+WalkAnim = 10921046031, RunAnim = 10921039308, JumpAnim = 10921042494, FallAnim = 10921040576,
+SwimIdle = 10921045006, Swim = 10921044000, ClimbAnim = 10921032124, Animation1 = 10921034824, Animation2 = 10921036806
 },
-["Superhero"] = {
-idle = {{"rbxassetid://10921288909", 1}, {"rbxassetid://10921290167", 1}},
-walk = "rbxassetid://10921298616", run = "rbxassetid://10921291831",
-jump = "rbxassetid://10921294559", fall = "rbxassetid://10921293373", climb = "rbxassetid://10921286911"
+['Wicked "Dancing Through Life"'] = {
+WalkAnim = 73718308412641, RunAnim = 135515454877967, JumpAnim = 78508480717326, FallAnim = 78147885297412,
+SwimIdle = 129183123083281, Swim = 110657013921774, ClimbAnim = 129447497744818, Animation1 = 92849173543269, Animation2 = 132238900951109
+},
+Werewolf = {
+WalkAnim = 10921342074, RunAnim = 10921336997, JumpAnim = nil, FallAnim = 10921337907,
+SwimIdle = 10921341319, Swim = 10921340419, ClimbAnim = 10921329322, Animation1 = 10921330408, Animation2 = 10921333667
+},
+Superhero = {
+WalkAnim = 10921298616, RunAnim = 10921291831, JumpAnim = 10921294559, FallAnim = 10921293373,
+SwimIdle = 10921297391, Swim = 10921295495, ClimbAnim = 10921286911, Animation1 = 10921288909, Animation2 = 10921290167
+},
+Toy = {
+WalkAnim = 10921312010, RunAnim = 10921306285, JumpAnim = 10921308158, FallAnim = 10921307241,
+SwimIdle = 10921310341, Swim = 10921309319, ClimbAnim = 10921300839, Animation1 = 10921301576, Animation2 = nil
 },
 ["No Boundaries"] = {
-idle = {{"rbxassetid://18747067405", 1}, {"rbxassetid://18747063918", 1}},
-walk = "rbxassetid://18747074203", run = "rbxassetid://18747070484",
-jump = "rbxassetid://18747069148", fall = "rbxassetid://18747062535", climb = "rbxassetid://18747060903"
+WalkAnim = 18747074203, RunAnim = 18747070484, JumpAnim = 18747069148, FallAnim = 18747062535,
+SwimIdle = 18747071682, Swim = 18747073181, ClimbAnim = 18747060903, Animation1 = 18747067405, Animation2 = 18747063918
 },
-["NFL"] = {
-idle = {{"rbxassetid://92080889861410", 1}, {"rbxassetid://74451233229259", 1}},
-walk = "rbxassetid://110358958299415", run = "rbxassetid://117333533048078",
-jump = "rbxassetid://119846112151352", fall = "rbxassetid://129773241321032", climb = "rbxassetid://134630013742019"
+NFL = {
+WalkAnim = 110358958299415, RunAnim = 117333533048078, JumpAnim = 119846112151352, FallAnim = 129773241321032,
+SwimIdle = 79090109939093, Swim = 132697394189921, ClimbAnim = 134630013742019, Animation1 = 92080889861410, Animation2 = 74451233229259
 },
 ["Amazon Unboxed"] = {
-idle = {{"rbxassetid://98281136301627", 1}, {"rbxassetid://98281136301627", 1}},
-walk = "rbxassetid://90478085024465", run = "rbxassetid://134824450619865",
-jump = "rbxassetid://121454505477205", fall = "rbxassetid://94788218468396", climb = "rbxassetid://121145883950231"
+WalkAnim = 90478085024465, RunAnim = 134824450619865, JumpAnim = 121454505477205, FallAnim = 94788218468396,
+SwimIdle = 129126268464847, Swim = 105962919001086, ClimbAnim = 121145883950231, Animation1 = 98281136301627, Animation2 = nil
 },
-["Robot"] = {
-idle = {{"rbxassetid://616088211", 1}, {"rbxassetid://616089559", 1}},
-walk = "rbxassetid://616095330", run = "rbxassetid://616091570",
-jump = "rbxassetid://616090535", fall = "rbxassetid://616087089", climb = "rbxassetid://616086039"
+Vampire = {
+WalkAnim = 10921326949, RunAnim = 10921320299, JumpAnim = 10921322186, FallAnim = 10921321317,
+SwimIdle = 10921325443, Swim = 10921324408, ClimbAnim = 10921314188, Animation1 = 10921315373, Animation2 = nil
 },
-["Bubbly"] = {
-idle = {{"rbxassetid://910004836", 1}, {"rbxassetid://910009958", 1}},
-walk = "rbxassetid://910034870", run = "rbxassetid://910025107",
-jump = "rbxassetid://910016857", fall = "rbxassetid://910001910", climb = "rbxassetid://909997997"
+Ninja = {
+Run = 656118852, Walk = 656121766, Jump = 656117878, Fall = 656115606,
+Swim = 656119721, SwimIdle = 656121397, Climb = 656114359,
+Idle = {656117400, 656118341, 886742569}
 },
-["Cartoon"] = {
-idle = {{"rbxassetid://742637544", 1}, {"rbxassetid://742638445", 1}},
-walk = "rbxassetid://742640026", run = "rbxassetid://742638842",
-jump = "rbxassetid://742637942", fall = "rbxassetid://742637151", climb = "rbxassetid://742636889"
+Robot = {
+Run = 616091570, Walk = 616095330, Jump = 616090535, Fall = 616087089,
+Swim = 616092998, SwimIdle = 616094091, Climb = 616086039,
+Idle = {616088211, 616089559, 885531463}
+},
+Levitation = {
+Run = 616010382, Walk = 616013216, Jump = 616008936, Fall = 616005863,
+Swim = 616011509, SwimIdle = 616012453, Climb = 616003713,
+Idle = {616006778, 616008087, 886862142}
+},
+Stylish = {
+Run = 616140816, Walk = 616146177, Jump = 616139451, Fall = 616134815,
+Swim = 616143378, SwimIdle = 616144772, Climb = 616133594,
+Idle = {616136790, 616138447, 886888594}
+},
+Bubbly = {
+Run = 910025107, Walk = 910034870, Jump = 910016857, Fall = 910001910,
+Swim = 910028158, SwimIdle = 910030921, Climb = 909997997,
+Idle = {910004836, 910009958, 1018536639}
+},
+Cartoon = {
+Run = 742638842, Walk = 742640026, Jump = 742637942, Fall = 742637151,
+Swim = 742639220, SwimIdle = 742639812, Climb = 742636889,
+Idle = {742637544, 742638445, 885477856}
 },
 }
-local AnimationPackList = {"None", "Tryhard", "Zombie", "Ninja", "Knight", "Elder", "Levitate", "Astronaut", "Pirate", "Toy", "Vampire", "Werewolf", "Rthro", "Stylish", "Adidas Sports", "Adidas Community", "Adidas Aura", "Wicked Popular", "Mage", "Catwalk Glam", "Wicked Dancing", "Superhero", "No Boundaries", "NFL", "Amazon Unboxed", "Robot", "Bubbly", "Cartoon"}
-local AnimationPackIndex = 1
-local OriginalAnims = {}
-local enableUnwalk, disableUnwalk, enableHitHarderAnim, disableHitHarderAnim
-local HIT_HARDER_ANIMS = {
-idle1 = "rbxassetid://133806214992291",
-idle2 = "rbxassetid://94970088341563",
-walk = "rbxassetid://707897309",
-run = "rbxassetid://707861613",
-jump = "rbxassetid://116936326516985",
-fall = "rbxassetid://116936326516985",
-}
-local function getAnimate(char)
-char = char or LP.Character
-return char and char:FindFirstChild("Animate") or nil
+local function waitForAnimate(char)
+for _ = 1, 40 do
+local a = char:FindFirstChild("Animate")
+if a and a:FindFirstChild("idle") and a:FindFirstChild("run") and a:FindFirstChild("walk") then
+return a
 end
-local function stopCurrentAnimations(char)
-local hum = char and char:FindFirstChildOfClass("Humanoid")
+task.wait(0.1)
+end
+return nil
+end
+local function setAnim(animObj, id)
+if animObj and id then
+animObj.AnimationId = "rbxassetid://" .. tostring(id)
+end
+end
+local function stopAllTracks(hum)
 if not hum then return end
-for _, track in ipairs(hum:GetPlayingAnimationTracks()) do
-pcall(function() track:Stop(0) end)
+for _, t in ipairs(hum:GetPlayingAnimationTracks()) do
+pcall(function() t:Stop(0) end)
 end
 end
-local function backupAnimations(char)
-local animate = getAnimate(char)
-if not animate or next(OriginalAnims) ~= nil then return end
-local function getId(obj) return obj and obj.AnimationId or nil end
-OriginalAnims = {
-idle1 = getId(animate.idle and animate.idle:FindFirstChild("Animation1")),
-idle2 = getId(animate.idle and animate.idle:FindFirstChild("Animation2")),
-walk = getId(animate.walk and animate.walk:FindFirstChild("WalkAnim")),
-run = getId(animate.run and animate.run:FindFirstChild("RunAnim")),
-jump = getId(animate.jump and animate.jump:FindFirstChild("JumpAnim")),
-fall = getId(animate.fall and animate.fall:FindFirstChild("FallAnim")),
-climb = getId(animate.climb and animate.climb:FindFirstChild("ClimbAnim")),
-}
+local function ensureAnim(folder, name)
+if not folder then return nil end
+local a = folder:FindFirstChild(name)
+if not a then
+a = Instance.new("Animation")
+a.Name = name
+a.Parent = folder
 end
-local function setAnimId(obj, id)
-if obj and id then pcall(function() obj.AnimationId = id end) end
+return a
 end
-local function reloadAnimate(animate)
-if not animate then return end
-pcall(function()
+local function ensureIdleSlots(idleFolder, n)
+if not idleFolder then return end
+n = n or 2
+for i = 1, n do
+ensureAnim(idleFolder, "Animation" .. i)
+end
+end
+local function pick(pack, ...)
+for i = 1, select("#", ...) do
+local k = select(i, ...)
+local v = pack[k]
+if v ~= nil then return v end
+end
+return nil
+end
+local function saveOriginalAnimate(char)
+if not char then return end
+if savedAnimate then return end
+local animate = char:FindFirstChild("Animate")
+if animate then
+savedAnimate = animate:Clone()
+end
+end
+local function restoreOriginalAnimate(char)
+if not char then return end
+local hum = char:FindFirstChildOfClass("Humanoid")
+if hum then
+stopAllTracks(hum)
+end
+if not savedAnimate then return end
+local currentAnimate = char:FindFirstChild("Animate")
+if currentAnimate then
+currentAnimate:Destroy()
+end
+local newAnimate = savedAnimate:Clone()
+newAnimate.Parent = char
+newAnimate.Disabled = true
+task.wait(0.06)
+newAnimate.Disabled = false
+end
+resetAnimations = function(char)
+char = char or LP.Character
+restoreOriginalAnimate(char)
+end
+applyAnimationPack = function(packName)
+if packName == "None" then
+resetAnimations()
+return
+end
+if applyingAnim then return end
+applyingAnim = true
+local pack = AnimationPacks[packName]
+if not pack then
+applyingAnim = false
+return
+end
+local char = LP.Character or LP.CharacterAdded:Wait()
+saveOriginalAnimate(char)
+local animate = waitForAnimate(char)
+if not animate then
+applyingAnim = false
+return
+end
+local hum = char:FindFirstChildOfClass("Humanoid")
+stopAllTracks(hum)
+local runObj = ensureAnim(animate:FindFirstChild("run"), "RunAnim")
+local walkObj = ensureAnim(animate:FindFirstChild("walk"), "WalkAnim")
+local jumpObj = ensureAnim(animate:FindFirstChild("jump"), "JumpAnim")
+local fallObj = ensureAnim(animate:FindFirstChild("fall"), "FallAnim")
+local climbObj = ensureAnim(animate:FindFirstChild("climb"), "ClimbAnim")
+local swimObj = ensureAnim(animate:FindFirstChild("swim"), "Swim")
+local swimIdleObj = ensureAnim(animate:FindFirstChild("swimidle"), "SwimIdle")
+local idleFolder = animate:FindFirstChild("idle")
+setAnim(walkObj, pick(pack, "WalkAnim", "Walk"))
+setAnim(runObj, pick(pack, "RunAnim", "Run"))
+setAnim(jumpObj, pick(pack, "JumpAnim", "Jump"))
+setAnim(fallObj, pick(pack, "FallAnim", "Fall"))
+setAnim(climbObj, pick(pack, "ClimbAnim", "Climb"))
+setAnim(swimObj, pick(pack, "Swim"))
+setAnim(swimIdleObj, pick(pack, "SwimIdle") or pick(pack, "Swim"))
+if idleFolder then
+local a1 = pick(pack, "Animation1")
+local a2 = pick(pack, "Animation2")
+if a1 or a2 then
+ensureIdleSlots(idleFolder, 2)
+local id1 = a1 or a2
+local id2 = a2 or a1 or id1
+setAnim(idleFolder:FindFirstChild("Animation1"), id1)
+setAnim(idleFolder:FindFirstChild("Animation2"), id2)
+elseif pack.Idle and #pack.Idle > 0 then
+ensureIdleSlots(idleFolder, math.max(2, #pack.Idle))
+setAnim(idleFolder:FindFirstChild("Animation1"), pack.Idle[1])
+setAnim(idleFolder:FindFirstChild("Animation2"), pack.Idle[2] or pack.Idle[1])
+for i = 3, #pack.Idle do
+local a = idleFolder:FindFirstChild("Animation" .. i)
+if a then setAnim(a, pack.Idle[i]) end
+end
+end
+end
 animate.Disabled = true
-task.wait()
+task.wait(0.06)
 animate.Disabled = false
+if hum then
+pcall(function()
+hum:ChangeState(Enum.HumanoidStateType.Landed)
+task.wait(0.03)
+hum:ChangeState(Enum.HumanoidStateType.Running)
 end)
 end
-local function resetAnimations()
-local char = LP.Character
-local animate = getAnimate(char)
-if not animate or next(OriginalAnims) == nil then return end
-stopCurrentAnimations(char)
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation1"), OriginalAnims.idle1)
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation2"), OriginalAnims.idle2)
-setAnimId(animate.walk and animate.walk:FindFirstChild("WalkAnim"), OriginalAnims.walk)
-setAnimId(animate.run and animate.run:FindFirstChild("RunAnim"), OriginalAnims.run)
-setAnimId(animate.jump and animate.jump:FindFirstChild("JumpAnim"), OriginalAnims.jump)
-setAnimId(animate.fall and animate.fall:FindFirstChild("FallAnim"), OriginalAnims.fall)
-setAnimId(animate.climb and animate.climb:FindFirstChild("ClimbAnim"), OriginalAnims.climb)
-reloadAnimate(animate)
+applyingAnim = false
 end
-local function applyAnimationPack(packName)
-selectedAnimationPack = packName or "None"
-    if selectedAnimationPack ~= "Tryhard" and hitHarderAnimEnabled then
-hitHarderAnimEnabled = false
-resetAnimations()
-end
-    if selectedAnimationPack == "Tryhard" then
-enableHitHarderAnim()
-return
-end
-    if selectedAnimationPack == "None" then
-resetAnimations()
-return
-end
-local pack = AnimationPacks[selectedAnimationPack]
-local char = LP.Character
-local animate = getAnimate(char)
-if not pack or not animate then return end
-backupAnimations(char)
-stopCurrentAnimations(char)
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation1"), pack.idle[1][1])
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation2"), pack.idle[2][1])
-setAnimId(animate.walk and animate.walk:FindFirstChild("WalkAnim"), pack.walk)
-setAnimId(animate.run and animate.run:FindFirstChild("RunAnim"), pack.run)
-setAnimId(animate.jump and animate.jump:FindFirstChild("JumpAnim"), pack.jump)
-setAnimId(animate.fall and animate.fall:FindFirstChild("FallAnim"), pack.fall)
-setAnimId(animate.climb and animate.climb:FindFirstChild("ClimbAnim"), pack.climb)
-reloadAnimate(animate)
 end
 enableUnwalk = function()
 unwalkEnabled = true
@@ -835,29 +859,6 @@ applyHeadlessToChar(char, headlessEnabled)
 applyKorbloxToChar(char, korbloxEnabled)
 applyNexusFitToChar(char, nexusFitEnabled)
 end
-enableHitHarderAnim = function()
-hitHarderAnimEnabled = true
-local char = LP.Character
-local animate = getAnimate(char)
-if not animate then return end
-backupAnimations(char)
-stopCurrentAnimations(char)
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation1"), HIT_HARDER_ANIMS.idle1)
-setAnimId(animate.idle and animate.idle:FindFirstChild("Animation2"), HIT_HARDER_ANIMS.idle2)
-setAnimId(animate.walk and animate.walk:FindFirstChild("WalkAnim"), HIT_HARDER_ANIMS.walk)
-setAnimId(animate.run and animate.run:FindFirstChild("RunAnim"), HIT_HARDER_ANIMS.run)
-setAnimId(animate.jump and animate.jump:FindFirstChild("JumpAnim"), HIT_HARDER_ANIMS.jump)
-setAnimId(animate.fall and animate.fall:FindFirstChild("FallAnim"), HIT_HARDER_ANIMS.fall)
-reloadAnimate(animate)
-end
-disableHitHarderAnim = function()
-hitHarderAnimEnabled = false
-resetAnimations()
-if selectedAnimationPack ~= "OFF" then
-task.wait()
-applyAnimationPack(selectedAnimationPack)
-end
-end
 local function startAntiRagdoll()
 if antiRagdollConn then return end
 antiRagdollEnabled = true
@@ -1047,6 +1048,25 @@ end
 pg.DescendantAdded:Connect(hookJumpButton)
 end)
 local currentBackground = 0
+-- Background system assets (Void.Vs port): index 1 = Void background #2
+local NEXUS_BACKGROUND_URLS = {
+[1] = "https://files.catbox.moe/v8y0ak.png",
+[2] = "https://files.catbox.moe/pk5a3v.jpeg",
+[3] = "https://files.catbox.moe/sl73hb.png",
+[4] = "https://files.catbox.moe/ptt187.png",
+}
+local NEXUS_BACKGROUND_FILES = {
+[1] = "NexusBg1.png",
+[2] = "NexusBg2.jpeg",
+[3] = "NexusBg3.png",
+[4] = "NexusBg4.png",
+}
+local NEXUS_BACKGROUND_DECALS = {
+[1] = 118963313877514,
+[2] = 118963313877514,
+[3] = 118963313877514,
+[4] = 118963313877514,
+}
 local nexusGuiScaleValue = 1
 local nexusProgressBarScaleValue = 0.83
 CONFIG_FILE = "NexusDuelsTooConfig.json"
@@ -1158,7 +1178,10 @@ stealTriggerMode = stealTriggerMode or "Tryhard",
 selectedAimbotMode = selectedAimbotMode,
 AIMBOT_SPEED = AIMBOT_SPEED,
 AIMBOT_VERT_SPEED = AIMBOT_VERT_SPEED,
-LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,
+LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,	bypassAimbotSpeed = _G.NexusBypassAimbotSpeed,
+	bypassAimbotLaggerSpeed = _G.NexusBypassAimbotLaggerSpeed,
+	bypassAimbotHitDist = _G.NexusBypassAimbotHitDist,
+	aimbotAfterHitEnabled = aimbotAfterHitEnabled == true,
 tpBatEnabled = _G.NexusTpBatEnabled == true,
 normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
 laggerIntensity = _G.NexusLaggerIntensity or 7,
@@ -1184,6 +1207,7 @@ autoLeftEnabled = autoLeftEnabled,
 autoRightEnabled = autoRightEnabled,
 autoPlayEnabled = autoPlayEnabled,
 currentBackground = currentBackground,
+selectedTab = _G.NexusActiveTab or "MOVEMENT",
 		nexusGuiScaleValue = nexusGuiScaleValue,
 		nexusManualScale = _G.NexusManualScale == true,
 		nexusProgressBarScaleValue = nexusProgressBarScaleValue,
@@ -1275,6 +1299,10 @@ selectedAimbotMode = data.selectedAimbotMode or "Normal"
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
+_G.NexusBypassAimbotSpeed = tonumber(data.bypassAimbotSpeed) or _G.NexusBypassAimbotSpeed
+_G.NexusBypassAimbotLaggerSpeed = tonumber(data.bypassAimbotLaggerSpeed) or _G.NexusBypassAimbotLaggerSpeed
+_G.NexusBypassAimbotHitDist = tonumber(data.bypassAimbotHitDist) or _G.NexusBypassAimbotHitDist
+aimbotAfterHitEnabled = data.aimbotAfterHitEnabled == true
 autoSwingEnabled = true
 _G.NexusTpBatEnabled = data.tpBatEnabled == true
 
@@ -1306,6 +1334,15 @@ autoSwitchEnabled = data.autoSwitchEnabled == true
 grabTimerEnabled = data.grabTimerEnabled == true
 customFontVisualEnabled = false
 skyTheme = (type(data.skyTheme) == "string" and data.skyTheme) or skyTheme
+currentBackground = tonumber(data.currentBackground) or currentBackground
+if type(data.selectedTab) == "string" then
+local _validTabs = {MOVEMENT=true, COMBAT=true, KEYBINDS=true, VISUALS=true, SETTINGS=true}
+if _validTabs[data.selectedTab] then
+task.defer(function()
+if data.selectedTab then _G.NexusActiveTab = tostring(data.selectedTab) end
+end)
+end
+end
 autoLeftEnabled = data.autoLeftEnabled == true
 autoRightEnabled = data.autoRightEnabled == true
 autoPlayEnabled = data.autoPlayEnabled == true
@@ -1342,9 +1379,8 @@ if not char then return end
 local animate = char:FindFirstChild("Animate") or char:WaitForChild("Animate", 6)
 if not animate then return end
 task.wait(0.2)
-OriginalAnims = {}
 unwalkSavedAnimate = nil
-if selectedAnimationPack and selectedAnimationPack ~= "OFF" then
+if selectedAnimationPack and selectedAnimationPack ~= "None" then
 pcall(function() applyAnimationPack(selectedAnimationPack) end)
 else
 pcall(function() resetAnimations() end)
@@ -1949,6 +1985,13 @@ if not char:FindFirstChildOfClass("Tool") then
 local bat2 = _G.NexusFindAimbotBat()
 if bat2 then pcall(function() hum:EquipTool(bat2) end) end
 end
+-- Vision Duels-style autoswing: Activate the equipped bat every frame (no cooldown, no range gate)
+if autoSwingEnabled then
+local swingTool = char:FindFirstChildOfClass("Tool")
+if swingTool and (swingTool.Name:lower():find("bat") or swingTool.Name:lower():find("slap")) then
+pcall(function() swingTool:Activate() end)
+end
+end
 local target, dist = _G.NexusGetClosestAimbotTarget()
 if not target then
 _G.NexusNormalAimbot.target = nil
@@ -1984,20 +2027,6 @@ rx = math.clamp(rx, -2.5, 2.5); ry = math.clamp(ry, -2.5, 2.5); rz = math.clamp(
 local tiltSpeed = 42
 root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * tiltSpeed, ry * tiltSpeed, rz * tiltSpeed))
 end
-if dist <= VYSE_HIT_DIST and autoSwingEnabled then
-if not _nexusNormalAimbotSwingCooldown then
-_nexusNormalAimbotSwingCooldown = true
-pcall(function()
-local bat = _G.NexusFindAimbotBat()
-if bat then
-pcall(function() bat:Activate() end)
-local remote = bat:FindFirstChildWhichIsA("RemoteEvent")
-if remote then pcall(function() remote:FireServer() end) end
-end
-end)
-task.delay(SWING_COOLDOWN, function() _nexusNormalAimbotSwingCooldown = false end)
-end
-end
 end)
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
@@ -2032,10 +2061,21 @@ if _G.NexusAimbotSetVisual then
 _G.NexusAimbotSetVisual(_G.NexusNormalAimbotOn == true)
 end
 end
--- Bypass Aimbot Mode (Velocity-based chase, from K7)
+do -- Bypass Aimbot Mode (Velocity chase — K7 + xenon + Adapt hybrid, tuned for Nexus)
+-- (wrapped in do..end to keep top-level local registers under the Luau 200 limit)
 _G.NexusBypassAimbot = {conn = nil, swingCooldown = false, prevAutoRotate = nil}
+-- Tunables (persisted via collectNexusConfig / loadNexusConfig)
 _G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 58
 _G.NexusBypassAimbotLaggerSpeed = _G.NexusBypassAimbotLaggerSpeed or 40
+_G.NexusBypassAimbotHitDist = _G.NexusBypassAimbotHitDist or 8
+
+local _bypassHEIGHT = 3.7
+local _bypassY_P = 19.5
+local _bypassTURN = 42
+local _bypassMAX_ANGLE = 2.5
+
+local _bypassTick = 0
+local _bypassCharConn = nil
 
 local function _bypassGetSpeed()
     if currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry" then
@@ -2062,47 +2102,62 @@ local function _bypassGetClosest()
     return closest, minDist
 end
 
-local function _bypassTrySwing()
-    local ba = _G.NexusBypassAimbot
-    if ba.swingCooldown then return end
-    ba.swingCooldown = true
+local function _bypassEquip()
     pcall(function()
         local char = LP.Character
-        if not char then return end
-        local bat = nil
-        for _, tool in ipairs(char:GetChildren()) do
-            if tool:IsA("Tool") then bat = tool; break end
-        end
-        if not bat then
-            local bp = LP:FindFirstChild("Backpack")
-            if bp then for _, tool in ipairs(bp:GetChildren()) do
-                if tool:IsA("Tool") then bat = tool; break end
-            end end
-        end
-        if bat then
-            if bat.Parent ~= char then
-                local hum = char:FindFirstChildOfClass("Humanoid")
-                if hum then pcall(function() hum:EquipTool(bat) end) end
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        if not char or not hum or hum.Health <= 0 then return end
+        if char:FindFirstChildOfClass("Tool") then return end
+        local bat = _G.NexusFindAimbotBat and _G.NexusFindAimbotBat() or nil
+        if bat then pcall(function() hum:EquipTool(bat) end) end
+    end)
+end
+
+local function _bypassCleanupCharacter()
+    pcall(function()
+        local c = LP.Character
+        if not c then return end
+        for _, d in ipairs(c:GetChildren()) do
+            if d:IsA("BodyVelocity") or d:IsA("BodyGyro") or d:IsA("VectorForce") or d:IsA("AlignPosition") or d:IsA("AlignOrientation") then
+                d:Destroy()
             end
-            pcall(function() bat:Activate() end)
         end
     end)
-    task.delay(0.03, function() ba.swingCooldown = false end)
+end
+
+-- Anti-bat counter shield: instantly re-equip the bat if a counter switches tools
+local function _bypassHookCharacter(char)
+    if _bypassCharConn then _bypassCharConn:Disconnect(); _bypassCharConn = nil end
+    if not char then return end
+    _bypassCharConn = char.ChildAdded:Connect(function(child)
+        if child:IsA("Tool") then
+            task.defer(function()
+                if _G.NexusNormalAimbotOn and child.Parent == char
+                and not (child.Name:lower():find("bat") or child.Name:lower():find("slap")) then
+                    _bypassEquip()
+                end
+            end)
+        end
+    end)
 end
 
 function _G.NexusStartBypassAimbot()
+    if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
+    if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
     local ba = _G.NexusBypassAimbot
     if ba.conn then ba.conn:Disconnect(); ba.conn = nil end
     _G.NexusNormalAimbotOn = true
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
     if hum then ba.prevAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+    _bypassHookCharacter(char)
+    _bypassEquip()
 
-    local bypassTick = 0
-    ba.conn = RunService.Heartbeat:Connect(function()
+    _bypassTick = 0
+    ba.conn = RunService.RenderStepped:Connect(function()
         if not _G.NexusNormalAimbotOn then return end
-        bypassTick = bypassTick + 1
-        if bypassTick % 8 == 0 then return end
+        _bypassTick = _bypassTick + 1
+        if _bypassTick % 8 == 0 then return end -- hover micro-pause (anti-detection from K7 leak)
 
         local c = LP.Character
         if not c then return end
@@ -2111,8 +2166,26 @@ function _G.NexusStartBypassAimbot()
         local h = c:FindFirstChildOfClass("Humanoid")
         if not h or h.Health <= 0 then return end
 
+        if _bypassTick % 16 == 1 then
+            _bypassCleanupCharacter()
+            if _bypassTick % 48 == 1 then _bypassEquip() end
+        end
+
+        -- Vision Duels-style autoswing: Activate the equipped bat every frame (no cooldown, no range gate)
+        if autoSwingEnabled then
+            local swingTool = c:FindFirstChildOfClass("Tool")
+            if swingTool and (swingTool.Name:lower():find("bat") or swingTool.Name:lower():find("slap")) then
+                pcall(function() swingTool:Activate() end)
+            end
+        end
+
         local target, targetDist = _bypassGetClosest()
-        if not target then return end
+        if not target then
+            h.AutoRotate = true
+            root.AssemblyAngularVelocity = Vector3.zero
+            return
+        end
+        h.AutoRotate = false
 
         local myPos = root.Position
         local targetPos = target.Position
@@ -2121,8 +2194,9 @@ function _G.NexusStartBypassAimbot()
         if flatDir.Magnitude > 0 then flatDir = flatDir.Unit else flatDir = Vector3.zero end
 
         local chaseSpeed = _bypassGetSpeed()
-        local desiredHeight = targetPos.Y + 3.7
-        local yVel = (desiredHeight - myPos.Y) * 19.5
+        local desiredHeight = targetPos.Y + _bypassHEIGHT
+        local targetVel = target.AssemblyLinearVelocity
+        local yVel = (desiredHeight - myPos.Y) * _bypassY_P + targetVel.Y * 0.8
         if h.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 13) end
         yVel = math.clamp(yVel, -70, 110)
         local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
@@ -2133,13 +2207,18 @@ function _G.NexusStartBypassAimbot()
             local goalCF = CFrame.lookAt(myPos, targetPos)
             local diffCF = root.CFrame:Inverse() * goalCF
             local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
-            rx = math.clamp(rx, -2.5, 2.5)
-            ry = math.clamp(ry, -2.5, 2.5)
-            rz = math.clamp(rz, -2.5, 2.5)
-            root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * 42, ry * 42, rz * 42))
+            rx = math.clamp(rx, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
+            ry = math.clamp(ry, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
+            rz = math.clamp(rz, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
+            root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * _bypassTURN, ry * _bypassTURN, rz * _bypassTURN))
         end
 
-        if autoSwingEnabled and targetDist <= 8 then _bypassTrySwing() end
+        -- Camera look-at (only when silent aim is off, same as TP Bat)
+        if not _G.NexusTpBatSilentAim then
+            local cam = workspace.CurrentCamera
+            if cam then pcall(function() cam.CFrame = CFrame.new(cam.CFrame.Position, targetPos) end) end
+        end
+
     end)
     if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
@@ -2148,6 +2227,7 @@ function _G.NexusStopBypassAimbot()
     _G.NexusNormalAimbotOn = false
     local ba = _G.NexusBypassAimbot
     if ba.conn then ba.conn:Disconnect(); ba.conn = nil end
+    if _bypassCharConn then _bypassCharConn:Disconnect(); _bypassCharConn = nil end
     ba.swingCooldown = false
     local c = LP.Character
     local root = c and c:FindFirstChild("HumanoidRootPart")
@@ -2158,8 +2238,13 @@ function _G.NexusStopBypassAimbot()
     local hum = c and c:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.AutoRotate = (ba.prevAutoRotate == nil) and true or ba.prevAutoRotate
+        hum.PlatformStand = false
+        pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
     end
     ba.prevAutoRotate = nil
+    local cam = workspace.CurrentCamera
+    local hum2 = c and c:FindFirstChildOfClass("Humanoid")
+    if cam and hum2 then pcall(function() cam.CameraSubject = hum2 end) end
     if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 
@@ -2179,6 +2264,84 @@ end
 end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
+
+-- Bypass settings API (persisted via config, wired to UI rows)
+function _G.NexusSetBypassAimbotSpeed(v)
+if v then _G.NexusBypassAimbotSpeed = math.clamp(tonumber(v) or 58, 30, 500) end
+saveNexusConfig()
+end
+function _G.NexusSetBypassAimbotLaggerSpeed(v)
+if v then _G.NexusBypassAimbotLaggerSpeed = math.clamp(tonumber(v) or 40, 20, 500) end
+saveNexusConfig()
+end
+function _G.NexusSetBypassHitDist(v)
+if v then _G.NexusBypassAimbotHitDist = math.clamp(tonumber(v) or 8, 4, 20) end
+saveNexusConfig()
+end
+
+-- Keep bypass running through respawns (Fixed-bypass respawn handler)
+LP.CharacterAdded:Connect(function(char)
+if not _G.NexusNormalAimbotOn or selectedAimbotMode ~= "Bypass" then return end
+task.wait(0.5)
+local hum = char and char:WaitForChild("Humanoid", 5)
+if hum then
+_G.NexusBypassAimbot.prevAutoRotate = nil
+hum.AutoRotate = false
+end
+_bypassHookCharacter(char)
+_bypassEquip()
+end)
+end
+
+-- Aimbot After Hit (Void.Vs port): auto-start the selected aimbot when you get ragdolled
+-- (wrapped in do..end to keep top-level local registers under the Luau 200 limit)
+do
+local _nexusIsRagdollState = function(hum)
+	if not hum then return false end
+	local st = hum:GetState()
+	return hum.PlatformStand or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown
+end
+local _nexusAimbotAfterHitStart = function()
+	task.spawn(function()
+		task.wait(0.15)
+		if not aimbotAfterHitEnabled then return end
+		if _G.NexusNormalAimbotOn then return end
+		pcall(function()
+			if _G.NexusSafeModeInDuelCountdown and _G.NexusSafeModeInDuelCountdown() then return end
+		end)
+		if _G.NexusTpBatEnabled then return end
+		if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
+	end)
+end
+local _nexusWatchHumanoid = function(hum)
+	if not hum then return end
+	hum.StateChanged:Connect(function(_, newState)
+		if not aimbotAfterHitEnabled then return end
+		if newState ~= Enum.HumanoidStateType.Physics and newState ~= Enum.HumanoidStateType.Ragdoll and newState ~= Enum.HumanoidStateType.FallingDown then return end
+		if _nexusIsRagdollState(hum) and not _G.NexusNormalAimbotOn then
+			_nexusAimbotAfterHitStart()
+		end
+	end)
+end
+LP.CharacterAdded:Connect(function(char)
+	task.wait(0.5)
+	if aimbotAfterHitEnabled then _nexusWatchHumanoid(char:FindFirstChildOfClass("Humanoid")) end
+end)
+do
+	local c = LP.Character
+	if c then
+		local hum = c:FindFirstChildOfClass("Humanoid")
+		if aimbotAfterHitEnabled and hum then _nexusWatchHumanoid(hum) end
+	end
+end
+function _G.NexusSetAimbotAfterHit(on)
+	aimbotAfterHitEnabled = on and true or false
+	saveNexusConfig()
+end
+_G.NexusSetAimbotAfterHitVisual = function(on)
+	aimbotAfterHitEnabled = on and true or false
+end
+end -- (end Aimbot After Hit block)
 
 -- Mirror TP Down: mirror a 3-stud opponent drop while Normal Aimbot is active.
 local MIRROR_TP_DROP_THRESHOLD = 3
@@ -3934,6 +4097,12 @@ end
 return nil
 end
 local function getCustomBackgroundAsset(index)
+if not index or index <= 0 then return nil end
+local url = NEXUS_BACKGROUND_URLS[index]
+local file = NEXUS_BACKGROUND_FILES[index]
+if not url or not file then return nil end
+local asset = getImageAsset(url, file)
+if asset then return asset end
 return nil
 end
 function watchImageAsset(url, file, callback)
@@ -3952,96 +4121,300 @@ end
 function watchCustomBackground(index, callback)
 end
 
-local Gui, Main, Content, MiniFrame, FULL_MAIN_SIZE, pages, BackgroundIDs, Close = (function()
+local Gui, Main, Content, OpenPill, FULL_MAIN_SIZE, pages, BackgroundIDs, Close = (function()
 local Gui=Instance.new("ScreenGui"); Gui.Name="NexusDuelsToo"; Gui.ResetOnSpawn=false; Gui.ZIndexBehavior=Enum.ZIndexBehavior.Sibling; Gui.Parent=PlayerGui
 local FULL_MAIN_SIZE=UDim2.new(0,326,0,444)
-local Main=Instance.new("Frame"); Main.Name="Main"; Main.AnchorPoint=Vector2.new(0,0.5); Main.Size=FULL_MAIN_SIZE; Main.Position=tableToUDim2(savedMainPositionTable,UDim2.new(0,20,0.5,0)); savedMainPositionTable=udim2ToTable(Main.Position); Main.BackgroundColor3=COLORS.bg; Main.BackgroundTransparency=0.02; Main.BorderSizePixel=0; Main.Active=true; Main.ClipsDescendants=true; Main.Parent=Gui; corner(Main,11); stroke(Main,COLORS.strokeSoft,1,0.22); makeDraggable(Main); Main:GetPropertyChangedSignal("Position"):Connect(function() savedMainPositionTable=udim2ToTable(Main.Position) end)
-local MiniFrame = Instance.new("Frame")
-MiniFrame.Name = "MiniFrame"
-MiniFrame.Size = UDim2.new(0, 80, 0, 32)
-local MINI_DEFAULT_POSITION = UDim2.new(0, 160, 0, 140)
-MiniFrame.Position = MINI_DEFAULT_POSITION
-savedMiniPositionTable = nil
-MiniFrame.BackgroundColor3 = COLORS.row
-MiniFrame.BackgroundTransparency = 0.1
-MiniFrame.BorderSizePixel = 0
-MiniFrame.Visible = false
-MiniFrame.Active = true
-MiniFrame.ZIndex = 20
-MiniFrame.Parent = Gui
-Instance.new("UICorner", MiniFrame).CornerRadius = UDim.new(0, 8)
-local miniStroke = Instance.new("UIStroke", MiniFrame)
-miniStroke.Color = COLORS.accentDim
-miniStroke.Thickness = 1
-miniStroke.Transparency = 0.4
-local MiniGradient = Instance.new("UIGradient", MiniFrame)
-MiniGradient.Color = ColorSequence.new({ColorSequenceKeypoint.new(0, COLORS.row), ColorSequenceKeypoint.new(1, COLORS.row)})
-MiniGradient.Rotation = 90
-local MiniButton = Instance.new("ImageButton")
-MiniButton.Name = "MiniButton"
-MiniButton.Size = UDim2.new(1, 0, 1, 0)
-MiniButton.BackgroundTransparency = 1
-MiniButton.ScaleType = Enum.ScaleType.Fit
-MiniButton.AutoButtonColor = false
-MiniButton.ZIndex = 21
-MiniButton.Parent = MiniFrame
-task.spawn(function() local ok,img=pcall(function() return game:HttpGet("https://files.catbox.moe/n9pcba.png") end); if ok and img and #img>500 then pcall(function() writefile("NexusMiniLogo.png",img) end); local a=nil; pcall(function() a=getcustomasset("NexusMiniLogo.png") end); if a then MiniButton.Image=a end end end)
-local MiniShade = Instance.new("Frame")
-MiniShade.Name = "MiniShade"
-MiniShade.Size = UDim2.new(1, -4, 1, -4)
-MiniShade.Position = UDim2.new(0, 2, 0, 2)
-MiniShade.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-MiniShade.BackgroundTransparency = 0.12
-MiniShade.BorderSizePixel = 0
-MiniShade.ZIndex = 20
-MiniShade.Parent = MiniFrame
-corner(MiniShade, 8)
-task.spawn(function()
-    while MiniFrame and MiniFrame.Parent do
-        if MiniFrame.Visible then
-            TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.5, Thickness = 1.5}):Play()
-            task.wait(1.2)
-            if MiniFrame and MiniFrame.Parent then
-                TweenService:Create(miniStroke, TweenInfo.new(1.2, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {Transparency = 0.3, Thickness = 1}):Play()
-                task.wait(1.2)
-            end
-        else
-            task.wait(0.4)
-        end
-    end
+local Main=Instance.new("Frame"); Main.Name="Main"; Main.AnchorPoint=Vector2.new(0,0.5); Main.Size=FULL_MAIN_SIZE; Main.Position=tableToUDim2(savedMainPositionTable,UDim2.new(0,20,0.5,0)); savedMainPositionTable=udim2ToTable(Main.Position); Main.BackgroundColor3=COLORS.bg; Main.BackgroundTransparency=0.02; Main.BorderSizePixel=0; Main.Active=true; Main.ClipsDescendants=true; Main.Parent=Gui; corner(Main,14); stroke(Main,COLORS.strokeSoft,1,0.22); makeDraggable(Main); Main:GetPropertyChangedSignal("Position"):Connect(function() savedMainPositionTable=udim2ToTable(Main.Position) end)
+local OpenPill = Instance.new("TextButton")
+OpenPill.Name = "OpenPill"
+OpenPill.Size = UDim2.new(0, 260, 0, 52)
+OpenPill.Position = Main.Position
+OpenPill.AnchorPoint = Main.AnchorPoint
+OpenPill.BackgroundColor3 = Color3.fromRGB(8, 8, 11)
+OpenPill.BorderSizePixel = 0
+OpenPill.Text = ""
+OpenPill.AutoButtonColor = false
+OpenPill.Visible = false
+OpenPill.ZIndex = 20
+OpenPill.Parent = Gui
+Instance.new("UICorner", OpenPill).CornerRadius = UDim.new(0, 14)
+local pillStroke = Instance.new("UIStroke", OpenPill)
+pillStroke.Color = COLORS.accentDim
+pillStroke.Thickness = 1
+pillStroke.Transparency = 0.3
+do
+	local leftGlow = Instance.new("Frame", OpenPill)
+	leftGlow.Name = "LeftGlow"
+	leftGlow.Size = UDim2.new(0, 3, 0.5, 0)
+	leftGlow.Position = UDim2.new(0, 14, 0.5, 0)
+	leftGlow.AnchorPoint = Vector2.new(0, 0.5)
+	leftGlow.BackgroundColor3 = COLORS.accent
+	leftGlow.BackgroundTransparency = 0.25
+	leftGlow.BorderSizePixel = 0
+	leftGlow.ZIndex = 21
+	Instance.new("UICorner", leftGlow).CornerRadius = UDim.new(1, 0)
+	local logoFrame = Instance.new("Frame", OpenPill)
+	logoFrame.Name = "LogoFrame"
+	logoFrame.Size = UDim2.new(0, 36, 0, 36)
+	logoFrame.Position = UDim2.new(0, 24, 0.5, 0)
+	logoFrame.AnchorPoint = Vector2.new(0, 0.5)
+	logoFrame.BackgroundColor3 = Color3.fromRGB(16, 16, 20)
+	logoFrame.BorderSizePixel = 0
+	logoFrame.ZIndex = 21
+	Instance.new("UICorner", logoFrame).CornerRadius = UDim.new(0, 10)
+	local logoImg = Instance.new("ImageLabel", logoFrame)
+	logoImg.Name = "LogoImg"
+	logoImg.Size = UDim2.new(1, -6, 1, -6)
+	logoImg.Position = UDim2.new(0, 3, 0, 3)
+	logoImg.BackgroundTransparency = 1
+	logoImg.Image = ""
+	logoImg.ImageColor3 = COLORS.white
+	logoImg.ZIndex = 22
+	logoImg.ScaleType = Enum.ScaleType.Fit
+	local logoFallback = Instance.new("TextLabel", logoFrame)
+	logoFallback.Name = "LogoFallback"
+	logoFallback.Size = UDim2.new(1, 0, 1, 0)
+	logoFallback.BackgroundTransparency = 1
+	logoFallback.Text = "NX"
+	logoFallback.TextColor3 = COLORS.accent
+	logoFallback.Font = Enum.Font.GothamBlack
+	logoFallback.TextSize = 14
+	logoFallback.ZIndex = 22
+	task.spawn(function()
+		local a = getImageAsset("https://files.catbox.moe/qnr6m8.png", "NexusLogo_qnr6m8.png")
+		if a and logoImg then logoImg.Image = a; logoFallback.Text = "" end
+	end)
+	local textStack = Instance.new("Frame", OpenPill)
+	textStack.Name = "TextStack"
+	textStack.Size = UDim2.new(1, -80, 1, 0)
+	textStack.Position = UDim2.new(0, 68, 0, 0)
+	textStack.BackgroundTransparency = 1
+	textStack.ZIndex = 21
+	local titleLabel = Instance.new("TextLabel", textStack)
+	titleLabel.Size = UDim2.new(1, 0, 0, 18)
+	titleLabel.Position = UDim2.new(0, 0, 0, 10)
+	titleLabel.BackgroundTransparency = 1
+	titleLabel.Text = "NEXUS DUELS"
+	titleLabel.TextColor3 = COLORS.white
+	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.TextSize = 14
+	titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	titleLabel.ZIndex = 22
+	local subtitleLabel = Instance.new("TextLabel", textStack)
+	subtitleLabel.Size = UDim2.new(1, 0, 0, 11)
+	subtitleLabel.Position = UDim2.new(0, 0, 0, 30)
+	subtitleLabel.BackgroundTransparency = 1
+	subtitleLabel.Text = "tap to open"
+	subtitleLabel.TextColor3 = COLORS.textDim
+	subtitleLabel.Font = Enum.Font.Gotham
+	subtitleLabel.TextSize = 9
+	subtitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+	subtitleLabel.ZIndex = 22
+	local chevron = Instance.new("TextLabel", OpenPill)
+	chevron.Size = UDim2.new(0, 20, 0, 20)
+	chevron.Position = UDim2.new(1, -32, 0.5, 0)
+	chevron.AnchorPoint = Vector2.new(0, 0.5)
+	chevron.BackgroundTransparency = 1
+	chevron.Text = ">"
+	chevron.TextColor3 = COLORS.accent
+	chevron.Font = Enum.Font.GothamBold
+	chevron.TextSize = 14
+	chevron.ZIndex = 22
+end
+OpenPill.MouseEnter:Connect(function()
+	TweenService:Create(OpenPill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(14, 14, 18)}):Play()
+	TweenService:Create(pillStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = COLORS.accent, Transparency = 0.1}):Play()
 end)
+OpenPill.MouseLeave:Connect(function()
+	TweenService:Create(OpenPill, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundColor3 = Color3.fromRGB(8, 8, 11)}):Play()
+	TweenService:Create(pillStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = COLORS.accentDim, Transparency = 0.3}):Play()
+end)
+local MainUIScale = Instance.new("UIScale", Main)
+MainUIScale.Name = "NexusMainUIScale"
+MainUIScale.Scale = 1
 local dragging,ds,sp,held,moved=false,nil,nil,nil,false
-MiniButton.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=true;moved=false;held=input;ds=input.Position;sp=MiniFrame.Position end end)
-UserInputService.InputChanged:Connect(function(input) if not dragging or not ds or not sp then return end; if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end; local d=input.Position-ds; if math.abs(d.X)>6 or math.abs(d.Y)>6 then moved=true end; MiniFrame.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end)
-UserInputService.InputEnded:Connect(function(input) if input~=held then return end; local was=moved; dragging=false;held=nil;ds=nil;sp=nil;if was then return end;Main.Visible=true;MiniFrame.Visible=false;Main.Size=FULL_MAIN_SIZE end)
-local BackgroundIDs={}; function applyBackground(index) Main.BackgroundColor3=COLORS.bg return "None" end
-local Header=Instance.new("Frame",Main); Header.BackgroundColor3=COLORS.row; Header.BackgroundTransparency=0.18; Header.BorderSizePixel=0; Header.Size=UDim2.new(1,0,0,44); Header.ZIndex=6; corner(Header,10)
-local Logo=Instance.new("ImageLabel",Header); Logo.Size=UDim2.new(0,28,0,28); Logo.Position=UDim2.new(0,9,0,8); Logo.BackgroundColor3=Color3.fromRGB(0,0,0); Logo.BackgroundTransparency=0; Logo.ScaleType=Enum.ScaleType.Fit; Logo.ImageTransparency=1; Logo.ZIndex=7; corner(Logo,7); stroke(Logo,COLORS.accentDim,1,0.25)
-local function setLogoImage(asset) if asset and Logo and Logo.Parent then Logo.Image=asset;Logo.ImageTransparency=0 end end
-setLogoImage(getImageAsset and getImageAsset("https://files.catbox.moe/qnr6m8.png","NexusDuelsLogo.png")); watchImageAsset("https://files.catbox.moe/qnr6m8.png","NexusDuelsLogo.png",setLogoImage)
-local Title=Instance.new("TextLabel",Header); Title.BackgroundTransparency=1; Title.Position=UDim2.new(0,47,0,0); Title.Size=UDim2.new(1,-90,1,0); Title.Text="NEXUS DUELS"; Title.TextColor3=COLORS.white; Title.Font=Enum.Font.GothamBlack; Title.TextSize=14; Title.TextXAlignment=Enum.TextXAlignment.Left; Title.ZIndex=7
-local Close=Instance.new("TextButton",Header); Close.Size=UDim2.new(0,26,0,26); Close.Position=UDim2.new(1,-34,0,9); Close.BackgroundColor3=COLORS.input; Close.Text="−"; Close.TextColor3=COLORS.textDim; Close.Font=Enum.Font.GothamBold; Close.TextSize=15; Close.AutoButtonColor=false; Close.ZIndex=8; corner(Close,7); stroke(Close,COLORS.strokeSoft,1,0.25)
-local Content=Instance.new("ScrollingFrame",Main); Content.Name="Content"; Content.BackgroundTransparency=1; Content.BorderSizePixel=0; Content.Position=UDim2.new(0,0,0,44); Content.Size=UDim2.new(1,0,1,-44); Content.ZIndex=3; Content.ScrollBarThickness=0; Content.ScrollBarImageTransparency=1; Content.CanvasSize=UDim2.new(0,0,0,0); Content.AutomaticCanvasSize=Enum.AutomaticSize.Y; Content.ScrollingDirection=Enum.ScrollingDirection.Y; Content.ClipsDescendants=true
+OpenPill.InputBegan:Connect(function(input) if input.UserInputType==Enum.UserInputType.MouseButton1 or input.UserInputType==Enum.UserInputType.Touch then dragging=true;moved=false;held=input;ds=input.Position;sp=OpenPill.Position end end)
+UserInputService.InputChanged:Connect(function(input) if not dragging or not ds or not sp then return end; if input.UserInputType~=Enum.UserInputType.MouseMovement and input.UserInputType~=Enum.UserInputType.Touch then return end; local d=input.Position-ds; if math.abs(d.X)>6 or math.abs(d.Y)>6 then moved=true end; OpenPill.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y) end)
+UserInputService.InputEnded:Connect(function(input) if input~=held then return end; local was=moved; dragging=false;held=nil;ds=nil;sp=nil;if was then return end; _G.__NexusDuelsMinimized=false; local TS=game:GetService("TweenService"); local cf=Main:FindFirstChild("ChromeFade"); local pillUiScale=OpenPill:FindFirstChildOfClass("UIScale"); if not pillUiScale then pillUiScale=Instance.new("UIScale",OpenPill) end; pillUiScale.Scale=1; TS:Create(pillUiScale,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{Scale=0.85}):Play(); TS:Create(OpenPill,TweenInfo.new(0.12,Enum.EasingStyle.Quad,Enum.EasingDirection.In),{BackgroundTransparency=0.5}):Play(); task.delay(0.12,function() OpenPill.Visible=false; OpenPill.BackgroundTransparency=0; Main.Visible=true; if MainUIScale then MainUIScale.Scale=0.82 end; Main.BackgroundTransparency=0.35; if cf then cf.GroupTransparency=1 end; Main.Size=FULL_MAIN_SIZE; if MainUIScale then TS:Create(MainUIScale,TweenInfo.new(0.28,Enum.EasingStyle.Back,Enum.EasingDirection.Out),{Scale=1}):Play() end; TS:Create(Main,TweenInfo.new(0.25,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{BackgroundTransparency=0.02}):Play(); if cf then TS:Create(cf,TweenInfo.new(0.3,Enum.EasingStyle.Quad,Enum.EasingDirection.Out),{GroupTransparency=0}):Play() end; saveNexusConfig() end) end)
+local BackgroundIDs={}
+function applyBackground(index)
+currentBackground = tonumber(index) or 0
+local bgImage = BackgroundIDs.__bgImage
+if not bgImage or not bgImage.Parent then return "None" end
+if currentBackground <= 0 then
+bgImage.Visible = false
+bgImage.Image = ""
+return "None"
+end
+local asset = getCustomBackgroundAsset(currentBackground)
+bgImage.Image = asset or ("rbxassetid://" .. tostring(NEXUS_BACKGROUND_DECALS[currentBackground] or 0))
+bgImage.ImageColor3 = COLORS.white
+bgImage.Visible = bgImage.Image ~= ""
+return bgImage.Visible and tostring(currentBackground) or "None"
+end
+local Header=Instance.new("Frame",Main); Header.BackgroundColor3=COLORS.row; Header.BackgroundTransparency=0.18; Header.BorderSizePixel=0; Header.Size=UDim2.new(1,0,0,60); Header.ZIndex=6; corner(Header,10)
+local TitleImage=Instance.new("ImageLabel",Header); TitleImage.Name="VoidTitle"; TitleImage.AnchorPoint=Vector2.new(0.5,0.5); TitleImage.Position=UDim2.new(0.5,0,0.5,0); TitleImage.Size=UDim2.new(0,220,0,48); TitleImage.BackgroundTransparency=1; TitleImage.BackgroundColor3=Color3.fromRGB(0,0,0); TitleImage.BorderSizePixel=0; TitleImage.ScaleType=Enum.ScaleType.Fit; TitleImage.Image=""; TitleImage.ImageTransparency=0; TitleImage.ImageColor3=COLORS.white; TitleImage.ZIndex=7
+task.spawn(function() local a=getImageAsset("https://files.catbox.moe/s2rbw9.png","NexusLogo_s2rbw9.png"); if a then TitleImage.Image=a end end)
+local Close=Instance.new("TextButton",Header); Close.Size=UDim2.new(0,32,0,32); Close.Position=UDim2.new(1,-38,0.5,-16); Close.BackgroundColor3=COLORS.input; Close.Text="-"; Close.TextColor3=COLORS.textDim; Close.Font=Enum.Font.GothamBold; Close.TextSize=18; Close.AutoButtonColor=false; Close.ZIndex=10; corner(Close,8); stroke(Close,COLORS.strokeSoft,1,0.25)
+local Content=Instance.new("ScrollingFrame",Main); Content.Name="Content"; Content.BackgroundTransparency=1; Content.BorderSizePixel=0; Content.Position=UDim2.new(0,0,0,100); Content.Size=UDim2.new(1,0,1,-100); Content.ZIndex=3; Content.ScrollBarThickness=0; Content.ScrollBarImageTransparency=1; Content.CanvasSize=UDim2.new(0,0,0,0); Content.AutomaticCanvasSize=Enum.AutomaticSize.Y; Content.ScrollingDirection=Enum.ScrollingDirection.Y; Content.ClipsDescendants=true
+do -- background image layer (Void.Vs-style BackgroundImage)
+local bgImage=Instance.new("ImageLabel",Main)
+bgImage.Name="BackgroundImage"
+bgImage.Size=UDim2.new(1,0,1,0)
+bgImage.Position=UDim2.new(0,0,0,0)
+bgImage.BackgroundTransparency=1
+bgImage.Image=""
+bgImage.ImageColor3=COLORS.white
+bgImage.ScaleType=Enum.ScaleType.Crop
+bgImage.ImageTransparency=0.35
+bgImage.Visible=false
+bgImage.ZIndex=1
+Instance.new("UICorner",bgImage).CornerRadius=UDim.new(0,14)
+BackgroundIDs.__bgImage=bgImage
+end
+do -- Void.Vs-style CanvasGroup idle transparency (matches Void.Vs ChromeFade system)
+local ChromeFade=Instance.new("CanvasGroup")
+ChromeFade.Name="ChromeFade"
+ChromeFade.Size=UDim2.new(1,0,1,0)
+ChromeFade.Position=UDim2.new(0,0,0,0)
+ChromeFade.BackgroundTransparency=1
+ChromeFade.BorderSizePixel=0
+ChromeFade.GroupTransparency=0
+ChromeFade.ZIndex=4
+ChromeFade.Parent=Main
+local contentMoved=false
+local function moveIntoCanvas()
+if contentMoved then return end
+contentMoved=true
+if Content then Content.Parent=ChromeFade end
+local tabBar=Main:FindFirstChild("TabBar")
+if tabBar then tabBar.Parent=ChromeFade end
+local header=Main:FindFirstChild("Header")
+if header then
+for _,ch in ipairs(header:GetChildren()) do
+if ch:IsA("GuiObject") and ch~=Close then
+ch.Parent=ChromeFade
+end
+end
+end
+end
+moveIntoCanvas()
+local IDLE_DELAY=5
+local lastActivity=tick()
+local isFaded=false
+local hovering=false
+local function poke() lastActivity=tick() end
+Main.MouseEnter:Connect(function() hovering=true poke() end)
+Main.MouseLeave:Connect(function() hovering=false end)
+Main.MouseMoved:Connect(function() poke() end)
+UserInputService.InputBegan:Connect(function() poke() end)
+ChromeFade.InputBegan:Connect(function() poke() end)
+for _,desc in ipairs(ChromeFade:GetDescendants()) do
+if desc:IsA("TextButton") or desc:IsA("ImageButton") then
+desc.MouseButton1Click:Connect(function() poke() end)
+desc.InputBegan:Connect(function() poke() end)
+end
+end
+local fadeTweenInfo=TweenInfo.new(0.55,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+local restoreTweenInfo=TweenInfo.new(0.2,Enum.EasingStyle.Quad,Enum.EasingDirection.Out)
+local function fadeContent()
+isFaded=true
+TweenService:Create(ChromeFade,fadeTweenInfo,{GroupTransparency=0.88}):Play()
+TweenService:Create(Main,fadeTweenInfo,{BackgroundTransparency=0.55}):Play()
+end
+local function restoreContent()
+isFaded=false
+TweenService:Create(ChromeFade,restoreTweenInfo,{GroupTransparency=0}):Play()
+TweenService:Create(Main,restoreTweenInfo,{BackgroundTransparency=0.02}):Play()
+end
+task.spawn(function()
+while Gui and Gui.Parent do
+task.wait(0.12)
+if not Main.Visible then
+if isFaded then isFaded=false pcall(function() ChromeFade.GroupTransparency=0 end) pcall(function() Main.BackgroundTransparency=0.02 end) end
+lastActivity=tick()
+else
+if (not hovering) and (not isFaded) and (tick()-lastActivity)>=IDLE_DELAY then
+fadeContent()
+elseif (isFaded and hovering) or (not isFaded and hovering) then
+if isFaded then restoreContent() end
+lastActivity=tick()
+end
+end
+end
+end)
+end
 local layout=Instance.new("UIListLayout",Content); layout.SortOrder=Enum.SortOrder.LayoutOrder; layout.Padding=UDim.new(0,2)
 local pad=Instance.new("UIPadding",Content); pad.PaddingLeft=UDim.new(0,7); pad.PaddingRight=UDim.new(0,7); pad.PaddingTop=UDim.new(0,7); pad.PaddingBottom=UDim.new(0,10)
 local pages={}; local pageOrder=0
 function addPage(name,displayName)
 pageOrder=pageOrder+1
-local page=Instance.new("Frame"); page.Name=name; page.BackgroundTransparency=1; page.Size=UDim2.new(1,0,0,0); page.AutomaticSize=Enum.AutomaticSize.Y; page.ZIndex=3; page.LayoutOrder=pageOrder; page.Visible=true; page.Parent=Content
+local page=Instance.new("Frame"); page.Name=name; page.BackgroundTransparency=1; page.Size=UDim2.new(1,0,0,0); page.AutomaticSize=Enum.AutomaticSize.Y; page.ZIndex=3; page.LayoutOrder=pageOrder; page.Visible=(pageOrder==1); page.Parent=Content
 local pl=Instance.new("UIListLayout",page); pl.SortOrder=Enum.SortOrder.LayoutOrder; pl.Padding=UDim.new(0,4)
 pages[name]=page
 return page
 end
-return Gui,Main,Content,MiniFrame,FULL_MAIN_SIZE,pages,BackgroundIDs,Close
+do -- Cursed Hub-style tab bar (MOVEMENT / COMBAT / KEYBINDS / VISUALS / SETTINGS)
+local tabsFrame=Instance.new("Frame",Main)
+tabsFrame.Name="TabBar"
+tabsFrame.Position=UDim2.new(0,6,0,62)
+tabsFrame.Size=UDim2.new(1,-12,0,30)
+tabsFrame.BackgroundTransparency=1
+tabsFrame.ZIndex=7
+local tabsLayout=Instance.new("UIListLayout",tabsFrame)
+tabsLayout.FillDirection=Enum.FillDirection.Horizontal
+tabsLayout.HorizontalAlignment=Enum.HorizontalAlignment.Center
+tabsLayout.SortOrder=Enum.SortOrder.LayoutOrder
+tabsLayout.Padding=UDim.new(0,4)
+local tabNames={"MOVEMENT","COMBAT","KEYBINDS","VISUALS","SETTINGS"}
+local tabBtns={}
+local function selectPage(name)
+if not pages[name] then return end
+_G.NexusActiveTab=name
+for n,p in pairs(pages) do p.Visible=(n==name) end
+for n,b in pairs(tabBtns) do
+local isA=(n==name)
+b.btn.BackgroundTransparency=isA and 0.3 or 0.82
+b.btn.TextColor3=isA and COLORS.accent or COLORS.textDim
+if b.stroke then b.stroke.Transparency=isA and 0.1 or 0.45 end
+end
+end
+_G.NexusSelectPage=selectPage
+for i,name in ipairs(tabNames) do
+local btn=Instance.new("TextButton",tabsFrame)
+btn.Name=name
+btn.Size=UDim2.new(0,56,0,26)
+btn.BackgroundColor3=COLORS.row
+btn.BackgroundTransparency=(i==1) and 0.3 or 0.82
+btn.BorderSizePixel=0
+btn.Text=name
+btn.TextColor3=(i==1) and COLORS.accent or COLORS.textDim
+btn.TextSize=8
+btn.Font=Enum.Font.GothamBlack
+btn.AutoButtonColor=false
+btn.LayoutOrder=i
+btn.ZIndex=8
+corner(btn,7)
+tabBtns[name]={btn=btn,stroke=stroke(btn,COLORS.accentDim,1,(i==1) and 0.1 or 0.45)}
+btn.Activated:Connect(function() selectPage(name) end)
+end
+end
+return Gui,Main,Content,OpenPill,FULL_MAIN_SIZE,pages,BackgroundIDs,Close
 end)()
+applyBackground(currentBackground)
 function totalBackgroundCount()
-return 0
+return 4
 end
 
 addPage("MOVEMENT", "MOVEMENT")
 addPage("COMBAT", "COMBAT")
 addPage("KEYBINDS", "KEYBINDS")
+addPage("VISUALS", "VISUALS")
 addPage("SETTINGS", "SETTINGS")
+do -- restore last selected tab (saved in config as selectedTab)
+local savedTab=_G.NexusActiveTab
+if _G.NexusSelectPage and pages[savedTab] then _G.NexusSelectPage(savedTab) end
+end
 function section(parent, text, order)
 local label = Instance.new("TextLabel")
 label.Name = text
@@ -4248,6 +4621,7 @@ pcall(function() if setAutoSwitchVisual then setAutoSwitchVisual(autoSwitchEnabl
 if autoSwitchEnabled and _G.NexusStartAutoSwitch then _G.NexusStartAutoSwitch() end
 if autoDodgeEnabled then pcall(startAutoDodge) end
 pcall(function() if setAutoTPVisual then setAutoTPVisual(autoTPEnabled == true) end end)
+pcall(function() if _G.NexusSetAimbotAfterHitVisual then _G.NexusSetAimbotAfterHitVisual(aimbotAfterHitEnabled == true) end end)
 end
 _G.NexusActionToggleRow = function(parent, labelText, default, order)
 local row = baseRow(parent, labelText, order)
@@ -4352,6 +4726,7 @@ animationPackValueLabel.TextColor3 = COLORS.white
 animationPackValueLabel.TextSize = 11
 animationPackValueLabel.Font = Enum.Font.GothamBold
 animationPackValueLabel.TextXAlignment = Enum.TextXAlignment.Center
+animationPackValueLabel.TextTruncate = Enum.TextTruncate.AtEnd
 animationPackValueLabel.Size = UDim2.new(0, 62, 1, 0)
 animationPackValueLabel.Position = UDim2.new(1, -112, 0, 0)
 animationPackValueLabel.ZIndex = 6
@@ -5327,6 +5702,86 @@ do
 		end)
 		laggerAimbotSpeedRow = row
 	end
+	do
+		local row = baseRow(aimbotPanel, "Bypass Speed", 4)
+		row.Size = UDim2.new(1, -4, 0, 34)
+		row.BackgroundTransparency = 0.75
+		local lbl = row:FindFirstChild("Label")
+		if lbl then lbl.Size = UDim2.new(0, 130, 1, 0) end
+		local box = Instance.new("TextBox")
+		box.BackgroundColor3 = COLORS.input
+		box.BackgroundTransparency = 0.18
+		box.Text = tostring(_G.NexusBypassAimbotSpeed or 58)
+		box.TextColor3 = Color3.fromRGB(235, 235, 235)
+		box.PlaceholderText = "30-500"
+		box.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+		box.TextSize = 13
+		box.Font = Enum.Font.GothamBold
+		box.Size = UDim2.new(0, 70, 0, 26)
+		box.Position = UDim2.new(1, -82, 0.5, -13)
+		box.BorderSizePixel = 0
+		box.ZIndex = 6
+		box.ClearTextOnFocus = false
+		box.Parent = row
+		corner(box, 7)
+		stroke(box, COLORS.strokeSoft, 1, 0.3)
+		box.FocusLost:Connect(function()
+			local v = tonumber(box.Text)
+			if v then
+				_G.NexusSetBypassAimbotSpeed(v)
+				box.Text = tostring(_G.NexusBypassAimbotSpeed)
+				saveNexusConfig()
+			end
+			box.Text = tostring(_G.NexusBypassAimbotSpeed)
+		end)
+	end
+	do
+		local row = baseRow(aimbotPanel, "Bypass Lagger Spd", 5)
+		row.Size = UDim2.new(1, -4, 0, 34)
+		row.BackgroundTransparency = 0.75
+		local lbl = row:FindFirstChild("Label")
+		if lbl then lbl.Size = UDim2.new(0, 130, 1, 0) end
+		local box = Instance.new("TextBox")
+		box.BackgroundColor3 = COLORS.input
+		box.BackgroundTransparency = 0.18
+		box.Text = tostring(_G.NexusBypassAimbotLaggerSpeed or 40)
+		box.TextColor3 = Color3.fromRGB(235, 235, 235)
+		box.PlaceholderText = "20-500"
+		box.PlaceholderColor3 = Color3.fromRGB(100, 100, 120)
+		box.TextSize = 13
+		box.Font = Enum.Font.GothamBold
+		box.Size = UDim2.new(0, 70, 0, 26)
+		box.Position = UDim2.new(1, -82, 0.5, -13)
+		box.BorderSizePixel = 0
+		box.ZIndex = 6
+		box.ClearTextOnFocus = false
+		box.Parent = row
+		corner(box, 7)
+		stroke(box, COLORS.strokeSoft, 1, 0.3)
+		box.FocusLost:Connect(function()
+			local v = tonumber(box.Text)
+			if v then
+				_G.NexusSetBypassAimbotLaggerSpeed(v)
+				box.Text = tostring(_G.NexusBypassAimbotLaggerSpeed)
+				saveNexusConfig()
+			end
+			box.Text = tostring(_G.NexusBypassAimbotLaggerSpeed)
+		end)
+	end
+	do
+		local row, setAfterHitVisual = toggleRow(aimbotPanel, "Aimbot After Hit", aimbotAfterHitEnabled, 6)
+		_G.NexusSetAimbotAfterHitVisual = function(on)
+			if setAfterHitVisual then setAfterHitVisual(on) end
+		end
+		local btn = row and row:FindFirstChild("ToggleButton")
+		if btn then
+			btn.Activated:Connect(function()
+				aimbotAfterHitEnabled = not aimbotAfterHitEnabled
+				if _G.NexusSetAimbotAfterHitVisual then _G.NexusSetAimbotAfterHitVisual(aimbotAfterHitEnabled) end
+				saveNexusConfig()
+			end)
+		end
+	end
 end
 
 section(Combat, "TP BAT", 10)
@@ -6082,7 +6537,7 @@ function enableCustomFont() customFontVisualEnabled=false; if V then V.customFon
 function disableCustomFont() customFontVisualEnabled=false; if V then V.customFontEnabled=false end end
 
 function __NexusDuelsSetupVisualsUI()
-local Utility = pages.COMBAT
+local Utility = pages.VISUALS
 local skyThemes = SKY_PRESETS_LIST or {"Off", "Night", "Aurora", "Sunset", "Galaxy", "Tech", "Sakura"}
 local skyIndex = 1
 for i, name in ipairs(skyThemes) do if name == skyTheme then skyIndex = i break end end
@@ -6176,7 +6631,82 @@ setSkyIndex(skyIndex + 1)
 end)
 return row
 end
-section(Utility, "VISUALS", 18)
+local bgList = {"None", "NX3"}
+local bgIndexMap = {[1] = 0, [2] = 3}
+local bgIndex = 1
+if currentBackground == 0 then bgIndex = 1 elseif currentBackground == 3 then bgIndex = 2 end
+function backgroundSelectorRow(parent, order)
+local row = baseRow(parent, "Background", order)
+row.Size = UDim2.new(1, -4, 0, 34)
+row.ClipsDescendants = true
+local label = row:FindFirstChild("Label")
+if label then
+label.Size = UDim2.new(0, 92, 1, 0)
+label.TextSize = 14
+end
+local left = Instance.new("TextButton")
+left.Name = "BgLeft"
+left.BackgroundColor3 = COLORS.input
+left.Text = "<"
+left.TextColor3 = Color3.fromRGB(235, 235, 235)
+left.TextSize = 12
+left.Font = Enum.Font.GothamBold
+left.Size = UDim2.new(0, 42, 0, 28)
+left.Position = UDim2.new(1, -186, 0.5, -14)
+left.BorderSizePixel = 0
+left.ZIndex = 8
+left.AutoButtonColor = false
+left.Parent = row
+corner(left, 6)
+local holder = Instance.new("Frame")
+holder.Name = "BgValueHolder"
+holder.BackgroundColor3 = COLORS.input
+holder.BackgroundTransparency = 0.15
+holder.BorderSizePixel = 0
+holder.Size = UDim2.new(0, 92, 0, 28)
+holder.Position = UDim2.new(1, -139, 0.5, -14)
+holder.ClipsDescendants = true
+holder.ZIndex = 7
+holder.Parent = row
+corner(holder, 6)
+_G.NexusBgValueLabel = Instance.new("TextLabel")
+_G.NexusBgValueLabel.Name = "BgValue"
+_G.NexusBgValueLabel.BackgroundTransparency = 1
+_G.NexusBgValueLabel.Text = bgList[bgIndex]
+_G.NexusBgValueLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+_G.NexusBgValueLabel.TextSize = 11
+_G.NexusBgValueLabel.Font = Enum.Font.GothamBold
+_G.NexusBgValueLabel.TextXAlignment = Enum.TextXAlignment.Center
+_G.NexusBgValueLabel.Size = UDim2.new(1, 0, 1, 0)
+_G.NexusBgValueLabel.ZIndex = 9
+_G.NexusBgValueLabel.Parent = holder
+local right = Instance.new("TextButton")
+right.Name = "BgRight"
+right.BackgroundColor3 = COLORS.input
+right.Text = ">"
+right.TextColor3 = Color3.fromRGB(235, 235, 235)
+right.TextSize = 12
+right.Font = Enum.Font.GothamBold
+right.Size = UDim2.new(0, 42, 0, 28)
+right.Position = UDim2.new(1, -42, 0.5, -14)
+right.BorderSizePixel = 0
+right.ZIndex = 8
+right.AutoButtonColor = false
+right.Parent = row
+corner(right, 6)
+local function setBgIndex(nextIndex)
+if nextIndex < 1 then nextIndex = #bgList end
+if nextIndex > #bgList then nextIndex = 1 end
+bgIndex = nextIndex
+currentBackground = bgIndexMap[bgIndex] or 0
+if applyBackground then applyBackground(currentBackground) end
+if _G.NexusBgValueLabel then _G.NexusBgValueLabel.Text = bgList[bgIndex] end
+saveNexusConfig()
+end
+left.Activated:Connect(function() setBgIndex(bgIndex - 1) end)
+right.Activated:Connect(function() setBgIndex(bgIndex + 1) end)
+return row
+end
 section(Utility, "ESP", 19)
 do
 	local espRow, setESPVisual = toggleRow(Utility, "ESP", espEnabled, 20)
@@ -6230,6 +6760,8 @@ end
 end
 section(Utility, "SKY THEME", 23)
 skyThemeSelectorRow(Utility, 24)
+section(Utility, "BACKGROUND", 24)
+backgroundSelectorRow(Utility, 25)
 section(Utility, "PERFORMANCE", 25)
 do
 	local row, setVisual = toggleRow(Utility, "Anti Lag", antiLagVisualEnabled, 27)
@@ -7064,6 +7596,9 @@ autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiS
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
+_G.NexusBypassAimbotSpeed = 58; _G.NexusBypassAimbotLaggerSpeed = 40
+_G.NexusBypassAimbotHitDist = 8
+aimbotAfterHitEnabled = false
 autoSwingEnabled = true
 _G.NexusTpBatEnabled = false
 _G.NexusAntiDieOn = false
@@ -7120,12 +7655,45 @@ if input.UserInputType ~= Enum.UserInputType.Keyboard and not isControllerInput 
 if input.KeyCode == Enum.KeyCode.Unknown then return end
 if speedKeybinds.ToggleUI and input.KeyCode == speedKeybinds.ToggleUI then
 if Main.Visible then
-Main.Visible = false
-MiniFrame.Visible = true
+	_G.__NexusDuelsMinimized = true
+	local TS = game:GetService("TweenService")
+	local cf = Main:FindFirstChild("ChromeFade")
+	if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.82}):Play() end
+	TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.35}):Play()
+	if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {GroupTransparency = 1}):Play() end
+	task.delay(0.3, function()
+		Main.Visible = false
+		OpenPill.Visible = true
+		if MainUIScale then MainUIScale.Scale = 1 end
+		Main.BackgroundTransparency = 0.02
+		if cf then cf.GroupTransparency = 0 end
+		Main.Size = FULL_MAIN_SIZE
+		local pillScale = Instance.new("UIScale", OpenPill)
+		pillScale.Scale = 0.7
+		TS:Create(pillScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		task.delay(0.25, function() pcall(function() pillScale:Destroy() end) end)
+	end)
 else
-Main.Visible = true
-MiniFrame.Visible = false
-Main.Size = FULL_MAIN_SIZE
+	_G.__NexusDuelsMinimized = false
+	local TS = game:GetService("TweenService")
+	local cf = Main:FindFirstChild("ChromeFade")
+	local pillUiScale = OpenPill:FindFirstChildOfClass("UIScale")
+	if not pillUiScale then pillUiScale = Instance.new("UIScale", OpenPill) end
+	pillUiScale.Scale = 1
+	TS:Create(pillUiScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+	TS:Create(OpenPill, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.5}):Play()
+	task.delay(0.12, function()
+		OpenPill.Visible = false
+		OpenPill.BackgroundTransparency = 0
+		Main.Visible = true
+		if MainUIScale then MainUIScale.Scale = 0.82 end
+		Main.BackgroundTransparency = 0.35
+		if cf then cf.GroupTransparency = 1 end
+		Main.Size = FULL_MAIN_SIZE
+		if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
+		TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.02}):Play()
+		if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play() end
+	end)
 end
 saveNexusConfig()
 return
@@ -7252,217 +7820,196 @@ end
 end)
 
 _G.__NexusDuelsSetupStealBar = function()
-local RunService   = game:GetService("RunService")
-local UIS = UserInputService
-local TS = TweenService
-local Stats        = game:GetService("Stats")
-local existingStealBar = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("NexusHud")
-if existingStealBar then existingStealBar:Destroy() end
-local gui = Instance.new("ScreenGui")
-gui.Name = "NexusHud"
-gui.ResetOnSpawn = false
-gui.IgnoreGuiInset = true
-gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-gui.Parent = PlayerGui
-function drag(frame)
-local dragging, dragStart, startPos = false, nil, nil
-frame.InputBegan:Connect(function(input)
-if _G.NexusGuiLocked == true then return end
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-dragging = true
-dragStart = input.Position
-startPos = frame.Position
-input.Changed:Connect(function()
-if input.UserInputState == Enum.UserInputState.End then dragging = false end
-end)
-end
-end)
-UIS.InputChanged:Connect(function(input)
-if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-local delta = input.Position - dragStart
-frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-end)
-end
-local pbFrame = Instance.new("Frame", gui)
-pbFrame.Name = "NexusHudBar"
-pbFrame.Size = UDim2.new(0, 340, 0, 44)
-pbFrame.Position = UDim2.new(0.5, -170, 0.75, 0)
-pbFrame.BackgroundColor3 = COLORS.bg
-pbFrame.BackgroundTransparency = 0.55
-pbFrame.BorderSizePixel = 0
-pbFrame.Active = true
-Instance.new("UICorner", pbFrame).CornerRadius = UDim.new(0, 8)
-local pbSt = Instance.new("UIStroke", pbFrame)
-pbSt.Thickness = 1
-pbSt.Color = COLORS.accentDim
-pbSt.Transparency = 0.4
-pbSt.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-drag(pbFrame)
-local pbScale = Instance.new("UIScale")
-pbScale.Name = "NexusProgressBarScale"
-pbScale.Scale = nexusProgressBarScaleValue or 1
-pbScale.Parent = pbFrame
-local nameLabel = Instance.new("TextLabel", pbFrame)
-nameLabel.Size = UDim2.new(1, -16, 0, 14)
-nameLabel.Position = UDim2.new(0, 8, 0, 4)
-nameLabel.BackgroundTransparency = 1
-nameLabel.Text = "IDLE"
-nameLabel.TextColor3 = COLORS.white
-nameLabel.TextTransparency = 0.15
-nameLabel.TextSize = 11
-nameLabel.Font = Enum.Font.GothamBold
-nameLabel.TextXAlignment = Enum.TextXAlignment.Left
-nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
-nameLabel.Parent = pbFrame
-
-local radiusLabel = Instance.new("TextLabel", pbFrame)
-radiusLabel.Size = UDim2.new(1, -16, 0, 10)
-radiusLabel.Position = UDim2.new(0, 8, 1, -12)
-radiusLabel.BackgroundTransparency = 1
-radiusLabel.Text = ""
-radiusLabel.TextColor3 = COLORS.textDim
-radiusLabel.TextTransparency = 0.35
-radiusLabel.TextSize = 9
-radiusLabel.Font = Enum.Font.Gotham
-radiusLabel.TextXAlignment = Enum.TextXAlignment.Left
-radiusLabel.Parent = pbFrame
-radiusLabel.Visible = false
-local statsLabel = Instance.new("TextLabel", gui)
-statsLabel.Name = "NexusPerformanceStats"
-statsLabel.AnchorPoint = Vector2.new(1, 0)
-statsLabel.Position = UDim2.new(1, -12, 0, 12)
-statsLabel.Size = UDim2.new(0, 190, 0, 22)
-statsLabel.BackgroundTransparency = 1
-statsLabel.Text = "Ping: 0ms  •  FPS: 60"
-statsLabel.TextColor3 = COLORS.white
-statsLabel.TextTransparency = 0.08
-statsLabel.TextSize = 11
-statsLabel.Font = Enum.Font.GothamBold
-statsLabel.TextXAlignment = Enum.TextXAlignment.Right
-statsLabel.ZIndex = 50
-local fillRegion = Instance.new("Frame", pbFrame)
-fillRegion.Size = UDim2.new(1, -16, 0, 14)
-fillRegion.Position = UDim2.new(0, 8, 0, 20)
-fillRegion.BackgroundColor3 = COLORS.input
-fillRegion.BackgroundTransparency = 0.7
-fillRegion.BorderSizePixel = 0
-fillRegion.ClipsDescendants = true
-fillRegion.Parent = pbFrame
-Instance.new("UICorner", fillRegion).CornerRadius = UDim.new(1, 0)
-local fillStroke = Instance.new("UIStroke", fillRegion)
-fillStroke.Color = COLORS.stroke
-fillStroke.Thickness = 1
-fillStroke.Transparency = 0.5
-local progressFill = Instance.new("Frame", fillRegion)
-progressFill.Name = "Fill"
-progressFill.Size = UDim2.new(0, 0, 1, 0)
-progressFill.BackgroundColor3 = COLORS.accent
-progressFill.BackgroundTransparency = 0.55
-progressFill.BorderSizePixel = 0
-progressFill.ZIndex = 2
-progressFill.Parent = fillRegion
-Instance.new("UICorner", progressFill).CornerRadius = UDim.new(1, 0)
-local barState = "IDLE"
-local currentGrabName = ""
-local grabStartTime = 0
-local percentLabel = Instance.new("TextLabel", fillRegion)
-percentLabel.Size = UDim2.new(1, 0, 1, 0)
-percentLabel.BackgroundTransparency = 1
-percentLabel.Text = "0%"
-percentLabel.TextColor3 = COLORS.white
-percentLabel.TextTransparency = 0.05
-percentLabel.TextSize = 9
-percentLabel.Font = Enum.Font.GothamBold
-percentLabel.TextXAlignment = Enum.TextXAlignment.Center
-percentLabel.ZIndex = 2
-percentLabel.Parent = fillRegion
-local function updateDot()
-end
-function setBarState(state)
-barState = state
-if state == "STEALING" then
-	if nameLabel then
-		if currentGrabName ~= "" then nameLabel.Text = currentGrabName else nameLabel.Text = "STEALING" end
-	end
-elseif state == "READY" then
-	if nameLabel then nameLabel.Text = "READY" end
-	if percentLabel then percentLabel.Text = "100%"; percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
-else
-	if nameLabel then
-		local dots = string.rep(".", (math.floor(tick() * 2) % 4))
-		nameLabel.Text = "WAITING" .. dots
-	end
-	if percentLabel then percentLabel.Text = "0%"; percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
-end
-end
-task.spawn(function()
-local lastFrame = tick()
-local fpsSum = 0
-local fpsCount = 0
-local fpsAvg = 60
-RunService.RenderStepped:Connect(function()
-	local now = tick()
-	local dt = now - lastFrame
-	lastFrame = now
-	if dt > 0 then
-		fpsSum = fpsSum + (1 / dt)
-		fpsCount = fpsCount + 1
-		if fpsCount >= 30 then
-			fpsAvg = fpsSum / fpsCount
-			fpsSum = 0
-			fpsCount = 0
-		end
-	end
-end)
-while pbFrame and pbFrame.Parent do
-	local ping = 0
-	pcall(function()
-		local stat = Stats.Network.ServerStatsItem["Data Ping"]
-		if stat then ping = tonumber(stat:GetValue()) or 0 end
-	end)
-	if statsLabel and statsLabel.Parent then statsLabel.Text = string.format("Ping: %dms  •  FPS: %d", math.floor(ping + 0.5), math.floor(fpsAvg + 0.5)) end
-	if barState == "IDLE" and nameLabel then
-		local dots = string.rep(".", (math.floor(tick() * 2) % 4))
-		nameLabel.Text = "WAITING" .. dots
-	end
-	task.wait(0.5)
-end
-end)
-local StealBar = {}
-function StealBar.SetProgress(p)
-	p = math.clamp(p, 0, 1)
-	progressFill.Size = UDim2.new(p, 0, 1, 0)
-	if percentLabel then
-		if barState == "STEALING" and p >= 0.5 then
-			percentLabel.Text = "READY"
-			percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+	local RunService   = game:GetService("RunService")
+	local UIS = UserInputService
+	local TS = TweenService
+	local Stats        = game:GetService("Stats")
+	local existingStealBar = LP:FindFirstChild("PlayerGui") and LP.PlayerGui:FindFirstChild("NexusHud")
+	if existingStealBar then existingStealBar:Destroy() end
+	local gui = Instance.new("ScreenGui")
+	gui.Name = "NexusHud"
+	gui.ResetOnSpawn = false
+	gui.IgnoreGuiInset = true
+	gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	gui.Parent = PlayerGui
+	local barFrame = Instance.new("Frame", gui)
+	barFrame.Name = "NexusHudBar"
+	barFrame.Size = UDim2.new(0, 340, 0, 44)
+	barFrame.Position = UDim2.new(0.5, -170, 0.75, 0)
+	barFrame.BackgroundColor3 = COLORS.bg
+	barFrame.BackgroundTransparency = 0.30
+	barFrame.BorderSizePixel = 0
+	barFrame.Active = true
+	Instance.new("UICorner", barFrame).CornerRadius = UDim.new(0, 8)
+	local barStroke = Instance.new("UIStroke", barFrame)
+	barStroke.Thickness = 1
+	barStroke.Color = COLORS.accentDim
+	barStroke.Transparency = 0.4
+	barStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+	local pbScale = Instance.new("UIScale", barFrame)
+	pbScale.Name = "NexusProgressBarScale"
+	pbScale.Scale = nexusProgressBarScaleValue or 1
+	local nameLabel = Instance.new("TextLabel", barFrame)
+	nameLabel.Size = UDim2.new(1, -16, 0, 14)
+	nameLabel.Position = UDim2.new(0, 8, 0, 4)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = "IDLE"
+	nameLabel.TextColor3 = COLORS.white
+	nameLabel.TextTransparency = 0.15
+	nameLabel.TextSize = 11
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	local fillRegion = Instance.new("Frame", barFrame)
+	fillRegion.Size = UDim2.new(1, -16, 0, 14)
+	fillRegion.Position = UDim2.new(0, 8, 0, 20)
+	fillRegion.BackgroundColor3 = COLORS.input
+	fillRegion.BackgroundTransparency = 0.3
+	fillRegion.BorderSizePixel = 0
+	fillRegion.ClipsDescendants = true
+	Instance.new("UICorner", fillRegion).CornerRadius = UDim.new(1, 0)
+	local fillStroke = Instance.new("UIStroke", fillRegion)
+	fillStroke.Color = COLORS.stroke
+	fillStroke.Thickness = 1
+	fillStroke.Transparency = 0.5
+	local progressFill = Instance.new("Frame", fillRegion)
+	progressFill.Name = "Fill"
+	progressFill.Size = UDim2.new(0, 0, 1, 0)
+	progressFill.BackgroundColor3 = COLORS.accent
+	progressFill.BackgroundTransparency = 0.15
+	progressFill.BorderSizePixel = 0
+	progressFill.ZIndex = 2
+	Instance.new("UICorner", progressFill).CornerRadius = UDim.new(1, 0)
+	local percentLabel = Instance.new("TextLabel", fillRegion)
+	percentLabel.Size = UDim2.new(1, 0, 1, 0)
+	percentLabel.BackgroundTransparency = 1
+	percentLabel.Text = "0%"
+	percentLabel.TextColor3 = COLORS.white
+	percentLabel.TextTransparency = 0.05
+	percentLabel.TextSize = 9
+	percentLabel.Font = Enum.Font.GothamBold
+	percentLabel.TextXAlignment = Enum.TextXAlignment.Center
+	percentLabel.ZIndex = 2
+	local statsLabel = Instance.new("TextLabel", gui)
+	statsLabel.Name = "NexusPerformanceStats"
+	statsLabel.AnchorPoint = Vector2.new(1, 0)
+	statsLabel.Position = UDim2.new(1, -12, 0, 12)
+	statsLabel.Size = UDim2.new(0, 190, 0, 22)
+	statsLabel.BackgroundTransparency = 1
+	statsLabel.Text = "Ping: 0ms  •  FPS: 60"
+	statsLabel.TextColor3 = Color3.fromRGB(235, 235, 235)
+	statsLabel.TextTransparency = 0.08
+	statsLabel.TextSize = 11
+	statsLabel.Font = Enum.Font.GothamBold
+	statsLabel.TextXAlignment = Enum.TextXAlignment.Right
+	statsLabel.ZIndex = 50
+	local barState = "IDLE"
+	local currentGrabName = ""
+	local grabStartTime = 0
+	function setBarState(state)
+		barState = state
+		if state == "STEALING" then
+			if nameLabel then
+				if currentGrabName ~= "" then nameLabel.Text = currentGrabName else nameLabel.Text = "STEALING" end
+			end
+		elseif state == "READY" then
+			if nameLabel then nameLabel.Text = "READY" end
+			if percentLabel then percentLabel.Text = "100%"; percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
 		else
-			percentLabel.Text = math.floor(p * 100) .. "%"
-			percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			if nameLabel then
+				local dots = string.rep(".", (math.floor(tick() * 2) % 4))
+				nameLabel.Text = "WAITING" .. dots
+			end
+			if percentLabel then percentLabel.Text = "0%"; percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255) end
 		end
 	end
-end
-function StealBar.Reset()
-StealBar.SetProgress(0)
-setBarState("IDLE")
-end
-function StealBar.SetState(state)
-if state and state ~= "STEALING" and state ~= "READY" and state ~= "IDLE" then
-currentGrabName = state
-grabStartTime = tick()
-if nameLabel then nameLabel.Text = state end
-setBarState("STEALING")
-else
-if state ~= "STEALING" then
-currentGrabName = ""
-grabStartTime = 0
-end
-setBarState(state)
-end
-end
-setBarState("IDLE")
-_G.StealBar = StealBar
+	task.spawn(function()
+		local lastFrame = tick()
+		local fpsSum = 0
+		local fpsCount = 0
+		local fpsAvg = 60
+		RunService.RenderStepped:Connect(function()
+			local now = tick()
+			local dt = now - lastFrame
+			lastFrame = now
+			if dt > 0 then
+				fpsSum = fpsSum + (1 / dt)
+				fpsCount = fpsCount + 1
+				if fpsCount >= 30 then
+					fpsAvg = fpsSum / fpsCount
+					fpsSum = 0
+					fpsCount = 0
+				end
+			end
+		end)
+		while barFrame and barFrame.Parent do
+			pcall(function()
+				local ping = math.floor(LP:GetNetworkPing() * 1000 + 0.5)
+				if statsLabel and statsLabel.Parent then
+					statsLabel.Text = string.format("Ping: %dms  •  FPS: %d", ping, math.floor(fpsAvg + 0.5))
+				end
+			end)
+			if barState == "IDLE" and nameLabel then
+				local dots = string.rep(".", (math.floor(tick() * 2) % 4))
+				nameLabel.Text = "WAITING" .. dots
+			end
+			task.wait(0.5)
+		end
+	end)
+	do
+		local inputPosition, barPosition, dragging = nil, nil, false
+		barFrame.InputBegan:Connect(function(input)
+			if _G.NexusGuiLocked == true then return end
+			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+				dragging = true
+				inputPosition = input.Position
+				barPosition = barFrame.Position
+				input.Changed:Connect(function()
+					if input.UserInputState == Enum.UserInputState.End then dragging = false end
+				end)
+			end
+		end)
+		UIS.InputChanged:Connect(function(input)
+			if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+				local delta = input.Position - inputPosition
+				barFrame.Position = UDim2.new(barPosition.X.Scale, barPosition.X.Offset + delta.X, barPosition.Y.Scale, barPosition.Y.Offset + delta.Y)
+			end
+		end)
+	end
+	local StealBar = {}
+	function StealBar.SetProgress(p)
+		p = math.clamp(p, 0, 1)
+		progressFill.Size = UDim2.new(p, 0, 1, 0)
+		if percentLabel then
+			if barState == "STEALING" and p >= 0.5 then
+				percentLabel.Text = "READY"
+				percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			else
+				percentLabel.Text = math.floor(p * 100) .. "%"
+				percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+			end
+		end
+	end
+	function StealBar.Reset()
+		StealBar.SetProgress(0)
+		setBarState("IDLE")
+	end
+	function StealBar.SetState(state)
+		if state and state ~= "STEALING" and state ~= "READY" and state ~= "IDLE" then
+			currentGrabName = state
+			grabStartTime = tick()
+			if nameLabel then nameLabel.Text = state end
+			setBarState("STEALING")
+		else
+			if state ~= "STEALING" then
+				currentGrabName = ""
+				grabStartTime = 0
+			end
+			setBarState(state)
+		end
+	end
+	setBarState("IDLE")
+	_G.StealBar = StealBar
 end
 _G.__NexusDuelsSetupStealBar()
 ;(function()
@@ -7574,17 +8121,51 @@ end)
 if _G.NexusAutoStealSync then task.defer(_G.NexusAutoStealSync) end
 _G.__NexusDuelsSetupMinimizeToggle = function()
 _G.__NexusDuelsMinimized = false
-Close.MouseButton1Click:Connect(function()
-_G.__NexusDuelsMinimized = not _G.__NexusDuelsMinimized
-if _G.__NexusDuelsMinimized then
-Main.Visible = false
-MiniFrame.Visible = true
-else
-Main.Visible = true
-MiniFrame.Visible = false
-Main.Size = FULL_MAIN_SIZE
-end
-saveNexusConfig()
+Close.Activated:Connect(function()
+	if _G.__NexusDuelsMinimized then return end
+	_G.__NexusDuelsMinimized = true
+	local TS = game:GetService("TweenService")
+	local cf = Main:FindFirstChild("ChromeFade")
+	if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.82}):Play() end
+	TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.35}):Play()
+	if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {GroupTransparency = 1}):Play() end
+	task.delay(0.3, function()
+		Main.Visible = false
+		OpenPill.Visible = true
+		if MainUIScale then MainUIScale.Scale = 1 end
+		Main.BackgroundTransparency = 0.02
+		if cf then cf.GroupTransparency = 0 end
+		Main.Size = FULL_MAIN_SIZE
+		local pillScale = Instance.new("UIScale", OpenPill)
+		pillScale.Scale = 0.7
+		TS:Create(pillScale, TweenInfo.new(0.22, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play()
+		task.delay(0.25, function() pcall(function() pillScale:Destroy() end) end)
+		saveNexusConfig()
+	end)
+end)
+OpenPill.Activated:Connect(function()
+	if not _G.__NexusDuelsMinimized then return end
+	_G.__NexusDuelsMinimized = false
+	local TS = game:GetService("TweenService")
+	local cf = Main:FindFirstChild("ChromeFade")
+	local pillUiScale = OpenPill:FindFirstChildOfClass("UIScale")
+	if not pillUiScale then pillUiScale = Instance.new("UIScale", OpenPill) end
+	pillUiScale.Scale = 1
+	TS:Create(pillUiScale, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.85}):Play()
+	TS:Create(OpenPill, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 0.5}):Play()
+	task.delay(0.12, function()
+		OpenPill.Visible = false
+		OpenPill.BackgroundTransparency = 0
+		Main.Visible = true
+		if MainUIScale then MainUIScale.Scale = 0.82 end
+		Main.BackgroundTransparency = 0.35
+		if cf then cf.GroupTransparency = 1 end
+		Main.Size = FULL_MAIN_SIZE
+		if MainUIScale then TS:Create(MainUIScale, TweenInfo.new(0.28, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = 1}):Play() end
+		TS:Create(Main, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.02}):Play()
+		if cf then TS:Create(cf, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {GroupTransparency = 0}):Play() end
+		saveNexusConfig()
+	end)
 end)
 end
 _G.__NexusDuelsSetupMinimizeToggle()
