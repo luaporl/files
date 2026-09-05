@@ -1,3 +1,24 @@
+do
+local __oldNamecall
+local __lp = game:GetService("Players").LocalPlayer
+if hookmetamethod then
+	__oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+		local method = getnamecallmethod()
+		if (method == "Kick" or method == "kick") and not checkcaller() then
+			if self == __lp then
+				return nil
+			end
+		end
+		return __oldNamecall(self, ...)
+	end))
+end
+if hookfunction then
+	pcall(function()
+		local oldKick; oldKick = hookfunction(__lp.Kick, newcclosure(function() return end))
+	end)
+end
+end
+
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
@@ -3886,7 +3907,7 @@ if _G.NexusSetLinVelXZ then _G.NexusSetLinVelXZ(flat.X * spd, flat.Z * spd) end
 end
 end
 end)
-do
+task.delay(1, function()
 local spoofedVelocity = Vector3.zero
 local oldIndex
 oldIndex = hookmetamethod(game, "__index", newcclosure(function(self, key)
@@ -3942,9 +3963,6 @@ RunService.PreSimulation:Connect(function()
     local spd = getCurrentSpeedValue()
 
     if dir.Magnitude > 0.05 then
-        pcall(function()
-            if root.SetNetworkOwner then root:SetNetworkOwner(LP) end
-        end)
         local unit = dir.Unit
         spoofedVelocity = Vector3.new(unit.X * 16, root.AssemblyLinearVelocity.Y, unit.Z * 16)
         root.AssemblyLinearVelocity = Vector3.new(unit.X * spd, root.AssemblyLinearVelocity.Y, unit.Z * spd)
@@ -3956,7 +3974,7 @@ RunService.PreSimulation:Connect(function()
         overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
     end
 end)
-end
+end)
 
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
@@ -6296,29 +6314,10 @@ local GameSettings = UserSettings:GetService("UserGameSettings")
 if GameSettings then GameSettings:SetFpsCap(9999) end
 end)
 pcall(function() settings().Rendering.QualityLevel = Enum.QualityLevel.Level01 end)
-pcall(function() settings().Network.IncomingReplicationLag = 0 end)
-pcall(function() settings().Network.IncomingReplicationTarget = 1 end)
-pcall(function()
-HttpService:SetThrottlingEnabled(false)
-end)
-pcall(function()
-workspace:SetAttribute("ReplicationPriority", 10)
-end)
-pcall(function()
-if workspace.StreamingEnabled then
-	workspace.StreamingEnabled = false
-end
-end)
 pcall(function()
 	if StreamingService then
 		StreamingService:SetBackgroundStreamingEnabled(false)
 	end
-end)
-pcall(function()
-	settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
-end)
-pcall(function()
-	settings().Physics.AllowThirdPartySales = false
 end)
 Lighting.GlobalShadows = false
 Lighting.FogEnd = 1e10
@@ -7107,8 +7106,6 @@ if dp then return dp:GetValue() / 1000 end
 return 0
 end
 local function startLaggerLoop()
-pcall(function() settings().Network.IncomingReplicationLag = 0 end)
-pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge) end)
 if not _G.NexusLaggerActive then return end
 local remote = resolveRemote("RobloxReplicatedStorage.SetPlayerBlockList")
 if not remote then return end
@@ -7155,8 +7152,6 @@ TweenService:Create(switchBg, TweenInfo.new(0.2),
 if on then
 _G.NexusLaggerThread = task.spawn(startLaggerLoop)
 else
-pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(0) end)
-pcall(function() settings().Network.IncomingReplicationLag = 0 end)
 payloadCache = nil; payloadDepth = nil; payloadCopies = nil
 _G.NexusLaggerThread = nil
 end
@@ -7250,8 +7245,6 @@ end
 _G.NexusCloseLaggerPanel = function()
 if _G.NexusLaggerActive then
 _G.NexusLaggerActive = false
-pcall(function() game:GetService("NetworkClient"):SetOutgoingKBPSLimit(0) end)
-pcall(function() settings().Network.IncomingReplicationLag = 0 end)
 end
 if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end) end
 _G.NexusLaggerGui = nil
