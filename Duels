@@ -7220,48 +7220,71 @@ cc.Parent = Lighting
 end
 end
 do
-local _instaResetCooldown = false
-local _instaResetTPPos = CFrame.new(2000.5, 9911.9, 4000.2)
-local _instaResetBinding = false
-function _G.NexusInstaResetTrigger()
-if _instaResetCooldown then return end
-_instaResetCooldown = true
-local char = LP.Character
-if not char then _instaResetCooldown = false return end
-local hrp = char:FindFirstChild("HumanoidRootPart")
-local hum = char:FindFirstChildOfClass("Humanoid")
-if not hrp or not hum then _instaResetCooldown = false return end
-local cam = workspace.CurrentCamera
-local lockedCamCFrame = cam.CFrame
-local prevAntiDie = _G.NexusAntiDieOn
-_G.NexusAntiDieOn = false
-cam.CameraType = Enum.CameraType.Scriptable
-cam.CFrame = lockedCamCFrame
-pcall(function() RunService:UnbindFromRenderStep("NexusInstaResetCamLock") end)
-RunService:BindToRenderStep("NexusInstaResetCamLock", Enum.RenderPriority.Camera.Value + 1, function()
-cam.CameraType = Enum.CameraType.Scriptable
-cam.CFrame = lockedCamCFrame
-local aChar = LP.Character
-local aHrp = aChar and aChar:FindFirstChild("HumanoidRootPart")
-if aHrp then
-aHrp.AssemblyLinearVelocity = Vector3.zero
-aHrp.AssemblyAngularVelocity = Vector3.zero
-aHrp.CFrame = _instaResetTPPos
+local _S = {cd=false, th=nil, ch=nil, ok=false, stop=false}
+local function _stopIR()
+	_S.stop=true
+	if _S.th then pcall(task.cancel,_S.th); _S.th=nil end
+	_S.cd=false; _S.ch=nil
+	local c=LP.Character
+	if c then
+		local h=c:FindFirstChildOfClass("Humanoid")
+		if h then pcall(function()
+			h.HipHeight=2
+			local r=c:FindFirstChild("HumanoidRootPart")
+			if r then r.CanCollide=true end
+			for _,p in ipairs(c:GetChildren()) do
+				if p:IsA("BasePart") and p.Name~="HumanoidRootPart" then p.CanCollide=true end
+			end
+		end) end
+	end
 end
+LP.CharacterAdded:Connect(function()
+	_stopIR(); _S.cd=false; _S.ch=nil; _S.ok=false; _S.stop=false
 end)
-local respawnConn
-respawnConn = LP.CharacterAdded:Connect(function(newChar)
-if respawnConn then respawnConn:Disconnect() end
-pcall(function() RunService:UnbindFromRenderStep("NexusInstaResetCamLock") end)
-local newHum = newChar:WaitForChild("Humanoid", 5)
-task.wait(0.05)
-pcall(function()
-cam.CameraSubject = newHum
-cam.CameraType = Enum.CameraType.Custom
-end)
-_G.NexusAntiDieOn = prevAntiDie
-_instaResetCooldown = false
-end)
+function _G.NexusInstaResetTrigger()
+	if _S.cd then return end
+	_S.cd=true; _S.ok=false; _S.stop=false
+	local c=LP.Character
+	if not c then _S.cd=false return end
+	local h=c:FindFirstChildOfClass("Humanoid")
+	if not h then _S.cd=false return end
+	_S.ch=c
+	local ad=_G.NexusAntiDieOn; _G.NexusAntiDieOn=false
+	local oh=h.HipHeight
+	_S.th=task.spawn(function()
+		local at,ma,ir=0,40,false
+		while c and c.Parent and h and h.Health>0 and not ir and not _S.stop do
+			if LP.Character~=c then ir=true break end
+			pcall(function()
+				h.HipHeight=1e30; h.AutoRotate=true
+				local r=c:FindFirstChild("HumanoidRootPart")
+				if r then r.CanCollide=false end
+				for _,p in ipairs(c:GetChildren()) do
+					if p:IsA("BasePart") and p.Name~="HumanoidRootPart" then p.CanCollide=false end
+				end
+			end)
+			if not c or not c.Parent or not h or h.Health<=0 or LP.Character~=c then _S.ok=true break end
+			at=at+1
+			if at>=ma then break end
+			task.wait(0.05)
+		end
+		if not _S.ok and c and c.Parent and h and h.Health>0 and not ir then
+			pcall(function() h.Health=0 end)
+			task.wait(0.1)
+			if not c.Parent or h.Health<=0 then _S.ok=true end
+		end
+		if not _S.ok and c and c.Parent and h then
+			pcall(function()
+				h.HipHeight=oh
+				local r=c:FindFirstChild("HumanoidRootPart")
+				if r then r.CanCollide=true end
+				for _,p in ipairs(c:GetChildren()) do
+					if p:IsA("BasePart") and p.Name~="HumanoidRootPart" then p.CanCollide=true end
+				end
+			end)
+		end
+		_G.NexusAntiDieOn=ad; _S.cd=false; _S.th=nil; _S.ch=nil; _S.stop=false
+	end)
 end
 end
 function applyPerformanceBoost()
