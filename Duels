@@ -46,14 +46,17 @@ grabTimerConn = nil
 autoStealEnabled = false
 selectedStealMode = "Semi"
 autoStealRadius = 9
-semiStopPercent = 90
+semiStopPercent = 75
 autoStealHitPauseEnabled = false
 autoStealHitPauseDuration = 1.35
 autoStealHitPauseActive = false
 autoStealHitPauseToken = 0
+ragdollStealEnabled = false
+medusaStealEnabled = false
 _G.NexusStealRadii = _G.NexusStealRadii or {Normal = 62, Semi = 9}
 stealTriggerMode = "Tryhard"
 selectedAimbotMode = "Normal"
+aimbotVersion = "V1"
 AIMBOT_SPEED = 58
 LAGGER_AIMBOT_SPEED = 40
 AIMBOT_VERT_SPEED = 54
@@ -1143,9 +1146,12 @@ autoStealRadius = autoStealRadius,
 semiStopPercent = semiStopPercent,
 autoStealHitPauseEnabled = autoStealHitPauseEnabled == true,
 autoStealHitPauseDuration = autoStealHitPauseDuration,
+ragdollStealEnabled = ragdollStealEnabled == true,
+medusaStealEnabled = medusaStealEnabled == true,
 nexusStealRadii = _G.NexusStealRadii,
 stealTriggerMode = stealTriggerMode or "Tryhard",
 selectedAimbotMode = selectedAimbotMode,
+aimbotVersion = aimbotVersion,
 AIMBOT_SPEED = AIMBOT_SPEED,
 AIMBOT_VERT_SPEED = AIMBOT_VERT_SPEED,
 LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,	bypassAimbotSpeed = _G.NexusBypassAimbotSpeed,
@@ -1272,12 +1278,15 @@ selectedStealMode = data.selectedStealMode or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
 local loadedStopPct = tonumber(data.semiStopPercent)
-semiStopPercent = loadedStopPct == 75 and 75 or 90
+if loadedStopPct == 75 or loadedStopPct == 80 or loadedStopPct == 85 or loadedStopPct == 90 then semiStopPercent = loadedStopPct else semiStopPercent = 75 end
 autoStealHitPauseEnabled = data.autoStealHitPauseEnabled == true
 autoStealHitPauseDuration = math.clamp(tonumber(data.autoStealHitPauseDuration) or autoStealHitPauseDuration, 0.25, 10)
+ragdollStealEnabled = data.ragdollStealEnabled == true
+medusaStealEnabled = data.medusaStealEnabled == true
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
 stealTriggerMode = data.stealTriggerMode or "Tryhard"
 selectedAimbotMode = data.selectedAimbotMode or "Normal"
+if data.aimbotVersion == "V1" or data.aimbotVersion == "V2" then aimbotVersion = data.aimbotVersion end
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
@@ -1823,6 +1832,7 @@ end
 function _G.NexusSafeModeForceStop(reason)
 local stopped = false
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot(); stopped = true end
+if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2(); stopped = true end
 if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat(); stopped = true end
 if autoLeftEnabled then
 autoLeftEnabled = false
@@ -1971,6 +1981,9 @@ if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+if _G.NexusNormalAimbotV2 and _G.NexusNormalAimbotV2.conn then
+_G.NexusStopNormalAimbotV2()
+end
 _G.NexusNormalAimbotOn = true
 if _G.NexusNormalAimbot.conn then
 _G.NexusNormalAimbot.conn:Disconnect()
@@ -2072,32 +2085,161 @@ if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 _G.NexusNormalAimbotStart = _G.NexusStartNormalAimbot
 _G.NexusNormalAimbotStop = _G.NexusStopNormalAimbot
+do -- V2 Aimbot (vynx-style: Heartbeat, simple CFrame, sticky target, velocity capping)
+_G.NexusNormalAimbotV2 = {conn = nil, target = nil, swingCooldown = false, _stickyTarget = nil, _stickyEnd = 0, _lastSwing = 0, _prevWalkSpeed = nil}
+local _V2_STICKY_TIME = 1.25
+local _V2_STICKY_MAX_DIST = 85
+local _V2_VEL_CAP_LINEAR = 220
+local _V2_VEL_CAP_ANGULAR = 25
+local _V2_LERP_ALPHA = 0.65
+local _V2_Y_CLAMP_MIN = -50
+local _V2_Y_CLAMP_MAX = 80
+local _V2_SWING_CD = 0.08
+function _G.NexusStartNormalAimbotV2()
+if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
+if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
+autoLeftEnabled = false; autoRightEnabled = false
+if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+if _G.NexusNormalAimbot.conn then
+_G.NexusStopNormalAimbot()
+end
+_G.NexusNormalAimbotOn = true
+local state = _G.NexusNormalAimbotV2
+if state.conn then state.conn:Disconnect(); state.conn = nil end
+state._stickyTarget = nil; state._stickyEnd = 0; state._lastSwing = 0; state.target = nil; state.swingCooldown = false
+local hum0 = LP.Character and LP.Character:FindFirstChildOfClass("Humanoid")
+if hum0 then state._prevWalkSpeed = hum0.WalkSpeed; hum0.WalkSpeed = 0; hum0.AutoRotate = false end
+state.conn = RunService.Heartbeat:Connect(function()
+if not _G.NexusNormalAimbotOn or selectedAimbotMode ~= "Normal" or aimbotVersion ~= "V2" then return end
+local char = LP.Character
+if not char then return end
+local root = char:FindFirstChild("HumanoidRootPart")
+if not root then return end
+local hum = char:FindFirstChildOfClass("Humanoid")
+if not hum or hum.Health <= 0 then return end
+if not char:FindFirstChildOfClass("Tool") then
+local bat2 = _G.NexusFindAimbotBat()
+if bat2 then pcall(function() hum:EquipTool(bat2) end) end
+end
+if autoSwingEnabled then
+local swingTool = char:FindFirstChildOfClass("Tool")
+if swingTool and (swingTool.Name:lower():find("bat") or swingTool.Name:lower():find("slap")) then
+if not state.swingCooldown then
+state.swingCooldown = true
+pcall(function() swingTool:Activate() end)
+task.delay(_V2_SWING_CD, function() state.swingCooldown = false end)
+end
+end
+end
+local target, dist = _G.NexusGetClosestAimbotTarget()
+local now = tick()
+if target then
+state._stickyTarget = target
+state._stickyEnd = now + _V2_STICKY_TIME
+elseif state._stickyTarget and now < state._stickyEnd then
+target = state._stickyTarget
+local rootPos = root.Position
+local tRoot = target and target.Parent and target.Parent:FindFirstChild("HumanoidRootPart")
+if tRoot then
+local d = (tRoot.Position - rootPos).Magnitude
+if d > _V2_STICKY_MAX_DIST then state._stickyTarget = nil; target = nil end
+end
+else
+state._stickyTarget = nil
+end
+if not target then
+state.target = nil
+hum.AutoRotate = true
+root.AssemblyAngularVelocity = Vector3.zero
+return
+end
+hum.AutoRotate = false
+state.target = target
+local targetVel = target.AssemblyLinearVelocity
+local myPos = root.Position
+local targetPos = target.Position
+local predictPos = targetPos + targetVel * 0.14 + target.CFrame.LookVector * 0.3
+local direction = predictPos - myPos
+local flatDir = Vector3.new(direction.X, 0, direction.Z)
+if flatDir.Magnitude > 0.05 then
+flatDir = flatDir.Unit
+else
+flatDir = root.CFrame.LookVector
+end
+local chaseSpeed = AIMBOT_SPEED or 58
+local desiredHeight = targetPos.Y + 3.7
+local yVel = (desiredHeight - myPos.Y) * 19.5 + targetVel.Y * 0.8
+if hum.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 13) end
+yVel = math.clamp(yVel, _V2_Y_CLAMP_MIN, _V2_Y_CLAMP_MAX)
+local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
+local lerped = root.AssemblyLinearVelocity:Lerp(desiredVel, _V2_LERP_ALPHA)
+local hVel = Vector3.new(lerped.X, 0, lerped.Z)
+if hVel.Magnitude > _V2_VEL_CAP_LINEAR then
+lerped = Vector3.new(hVel.Unit.X * _V2_VEL_CAP_LINEAR, math.clamp(lerped.Y, _V2_Y_CLAMP_MIN, _V2_Y_CLAMP_MAX), hVel.Unit.Z * _V2_VEL_CAP_LINEAR)
+end
+root.AssemblyLinearVelocity = lerped
+do
+local v = root.AssemblyLinearVelocity
+local h = Vector3.new(v.X, 0, v.Z)
+if h.Magnitude > 80 then
+root.AssemblyLinearVelocity = Vector3.new(v.X / h.Magnitude * 80, v.Y, v.Z / h.Magnitude * 80)
+end
+end
+local goalCF = CFrame.lookAt(myPos, predictPos)
+local curCF = root.CFrame
+local goalLook = goalCF.LookVector
+local curLook = curCF.LookVector
+local newLook = curLook:Lerp(goalLook, _V2_LERP_ALPHA)
+if newLook.Magnitude > 0.01 then
+root.CFrame = CFrame.lookAt(myPos, myPos + newLook)
+end
+local angVel = root.AssemblyAngularVelocity
+local hAng = Vector3.new(angVel.X, 0, angVel.Z)
+if hAng.Magnitude > _V2_VEL_CAP_ANGULAR then
+root.AssemblyAngularVelocity = Vector3.new(hAng.Unit.X * _V2_VEL_CAP_ANGULAR, angVel.Y, hAng.Unit.Z * _V2_VEL_CAP_ANGULAR)
+end
+end)
+if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+end
+function _G.NexusStopNormalAimbotV2()
+_G.NexusNormalAimbotOn = false
+local state = _G.NexusNormalAimbotV2
+if state and state.conn then state.conn:Disconnect(); state.conn = nil end
+if state then
+state.target = nil; state.swingCooldown = false; state._stickyTarget = nil; state._stickyEnd = 0; state._lastSwing = 0
+end
+local c = LP.Character
+local root = c and c:FindFirstChild("HumanoidRootPart")
+if root then
+root.AssemblyLinearVelocity = Vector3.zero
+root.AssemblyAngularVelocity = Vector3.zero
+end
+local hum2 = c and c:FindFirstChildOfClass("Humanoid")
+if hum2 then
+if state and state._prevWalkSpeed then hum2.WalkSpeed = state._prevWalkSpeed; state._prevWalkSpeed = nil end
+hum2.AutoRotate = true
+end
+if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+end
+end
 function _G.NexusRefreshAimbotVisual()
 if _G.NexusAimbotSetVisual then
 _G.NexusAimbotSetVisual(_G.NexusNormalAimbotOn == true)
 end
 end
-do -- Bypass Aimbot Mode (Velocity chase — K7 + xenon + Adapt hybrid, tuned for Nexus)
--- (wrapped in do..end to keep top-level local registers under the Luau 200 limit)
+do -- Bypass Aimbot Mode (Sakura Hub anti-bypass: simple velocity chase)
 _G.NexusBypassAimbot = {conn = nil, swingCooldown = false, prevAutoRotate = nil}
--- Tunables (persisted via collectNexusConfig / loadNexusConfig)
-_G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 58
+_G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 56.5
 _G.NexusBypassAimbotLaggerSpeed = _G.NexusBypassAimbotLaggerSpeed or 40
-_G.NexusBypassAimbotHitDist = _G.NexusBypassAimbotHitDist or 8
+_G.NexusBypassAimbotHitDist = _G.NexusBypassAimbotHitDist or 5
 
-local _bypassHEIGHT = 3.7
-local _bypassY_P = 19.5
-local _bypassTURN = 42
-local _bypassMAX_ANGLE = 2.5
-
-local _bypassTick = 0
 local _bypassCharConn = nil
 
 local function _bypassGetSpeed()
-    if currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry" then
-        return _G.NexusBypassAimbotLaggerSpeed or 40
-    end
-    return _G.NexusBypassAimbotSpeed or 58
+    return _G.NexusBypassAimbotSpeed or 56.5
 end
 
 local function _bypassGetClosest()
@@ -2118,6 +2260,33 @@ local function _bypassGetClosest()
     return closest, minDist
 end
 
+local function _bypassGetBat()
+    local char = LP.Character
+    if not char then return nil end
+    local tool = char:FindFirstChild("Bat")
+    if tool then return tool end
+    local bp = LP:FindFirstChild("Backpack")
+    if bp then
+        tool = bp:FindFirstChild("Bat")
+        if tool then tool.Parent = char; return tool end
+    end
+    return nil
+end
+
+local function _bypassTryHitBat()
+    if _G.NexusBypassAimbot.swingCooldown then return end
+    _G.NexusBypassAimbot.swingCooldown = true
+    pcall(function()
+        local bat = _bypassGetBat()
+        if bat then
+            bat:Activate()
+            local ev = bat:FindFirstChildWhichIsA("RemoteEvent")
+            if ev then ev:FireServer() end
+        end
+    end)
+    task.delay(0.08, function() _G.NexusBypassAimbot.swingCooldown = false end)
+end
+
 local function _bypassEquip()
     pcall(function()
         local char = LP.Character
@@ -2129,19 +2298,6 @@ local function _bypassEquip()
     end)
 end
 
-local function _bypassCleanupCharacter()
-    pcall(function()
-        local c = LP.Character
-        if not c then return end
-        for _, d in ipairs(c:GetChildren()) do
-            if d:IsA("BodyVelocity") or d:IsA("BodyGyro") or d:IsA("VectorForce") or d:IsA("AlignPosition") or d:IsA("AlignOrientation") then
-                d:Destroy()
-            end
-        end
-    end)
-end
-
--- Anti-bat counter shield: instantly re-equip the bat if a counter switches tools
 local function _bypassHookCharacter(char)
     if _bypassCharConn then _bypassCharConn:Disconnect(); _bypassCharConn = nil end
     if not char then return end
@@ -2169,11 +2325,8 @@ function _G.NexusStartBypassAimbot()
     _bypassHookCharacter(char)
     _bypassEquip()
 
-    _bypassTick = 0
     ba.conn = RunService.RenderStepped:Connect(function()
         if not _G.NexusNormalAimbotOn then return end
-        _bypassTick = _bypassTick + 1
-        if _bypassTick % 8 == 0 then return end -- hover micro-pause (anti-detection from K7 leak)
 
         local c = LP.Character
         if not c then return end
@@ -2182,12 +2335,6 @@ function _G.NexusStartBypassAimbot()
         local h = c:FindFirstChildOfClass("Humanoid")
         if not h or h.Health <= 0 then return end
 
-        if _bypassTick % 16 == 1 then
-            _bypassCleanupCharacter()
-            if _bypassTick % 48 == 1 then _bypassEquip() end
-        end
-
-        -- Vision Duels-style autoswing: Activate the equipped bat every frame (no cooldown, no range gate)
         if autoSwingEnabled then
             local swingTool = c:FindFirstChildOfClass("Tool")
             if swingTool and (swingTool.Name:lower():find("bat") or swingTool.Name:lower():find("slap")) then
@@ -2205,43 +2352,18 @@ function _G.NexusStartBypassAimbot()
 
         local myPos = root.Position
         local targetPos = target.Position
-        local direction = targetPos - myPos
-        local flatDir = Vector3.new(direction.X, 0, direction.Z)
-        if flatDir.Magnitude > 0 then flatDir = flatDir.Unit else flatDir = Vector3.zero end
+        local targetLook = target.CFrame and target.CFrame.LookVector or Vector3.zero
+        local predictPos = targetPos + targetLook * 1.5
+        local dir = (predictPos - myPos)
+        if dir.Magnitude < 0.01 then return end
+        dir = dir.Unit
 
         local chaseSpeed = _bypassGetSpeed()
-        local desiredHeight = targetPos.Y + _bypassHEIGHT
-        local targetVel = target.AssemblyLinearVelocity
-        local yVel = (desiredHeight - myPos.Y) * _bypassY_P + targetVel.Y * 0.8
-        if h.FloorMaterial ~= Enum.Material.Air then yVel = math.max(yVel, 13) end
-        yVel = math.clamp(yVel, -70, 110)
-        local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
-        root.AssemblyLinearVelocity = root.AssemblyLinearVelocity:Lerp(desiredVel, 0.8)
-        do
-            local v = root.AssemblyLinearVelocity
-            local h = Vector3.new(v.X, 0, v.Z)
-            if h.Magnitude > 80 then
-                root.AssemblyLinearVelocity = Vector3.new(v.X / h.Magnitude * 80, v.Y, v.Z / h.Magnitude * 80)
-            end
-        end
+        root.Velocity = Vector3.new(dir.X * chaseSpeed, dir.Y * chaseSpeed, dir.Z * chaseSpeed)
 
-        local toTarget = targetPos - myPos
-        if toTarget.Magnitude > 0.1 then
-            local goalCF = CFrame.lookAt(myPos, targetPos)
-            local diffCF = root.CFrame:Inverse() * goalCF
-            local rx, ry, rz = diffCF:ToEulerAnglesXYZ()
-            rx = math.clamp(rx, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
-            ry = math.clamp(ry, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
-            rz = math.clamp(rz, -_bypassMAX_ANGLE, _bypassMAX_ANGLE)
-            root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * _bypassTURN, ry * _bypassTURN, rz * _bypassTURN))
+        if targetDist <= _G.NexusBypassAimbotHitDist then
+            _bypassTryHitBat()
         end
-
-        -- Camera look-at (only when silent aim is off, same as TP Bat)
-        if not _G.NexusTpBatSilentAim then
-            local cam = workspace.CurrentCamera
-            if cam then pcall(function() cam.CFrame = CFrame.new(cam.CFrame.Position, targetPos) end) end
-        end
-
     end)
     if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
@@ -2265,9 +2387,6 @@ function _G.NexusStopBypassAimbot()
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
     end
     ba.prevAutoRotate = nil
-    local cam = workspace.CurrentCamera
-    local hum2 = c and c:FindFirstChildOfClass("Humanoid")
-    if cam and hum2 then pcall(function() cam.CameraSubject = hum2 end) end
     if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 
@@ -2275,12 +2394,16 @@ function _G.NexusToggleSelectedAimbot()
 if _G.NexusNormalAimbotOn then
 if selectedAimbotMode == "Bypass" and _G.NexusStopBypassAimbot then
 _G.NexusStopBypassAimbot()
+elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then
+_G.NexusStopNormalAimbotV2()
 elseif _G.NexusStopNormalAimbot then
 _G.NexusStopNormalAimbot()
 end
 else
 if selectedAimbotMode == "Bypass" and _G.NexusStartBypassAimbot then
 _G.NexusStartBypassAimbot()
+elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then
+_G.NexusStartNormalAimbotV2()
 elseif _G.NexusStartNormalAimbot then
 _G.NexusStartNormalAimbot()
 end
@@ -2454,6 +2577,7 @@ function _G.NexusStartTpBat()
     if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
     if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
     if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+    if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
     _G.NexusTpBatEnabled = true
     _G.NexusTpBatRemoteCache = nil
 
@@ -2810,6 +2934,11 @@ barProgress(1)
 if #data.trigger > 0 then
 for _, fn in ipairs(data.trigger) do task.spawn(function() pcall(fn) end) end
 end
+pcall(function()
+local remote = ReplicatedStorage:FindFirstChild("StealAnimal")
+if remote and animalData and animalData.slot then remote:FireServer(animalData.slot) end
+if prompt then pcall(function() prompt:Fire() end) end
+end)
 pcall(function() if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(0.15) end end)
 task.wait(0.12)
 data.ready = true; a.isStealing = false; resetBar()
@@ -2977,14 +3106,36 @@ A.state.label = podName or "Animal"
 task.spawn(function()
 local startTime = A.state.startTime
 local duration = A.duration or 1.35
-local stopPercent = semiStopPercent == 75 and 75 or 90
+local stopPercent = semiStopPercent
+if stopPercent ~= 75 and stopPercent ~= 80 and stopPercent ~= 85 and stopPercent ~= 90 then stopPercent = 75 end
 local stopTime = duration * (stopPercent / 100)
-local fireRadius = math.max((tonumber(A.radius) or 9) - (stopPercent == 90 and 2 or 0), 3)
+local fireRadius = math.max((tonumber(A.radius) or 9) - (stopPercent >= 85 and 2 or 0), 3)
+local function shouldInterruptSteal()
+	if ragdollStealEnabled then
+		local ch = LP.Character
+		local hm = ch and ch:FindFirstChildOfClass("Humanoid")
+		if hm then
+			local st = hm:GetState()
+			if st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown then
+				return true
+			end
+		end
+	end
+	if medusaStealEnabled then
+		local ch = LP.Character
+		if ch then
+			local mv = ch:FindFirstChild("Medusa")
+			if mv and mv:IsA("BoolValue") and mv.Value then return true end
+		end
+	end
+	return false
+end
 for _, fn in ipairs(data.holdCallbacks) do task.spawn(function() pcall(fn) end) end
 if A.stopEnabled then
 while A.enabled and selectedStealMode == "Semi" do
 local elapsed = tick() - startTime
 if elapsed >= stopTime then break end
+if shouldInterruptSteal() then barReset(); data.ready = true; A.state.active = false; A.state.phase = "idle"; return end
 barSet(elapsed / duration, "STEALING")
 if not prompt.Parent or not prompt.Parent.Parent then break end
 local root = rootPart()
@@ -2997,6 +3148,7 @@ local phase2Timeout = math.max(2.99 - stopTime - math.max(duration - stopTime, 0
 local phase2Start = tick()
 A.state.phase = "waitingRange"
 while A.enabled and selectedStealMode == "Semi" do
+if shouldInterruptSteal() then A.state.active = false; A.state.phase = "idle"; barReset(); data.ready = true; return end
 if not prompt.Parent or not prompt.Parent.Parent then
 A.state.active = false
 A.state.phase = "idle"
@@ -3034,12 +3186,16 @@ local fillStart = tick()
 local fillDuration = math.max(duration - stopTime, 0.05)
 A.state.phase = "firing"
 while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
+if shouldInterruptSteal() then barReset(); data.ready = true; A.state.active = false; A.state.phase = "idle"; return end
 local fp = math.clamp((tick() - fillStart) / fillDuration, 0, 1)
 barSet(stopProgress + fp * (1 - stopProgress), "STEALING")
 if fp >= 1 and not promptFired then
 promptFired = true
 pcall(function()
 for _, fn in ipairs(data.triggerCallbacks) do task.spawn(function() pcall(fn) end) end
+local remote = ReplicatedStorage:FindFirstChild("StealAnimal")
+if remote and A.state.label then remote:FireServer(A.state.label) end
+if prompt then pcall(function() prompt:Fire() end) end
 if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(0.15) end
 end)
 break
@@ -3049,6 +3205,7 @@ end
 end
 else
 while A.enabled and selectedStealMode == "Semi" and prompt.Parent do
+if shouldInterruptSteal() then barReset(); data.ready = true; A.state.active = false; A.state.phase = "idle"; return end
 local elapsed = tick() - startTime
 barSet(elapsed / duration, "STEALING")
 local root = rootPart()
@@ -3057,6 +3214,9 @@ if elapsed >= duration and not promptFired then
 promptFired = true
 pcall(function()
 for _, fn in ipairs(data.triggerCallbacks) do task.spawn(function() pcall(fn) end) end
+local remote = ReplicatedStorage:FindFirstChild("StealAnimal")
+if remote and A.state.label then remote:FireServer(A.state.label) end
+if prompt then pcall(function() prompt:Fire() end) end
 if _G.AutoCarrySpeed and _G.AutoCarrySpeed.WatchPickup then _G.AutoCarrySpeed.WatchPickup(0.15) end
 end)
 break
@@ -3606,6 +3766,7 @@ autoRightEnabled=false
 if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
 if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
 if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
 if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat() end
 _G.NexusNormalAimbotOn = false
 if _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
@@ -3628,6 +3789,7 @@ autoLeftEnabled=false
 if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
 if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
 if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
 if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat() end
 _G.NexusNormalAimbotOn = false
 if _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
@@ -5373,76 +5535,45 @@ end
 return row, setVisual, arrow
 end
 function autoStealSelectorRow(parent, order)
-selectedStealMode = "Semi"
-local row = Instance.new("Frame")	row.Name = "Auto Steal Stop"
+	selectedStealMode = "Semi"
+	semiStopPercent = 75
+	local row = Instance.new("Frame")	row.Name = "Auto Steal Stop"
 	row.BackgroundColor3 = COLORS.row
 	row.BackgroundTransparency = 0.75
 	row.Size = UDim2.new(1, -4, 0, 30)
-row.BorderSizePixel = 0
-row.LayoutOrder = order
-row.ZIndex = 4
-row.ClipsDescendants = true
-row.Parent = parent
-Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
-local rStroke = Instance.new("UIStroke", row)
-rStroke.Color = COLORS.stroke
-rStroke.Thickness = 1
-rStroke.Transparency = 0.82
-local lbl = Instance.new("TextLabel")
-lbl.BackgroundTransparency = 1
-lbl.Text = "Stop At"
-lbl.TextColor3 = COLORS.white
-lbl.TextSize = 11
-lbl.Font = Enum.Font.GothamBold
-lbl.Size = UDim2.new(0, 70, 1, 0)
-lbl.Position = UDim2.new(0, 9, 0, 0)
-lbl.TextXAlignment = Enum.TextXAlignment.Left
-lbl.ZIndex = 5
-lbl.Parent = row
-local btn75 = Instance.new("TextButton")
-btn75.Name = "Stop75"
-btn75.BackgroundColor3 = semiStopPercent == 75 and COLORS.accent or COLORS.input
-btn75.BackgroundTransparency = semiStopPercent == 75 and 0.1 or 0.1
-btn75.Text = "75%"
-btn75.TextColor3 = semiStopPercent == 75 and COLORS.white or COLORS.textDim
-btn75.TextSize = 11
-btn75.Font = Enum.Font.GothamBold
-btn75.Size = UDim2.new(0, 46, 0, 22)
-btn75.Position = UDim2.new(1, -102, 0.5, -11)
-btn75.BorderSizePixel = 0
-btn75.ZIndex = 6
-btn75.AutoButtonColor = false
-btn75.Parent = row
-Instance.new("UICorner", btn75).CornerRadius = UDim.new(0, 5)
-local btn90 = Instance.new("TextButton")
-btn90.Name = "Stop90"
-btn90.BackgroundColor3 = semiStopPercent == 90 and COLORS.accent or COLORS.input
-btn90.BackgroundTransparency = semiStopPercent == 90 and 0.1 or 0.1
-btn90.Text = "90%"
-btn90.TextColor3 = semiStopPercent == 90 and COLORS.white or COLORS.textDim
-btn90.TextSize = 11
-btn90.Font = Enum.Font.GothamBold
-btn90.Size = UDim2.new(0, 46, 0, 22)
-btn90.Position = UDim2.new(1, -52, 0.5, -11)
-btn90.BorderSizePixel = 0
-btn90.ZIndex = 6
-btn90.AutoButtonColor = false
-btn90.Parent = row
-Instance.new("UICorner", btn90).CornerRadius = UDim.new(0, 5)
-local function selectStop(pct)
-semiStopPercent = pct
-btn75.BackgroundColor3 = pct == 75 and COLORS.accent or COLORS.input
-btn75.BackgroundTransparency = pct == 75 and 0.1 or 0.1
-btn75.TextColor3 = pct == 75 and COLORS.white or COLORS.textDim
-btn90.BackgroundColor3 = pct == 90 and COLORS.accent or COLORS.input
-btn90.BackgroundTransparency = pct == 90 and 0.1 or 0.1
-btn90.TextColor3 = pct == 90 and COLORS.white or COLORS.textDim
-if _G.NexusAutoStealSync then _G.NexusAutoStealSync() end
-saveNexusConfig()
-end
-btn75.Activated:Connect(function() selectStop(75) end)
-btn90.Activated:Connect(function() selectStop(90) end)
-return row
+	row.BorderSizePixel = 0
+	row.LayoutOrder = order
+	row.ZIndex = 4
+	row.ClipsDescendants = true
+	row.Parent = parent
+	Instance.new("UICorner", row).CornerRadius = UDim.new(0, 7)
+	local rStroke = Instance.new("UIStroke", row)
+	rStroke.Color = COLORS.stroke
+	rStroke.Thickness = 1
+	rStroke.Transparency = 0.82
+	local lbl = Instance.new("TextLabel")
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "Stop At"
+	lbl.TextColor3 = COLORS.white
+	lbl.TextSize = 11
+	lbl.Font = Enum.Font.GothamBold
+	lbl.Size = UDim2.new(0, 70, 1, 0)
+	lbl.Position = UDim2.new(0, 9, 0, 0)
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 5
+	lbl.Parent = row
+	local fixedVal = Instance.new("TextLabel")
+	fixedVal.BackgroundTransparency = 1
+	fixedVal.Text = "75%"
+	fixedVal.TextColor3 = COLORS.accent
+	fixedVal.TextSize = 11
+	fixedVal.Font = Enum.Font.GothamBold
+	fixedVal.Size = UDim2.new(0, 50, 1, 0)
+	fixedVal.Position = UDim2.new(1, -60, 0, 0)
+	fixedVal.TextXAlignment = Enum.TextXAlignment.Right
+	fixedVal.ZIndex = 5
+	fixedVal.Parent = row
+	return row
 end
 -- Spread the large one-time UI build over several frames so executing the
 -- loadstring does not monopolize the client thread and visibly freeze play.
@@ -5885,6 +6016,30 @@ do
 		pcol.Padding = UDim.new(0, 4)
 		pcol.Parent = stealPanel
 		autoStealSelectorRow(stealPanel, 1)
+		local ragdollRow, setRagdollVisual = toggleRow(stealPanel, "Ragdoll Steal", ragdollStealEnabled, 1.5)
+		if ragdollRow then
+			ragdollRow.BackgroundTransparency = 0.75
+			local ragdollBtn = ragdollRow:FindFirstChild("ToggleButton")
+			if ragdollBtn then
+				ragdollBtn.Activated:Connect(function()
+					ragdollStealEnabled = not ragdollStealEnabled
+					if setRagdollVisual then setRagdollVisual(ragdollStealEnabled) end
+					saveNexusConfig()
+				end)
+			end
+		end
+		local medusaRow, setMedusaVisual = toggleRow(stealPanel, "Medusa Steal", medusaStealEnabled, 1.75)
+		if medusaRow then
+			medusaRow.BackgroundTransparency = 0.75
+			local medusaBtn = medusaRow:FindFirstChild("ToggleButton")
+			if medusaBtn then
+				medusaBtn.Activated:Connect(function()
+					medusaStealEnabled = not medusaStealEnabled
+					if setMedusaVisual then setMedusaVisual(medusaStealEnabled) end
+					saveNexusConfig()
+				end)
+			end
+		end
 		local hitPauseRow, setHitPauseVisual = toggleRow(stealPanel, "Pause On Hit", autoStealHitPauseEnabled, 2)
 		if hitPauseRow then
 			hitPauseRow.BackgroundTransparency = 0.75
@@ -6126,8 +6281,51 @@ do
 		modeBtn.Activated:Connect(function()
 			selectedAimbotMode = (selectedAimbotMode == "Normal") and "Bypass" or "Normal"
 			modeBtn.Text = (selectedAimbotMode == "Bypass") and "Bypass" or "Normal"
+			if _aimVerRowRef then _aimVerRowRef.Visible = (selectedAimbotMode == "Normal") end
 			if _G.NexusNormalAimbotOn then
 				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
+				if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
+				task.delay(0.05, function()
+					if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
+				end)
+			end
+			saveNexusConfig()
+		end)
+	end
+
+	do
+		local aimVerRow = baseRow(aimbotPanel, "Aimbot Version", 1)
+		_aimVerRowRef = aimVerRow
+		aimVerRow.Visible = (selectedAimbotMode == "Normal")
+		aimVerRow.Size = UDim2.new(1, -4, 0, 34)
+		aimVerRow.BackgroundTransparency = 0.75
+		local avLabel = aimVerRow:FindFirstChild("Label")
+		if avLabel then avLabel.Size = UDim2.new(0, 120, 1, 0) end
+		local avBtn = Instance.new("TextButton")
+		avBtn.Size = UDim2.new(0, 70, 0, 22)
+		avBtn.Position = UDim2.new(1, -82, 0.5, -11)
+		avBtn.BackgroundColor3 = COLORS.input
+		avBtn.BackgroundTransparency = 0.1
+		avBtn.BorderSizePixel = 0
+		avBtn.Text = aimbotVersion == "V2" and "V2" or "V1"
+		avBtn.TextColor3 = COLORS.white
+		avBtn.Font = Enum.Font.GothamBold
+		avBtn.TextSize = 10
+		avBtn.AutoButtonColor = false
+		avBtn.ZIndex = 6
+		avBtn.Parent = aimVerRow
+		Instance.new("UICorner", avBtn).CornerRadius = UDim.new(0, 5)
+		local avStroke = Instance.new("UIStroke", avBtn)
+		avStroke.Color = COLORS.stroke
+		avStroke.Thickness = 1
+		avStroke.Transparency = 0.5
+		avBtn.Activated:Connect(function()
+			aimbotVersion = (aimbotVersion == "V1") and "V2" or "V1"
+			avBtn.Text = aimbotVersion == "V2" and "V2" or "V1"
+			if _G.NexusNormalAimbotOn then
+				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
+				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
 				if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
 				task.delay(0.05, function()
 					if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
@@ -10003,9 +10201,10 @@ currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 autoSwitchEnabled = false
 autoTPHeight = 20
-autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 90
+autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 75
+ragdollStealEnabled = false; medusaStealEnabled = false
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
-selectedAnimationPack = "None"; selectedAimbotMode = "Normal"
+selectedAnimationPack = "None"; selectedAimbotMode = "Normal"; aimbotVersion = "V1"
 AIMBOT_SPEED = 58; LAGGER_AIMBOT_SPEED = 40
 _G.NexusBypassAimbotSpeed = 58; _G.NexusBypassAimbotLaggerSpeed = 40
 _G.NexusBypassAimbotHitDist = 8
@@ -10177,7 +10376,11 @@ end
 if _G.NexusToggleSelectedAimbot then
 _G.NexusToggleSelectedAimbot()
 elseif _G.NexusStartNormalAimbot and _G.NexusStopNormalAimbot then
-if _G.NexusNormalAimbotOn then _G.NexusStopNormalAimbot() else _G.NexusStartNormalAimbot() end
+if _G.NexusNormalAimbotOn then
+if aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() else _G.NexusStopNormalAimbot() end
+else
+if aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then _G.NexusStartNormalAimbotV2() else _G.NexusStartNormalAimbot() end
+end
 end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 return
@@ -10891,6 +11094,13 @@ RunService.Heartbeat:Connect(nexusTryRestoreAutoTP)
 _G._oldNexusStopNormalAimbot = _G.NexusStopNormalAimbot
 _G.NexusStopNormalAimbot = function(...)
 local r = {_G._oldNexusStopNormalAimbot(...)}
+_G.NexusAutoTPRestoreBlockedUntil = tick() + 0.05
+task.delay(0.08, nexusTryRestoreAutoTP)
+return unpack(r)
+end
+_G._oldNexusStopNormalAimbotV2 = _G.NexusStopNormalAimbotV2
+_G.NexusStopNormalAimbotV2 = function(...)
+local r = {_G._oldNexusStopNormalAimbotV2(...)}
 _G.NexusAutoTPRestoreBlockedUntil = tick() + 0.05
 task.delay(0.08, nexusTryRestoreAutoTP)
 return unpack(r)
