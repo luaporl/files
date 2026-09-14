@@ -942,6 +942,37 @@ if _G._nexusStopInfJumpAll then _G._nexusStopInfJumpAll() end
 end
 ;(function()
 local _infJumpHoldConn = nil
+local _nexusJumpHeldActive = false
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+if gameProcessed then return end
+if not infJumpEnabled then return end
+if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
+_nexusJumpHeldActive = true
+elseif input.UserInputType == Enum.UserInputType.Touch then
+_nexusJumpHeldActive = true
+end
+end)
+UserInputService.InputEnded:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
+_nexusJumpHeldActive = false
+elseif input.UserInputType == Enum.UserInputType.Touch then
+_nexusJumpHeldActive = false
+end
+end)
+UserInputService.JumpRequest:Connect(function()
+if not infJumpEnabled then return end
+_nexusJumpHeldActive = true
+task.delay(0.1, function()
+if not UserInputService:IsKeyDown(Enum.KeyCode.Space) and not UserInputService:GetFocusedTextBox() then
+local char = LP.Character
+local hum = char and char:FindFirstChildOfClass("Humanoid")
+if not (hum and hum.Jump) then
+_nexusJumpHeldActive = false
+end
+end
+end)
+end)
 
 function _startInfJumpHoldMode()
 if _infJumpHoldConn then _infJumpHoldConn:Disconnect() end
@@ -952,7 +983,7 @@ if not char then return end
 local root = char:FindFirstChild("HumanoidRootPart")
 local hum = char:FindFirstChildOfClass("Humanoid")
 if not root or not hum then return end
-local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
+local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or _nexusJumpHeldActive or _G.NexusJumpHeld == true
 local vel = root.AssemblyLinearVelocity
 if isJumpHeld and vel.Y < 35 then
 root.AssemblyLinearVelocity = Vector3.new(vel.X, 55, vel.Z)
@@ -1002,7 +1033,7 @@ function _startInfJumpManualMode()
 if _infJumpManualConn then _infJumpManualConn:Disconnect() end
 _infJumpManualConn = RunService.Heartbeat:Connect(function()
 if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
-if not _G.NexusJumpHeld then return end
+if not (_G.NexusJumpHeld or _nexusJumpHeldActive) then return end
 local char = LP.Character
 if not char then return end
 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1110,14 +1141,15 @@ if not pg then return end
 local function hookJumpButton(btn)
 if btn:IsA("GuiButton") and btn.Name == "JumpButton" and not btn:GetAttribute("NexusInfJumpHooked") then
 btn:SetAttribute("NexusInfJumpHooked", true)
-btn.MouseButton1Down:Connect(function()
+btn.InputBegan:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
 if infJumpEnabled then _G.NexusJumpHeld = true end
+end
 end)
-btn.MouseButton1Up:Connect(function()
+btn.InputEnded:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
 _G.NexusJumpHeld = false
-end)
-btn.MouseLeave:Connect(function()
-_G.NexusJumpHeld = false
+end
 end)
 end
 end
