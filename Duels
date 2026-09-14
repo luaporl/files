@@ -11,8 +11,45 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SoundService = game:GetService("SoundService")
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
+pcall(function() if _G.NexusCleanupAll then _G.NexusCleanupAll() end end)
+_G.NexusCleanupAll = function()
+pcall(function() if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end end)
+pcall(function() if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end end)
+pcall(function() if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end end)
+pcall(function() if _G.NexusStopTpBat then _G.NexusStopTpBat() end end)
+pcall(function() if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end end)
+pcall(function() if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end end)
+pcall(function() if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end end)
+pcall(function() if _G.NexusStopBatCounter then _G.NexusStopBatCounter() end end)
+pcall(function() if _G.NexusStopMedCounter then _G.NexusStopMedCounter() end end)
+pcall(function() if _G.NexusStopAutoMedusa then _G.NexusStopAutoMedusa() end end)
+pcall(function() if stopPlayerESP then stopPlayerESP() end end)
+pcall(function() if stopAntiRagdoll then stopAntiRagdoll() end end)
+pcall(function() if stopBodyLock then stopBodyLock() end end)
+pcall(function() if disableAntiLag then disableAntiLag() end end)
+pcall(function() if disableGalaxyGravity then disableGalaxyGravity() end end)
+for _, name in ipairs({"NexusDuelsAdaptReconstruct","AdaptHubPolished","CyberHub","NexusDuelsToo","NexusMobileButtons","NexusMusicGui","NexusDebug"}) do
+local obj = PlayerGui and PlayerGui:FindFirstChild(name)
+if obj then pcall(function() obj:Destroy() end) end
+end
+end
 _G.NexusIsMobile = true
 _G._cc = {char=nil, root=nil, hum=nil, lt=0}
+_G.NexusPerf = _G.NexusPerf or {fps=60}
+do
+local perf = _G.NexusPerf
+RunService.RenderStepped:Connect(function(dt)
+if dt and dt > 0 then
+local instant = math.clamp(1 / dt, 1, 500)
+perf.fps = perf.fps + (instant - perf.fps) * 0.08
+end
+end)
+_G.NexusGetDebugStats = function()
+local ping = 0
+pcall(function() ping = math.floor(LP:GetNetworkPing() * 1000 + 0.5) end)
+return math.floor((perf.fps or 60) + 0.5), ping
+end
+end
 RunService.Heartbeat:Connect(function()
     local n = tick()
     if n - _G._cc.lt < 0.016 then return end
@@ -46,7 +83,7 @@ grabTimerConn = nil
 autoStealEnabled = false
 selectedStealMode = "Semi"
 autoStealRadius = 9
-semiStopPercent = 75
+semiStopPercent = 80
 autoStealHitPauseEnabled = false
 autoStealHitPauseDuration = 1.35
 autoStealHitPauseActive = false
@@ -181,9 +218,16 @@ local char=LP.Character;if not char then return end;local hrp=char:FindFirstChil
 local hum2=char:FindFirstChildOfClass("Humanoid");if not hum2 then return end
 if not force then
 if hum2.FloorMaterial~=Enum.Material.Air then return end
-if not(hrp.Position.Y>=autoTPHeight) then return end
+if not(hrp.Position.Y>=(tonumber(autoTPHeight) or 20)) then return end
 end
-hrp.CFrame=CFrame.new(hrp.Position.X,-7.00,hrp.Position.Z)*CFrame.Angles(0,select(2,hrp.CFrame:ToEulerAnglesYXZ()),0);hrp.AssemblyLinearVelocity=Vector3.zero
+-- Exact Vynx V3 TP-down: snap to Y -7 keeping yaw, then hard-zero every velocity
+local yaw=select(2,hrp.CFrame:ToEulerAnglesYXZ())
+hrp.CFrame=CFrame.new(hrp.Position.X,-7.00,hrp.Position.Z)*CFrame.Angles(0,yaw,0)
+hrp.AssemblyLinearVelocity=Vector3.zero
+hrp.AssemblyAngularVelocity=Vector3.zero
+pcall(function() hrp.Velocity=Vector3.zero end)
+pcall(function() hrp.RotVelocity=Vector3.zero end)
+if _G.NexusClearLinVel then _G.NexusClearLinVel() end
 end
 local function _clearAutoTPConnection()
 if autoTPConn then
@@ -360,7 +404,7 @@ local function doDrop()
 runDropBrainrot()
 end
 local infJumpEnabled = false
-local infJumpMode = "HOLD" -- "SINGLE" or "HOLD"
+local infJumpMode = "SINGLE" -- exact Vynx V3 manual mode
 local antiRagdollEnabled = false
 local antiRagdollMode = "V1"
 local antiRagdollConn = nil
@@ -922,36 +966,99 @@ end
 function _stopInfJumpHoldMode()
 if _infJumpHoldConn then _infJumpHoldConn:Disconnect(); _infJumpHoldConn = nil end
 end
-UserInputService.JumpRequest:Connect(function()
+-- SINGLE mode = Vynx V3 "manual" infinite jump: a short BodyVelocity boost on
+-- the root (anti-kick), 2 frames then destroyed, re-armed every 0.12s.
+local _infJumpManualConn = nil
+local _infJumpBoosting = false
+local _infJumpLastBoost = 0
+local INF_JUMP_BOOST_FORCE = 25
+local INF_JUMP_BOOST_FRAMES = 2
+local INF_JUMP_BOOST_COOLDOWN = 0.12
+local function _applyInfJumpBoost(root)
+if not root or _infJumpBoosting then return end
+local now = tick()
+if now - _infJumpLastBoost < INF_JUMP_BOOST_COOLDOWN then return end
+_infJumpLastBoost = now
+_infJumpBoosting = true
+local bv = Instance.new("BodyVelocity")
+bv.MaxForce = Vector3.new(0, math.huge, 0)
+bv.P = 1250
+bv.Velocity = Vector3.new(root.Velocity.X, INF_JUMP_BOOST_FORCE, root.Velocity.Z)
+bv.Parent = root
+local frameCount = 0
+local conn
+conn = RunService.Heartbeat:Connect(function()
+if frameCount < INF_JUMP_BOOST_FRAMES then
+frameCount = frameCount + 1
+if bv and bv.Parent then bv.Velocity = bv.Velocity + Vector3.new(0, 0.01, 0) end
+else
+if bv then pcall(function() bv:Destroy() end) end
+if conn then conn:Disconnect() end
+_infJumpBoosting = false
+end
+end)
+end
+function _startInfJumpManualMode()
+if _infJumpManualConn then _infJumpManualConn:Disconnect() end
+_infJumpManualConn = RunService.Heartbeat:Connect(function()
 if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
+if not _G.NexusJumpHeld then return end
 local char = LP.Character
 if not char then return end
-local hrp = char:FindFirstChild("HumanoidRootPart")
-if hrp then
-local vel = hrp.AssemblyLinearVelocity
-hrp.AssemblyLinearVelocity = Vector3.new(vel.X, 55, vel.Z)
+local hum = char:FindFirstChildOfClass("Humanoid")
+local root = char:FindFirstChild("HumanoidRootPart")
+if not hum or not root or hum.Health <= 0 then return end
+_applyInfJumpBoost(root)
+end)
+end
+function _stopInfJumpManualMode()
+if _infJumpManualConn then _infJumpManualConn:Disconnect(); _infJumpManualConn = nil end
+_infJumpBoosting = false
+end
+UserInputService.JumpRequest:Connect(function()
+if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
+_G.NexusJumpHeld = true
+task.delay(0.08, function() _G.NexusJumpHeld = false end)
+end)
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+if gameProcessed then return end
+if infJumpEnabled and infJumpMode == "SINGLE" and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
+_G.NexusJumpHeld = true
+end
+end)
+UserInputService.InputEnded:Connect(function(input)
+if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
+_G.NexusJumpHeld = false
 end
 end)
 _G._nexusInfJumpInternal = function(on)
 infJumpEnabled = on and true or false
 if not infJumpEnabled then
 _stopInfJumpHoldMode()
+_stopInfJumpManualMode()
 else
 if infJumpMode == "HOLD" then
 _startInfJumpHoldMode()
+_stopInfJumpManualMode()
 else
 _stopInfJumpHoldMode()
+_startInfJumpManualMode()
 end
 end
 end
 _G._nexusStartInfJumpForMode = function()
+if infJumpMode == "HOLD" then
 _startInfJumpHoldMode()
+else
+_startInfJumpManualMode()
+end
 end
 _G._nexusStopInfJumpAll = function()
 _stopInfJumpHoldMode()
+_stopInfJumpManualMode()
 end
 _G._nexusSetInfJumpMode = function(mode)
-infJumpMode = (mode == "SINGLE") and "SINGLE" or "HOLD"
+infJumpMode = "SINGLE"
 if infJumpEnabled then
 _G._nexusInfJumpInternal(true)
 end
@@ -1019,25 +1126,20 @@ hookJumpButton(d)
 end
 pg.DescendantAdded:Connect(hookJumpButton)
 end)
-local currentBackground = 0
+local currentBackground = 1
 -- Background system assets (Void.Vs port): index 1 = Void background #2
 local NEXUS_BACKGROUND_URLS = {
-[1] = "https://files.catbox.moe/v8y0ak.png",
-[2] = "https://files.catbox.moe/pk5a3v.jpeg",
-[3] = "https://files.catbox.moe/sl73hb.png",
-[4] = "https://files.catbox.moe/ptt187.png",
+[1] = nil,
+[2] = "https://files.catbox.moe/v4ftdn.png",
 }
 local NEXUS_BACKGROUND_FILES = {
-[1] = "NexusBg1.png",
-[2] = "NexusBg2.jpeg",
-[3] = "NexusBg3.png",
-[4] = "NexusBg4.png",
+[1] = nil,
+[2] = "NexusBg2.png",
 }
+-- 0 = no decal fallback (the new backgrounds are downloaded to the executor's
+-- workspace via getcustomasset; nothing is shown until the download finishes)
 local NEXUS_BACKGROUND_DECALS = {
-[1] = 118963313877514,
-[2] = 118963313877514,
-[3] = 118963313877514,
-[4] = 118963313877514,
+[1] = 0,
 }
 local nexusGuiScaleValue = 1
 local nexusProgressBarScaleValue = 0.83
@@ -1211,6 +1313,7 @@ customSongs = customSongs,
 galaxyGravityEnabled = _G.NexusGalaxyGravityEnabled == true,
 galaxyGravityStrength = _G.NexusGalaxyGravityStrength or 0.35,
 saturatedColorsEnabled = _G.NexusSaturatedColorsEnabled == true,
+speedMethod = _G.NexusSpeedMethod,
 }
 end
 function saveNexusConfig()
@@ -1277,8 +1380,6 @@ if data.infJumpMode == "SINGLE" or data.infJumpMode == "HOLD" then infJumpMode =
 selectedStealMode = data.selectedStealMode or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
-local loadedStopPct = tonumber(data.semiStopPercent)
-if loadedStopPct == 75 or loadedStopPct == 80 or loadedStopPct == 85 or loadedStopPct == 90 then semiStopPercent = loadedStopPct else semiStopPercent = 75 end
 autoStealHitPauseEnabled = data.autoStealHitPauseEnabled == true
 autoStealHitPauseDuration = math.clamp(tonumber(data.autoStealHitPauseDuration) or autoStealHitPauseDuration, 0.25, 10)
 ragdollStealEnabled = data.ragdollStealEnabled == true
@@ -1286,7 +1387,7 @@ medusaStealEnabled = data.medusaStealEnabled == true
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
 stealTriggerMode = data.stealTriggerMode or "Tryhard"
 selectedAimbotMode = data.selectedAimbotMode or "Normal"
-if data.aimbotVersion == "V1" or data.aimbotVersion == "V2" then aimbotVersion = data.aimbotVersion end
+if data.aimbotVersion == "V1" or data.aimbotVersion == "V2" or data.aimbotVersion == "V3" then aimbotVersion = data.aimbotVersion end
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
@@ -1331,7 +1432,7 @@ autoSwitchEnabled = data.autoSwitchEnabled == true
 grabTimerEnabled = data.grabTimerEnabled == true
 customFontVisualEnabled = false
 skyTheme = (type(data.skyTheme) == "string" and data.skyTheme) or skyTheme
-currentBackground = tonumber(data.currentBackground) or currentBackground
+currentBackground = 1
 if type(data.selectedTab) == "string" then
 local _validTabs = {MOVEMENT=true, COMBAT=true, KEYBINDS=true, VISUALS=true, SETTINGS=true}
 if _validTabs[data.selectedTab] then
@@ -1364,6 +1465,7 @@ if type(data.customSongs) == "table" then customSongs = data.customSongs end
 _G.NexusGalaxyGravityEnabled = data.galaxyGravityEnabled == true
 _G.NexusGalaxyGravityStrength = tonumber(data.galaxyGravityStrength) or 0.35
 _G.NexusSaturatedColorsEnabled = data.saturatedColorsEnabled == true
+_G.NexusSpeedMethod = "Velocity"
 if autoLeftEnabled and autoRightEnabled then autoRightEnabled = false end
 end
 loadNexusConfig()
@@ -1833,6 +1935,7 @@ function _G.NexusSafeModeForceStop(reason)
 local stopped = false
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot(); stopped = true end
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2(); stopped = true end
+if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3(); stopped = true end
 if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat(); stopped = true end
 if autoLeftEnabled then
 autoLeftEnabled = false
@@ -2230,6 +2333,131 @@ if _G.NexusAimbotSetVisual then
 _G.NexusAimbotSetVisual(_G.NexusNormalAimbotOn == true)
 end
 end
+
+do -- V3 Aimbot (exact Vynx V3 normal aimbot behavior)
+_G.NexusNormalAimbotV3 = _G.NexusNormalAimbotV3 or {
+conn=nil, target=nil, stickyTarget=nil, stickyUntil=0, lastScan=0
+}
+
+local V3_STICKY_TIME = 1.25
+local V3_STICKY_MAX_DIST = 85
+
+function _G.NexusStartNormalAimbotV3()
+if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
+if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
+autoLeftEnabled = false
+autoRightEnabled = false
+if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+if _G.NexusNormalAimbot.conn then _G.NexusStopNormalAimbot() end
+if _G.NexusNormalAimbotV2 and _G.NexusNormalAimbotV2.conn then _G.NexusStopNormalAimbotV2() end
+
+_G.NexusNormalAimbotOn = true
+local state = _G.NexusNormalAimbotV3
+if state.conn then state.conn:Disconnect(); state.conn=nil end
+state.target=nil
+state.stickyTarget=nil
+state.stickyUntil=0
+state.lastScan=0
+
+state.conn = RunService.Heartbeat:Connect(function()
+if not _G.NexusNormalAimbotOn or selectedAimbotMode ~= "Normal" or aimbotVersion ~= "V3" then return end
+local char=LP.Character
+if not char then return end
+local root=char:FindFirstChild("HumanoidRootPart")
+if not root then return end
+local hum=char:FindFirstChildOfClass("Humanoid")
+if not hum or hum.Health<=0 then return end
+
+if not char:FindFirstChildOfClass("Tool") then
+local bat=_G.NexusFindAimbotBat and _G.NexusFindAimbotBat() or nil
+if bat then pcall(function() hum:EquipTool(bat) end) end
+end
+
+local now=tick()
+local target=state.stickyTarget
+local function valid(t)
+if not t or not t.Parent then return false end
+local th=t.Parent:FindFirstChildOfClass("Humanoid")
+if not th or th.Health<=0 then return false end
+return (t.Position-root.Position).Magnitude <= V3_STICKY_MAX_DIST
+end
+
+if not valid(target) or now >= state.stickyUntil then
+if now-state.lastScan > 0.12 then
+state.lastScan=now
+target=_G.NexusGetClosestAimbotTarget()
+state.stickyTarget=target
+state.stickyUntil=now+V3_STICKY_TIME
+end
+else
+target=state.stickyTarget
+end
+
+if not target then
+state.target=nil
+hum.AutoRotate=true
+root.AssemblyAngularVelocity=Vector3.zero
+return
+end
+
+state.target=target
+hum.AutoRotate=false
+local targetVel=target.AssemblyLinearVelocity or Vector3.zero
+local myPos=root.Position
+local targetPos=target.Position
+local predictPos=targetPos+targetVel*0.14+target.CFrame.LookVector*0.3
+local direction=predictPos-myPos
+local flatDir=Vector3.new(direction.X,0,direction.Z)
+if flatDir.Magnitude>0.01 then flatDir=flatDir.Unit else flatDir=Vector3.new(0,0,1) end
+
+local chaseSpeed=tonumber(AIMBOT_SPEED) or 58
+local desiredHeight=targetPos.Y+3.7
+local yVel=(desiredHeight-myPos.Y)*19.5+targetVel.Y*0.8
+if hum.FloorMaterial~=Enum.Material.Air then yVel=math.max(yVel,13) end
+yVel=math.clamp(yVel,-70,110)
+local desiredVel=Vector3.new(flatDir.X*chaseSpeed,yVel,flatDir.Z*chaseSpeed)
+root.AssemblyLinearVelocity=root.AssemblyLinearVelocity:Lerp(desiredVel,0.8)
+
+local speed3=targetVel.Magnitude
+local predictTime=math.clamp(speed3/150,0.05,0.2)
+local predictedPos=targetPos+targetVel*predictTime
+local toPredict=predictedPos-myPos
+if toPredict.Magnitude>0.1 then
+local goalCF=CFrame.lookAt(myPos,predictedPos)
+local diffCF=root.CFrame:Inverse()*goalCF
+local rx,ry,rz=diffCF:ToEulerAnglesXYZ()
+rx=math.clamp(rx,-2.5,2.5)
+ry=math.clamp(ry,-2.5,2.5)
+rz=math.clamp(rz,-2.5,2.5)
+root.AssemblyAngularVelocity=root.CFrame:VectorToWorldSpace(Vector3.new(rx*42,ry*42,rz*42))
+end
+
+if autoSwingEnabled~=false then
+local bat=char:FindFirstChild("Bat") or (_G.NexusFindAimbotBat and _G.NexusFindAimbotBat())
+if bat and bat:IsA("Tool") then pcall(function() bat:Activate() end) end
+end
+end)
+if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+return true
+end
+
+function _G.NexusStopNormalAimbotV3()
+_G.NexusNormalAimbotOn=false
+local state=_G.NexusNormalAimbotV3
+if state and state.conn then state.conn:Disconnect();state.conn=nil end
+if state then state.target=nil;state.stickyTarget=nil;state.stickyUntil=0;state.lastScan=0 end
+local c=LP.Character
+local root=c and c:FindFirstChild("HumanoidRootPart")
+if root then root.AssemblyLinearVelocity=Vector3.zero;root.AssemblyAngularVelocity=Vector3.zero end
+local hum=c and c:FindFirstChildOfClass("Humanoid")
+if hum then hum.AutoRotate=true end
+if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+end
+end
+
 do -- Bypass Aimbot Mode (Sakura Hub anti-bypass: simple velocity chase)
 _G.NexusBypassAimbot = {conn = nil, swingCooldown = false, prevAutoRotate = nil}
 _G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 56.5
@@ -2394,6 +2622,8 @@ function _G.NexusToggleSelectedAimbot()
 if _G.NexusNormalAimbotOn then
 if selectedAimbotMode == "Bypass" and _G.NexusStopBypassAimbot then
 _G.NexusStopBypassAimbot()
+elseif aimbotVersion == "V3" and _G.NexusStopNormalAimbotV3 then
+_G.NexusStopNormalAimbotV3()
 elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then
 _G.NexusStopNormalAimbotV2()
 elseif _G.NexusStopNormalAimbot then
@@ -2402,6 +2632,8 @@ end
 else
 if selectedAimbotMode == "Bypass" and _G.NexusStartBypassAimbot then
 _G.NexusStartBypassAimbot()
+elseif aimbotVersion == "V3" and _G.NexusStartNormalAimbotV3 then
+_G.NexusStartNormalAimbotV3()
 elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then
 _G.NexusStartNormalAimbotV2()
 elseif _G.NexusStartNormalAimbot then
@@ -2445,8 +2677,14 @@ local MIRROR_TP_DOWN_Y = -7.00
 local mirrorTPPreviousY = {}
 local mirrorTPLastTeleport = 0
 
+-- Mirror TP works with EVERY aimbot: Normal (V1), Normal V2, Bypass and TP Bat.
 local function mirrorTPAimbotActive()
-return (_G.NexusNormalAimbotOn == true)
+if _G.NexusNormalAimbotOn == true then return true end
+if _G.NexusTpBatEnabled == true then return true end
+if _G.NexusBypassAimbot and _G.NexusBypassAimbot.conn then return true end
+if _G.NexusNormalAimbotV2 and _G.NexusNormalAimbotV2.conn then return true end
+if _G.NexusNormalAimbot and _G.NexusNormalAimbot.conn then return true end
+return false
 end
 
 local function mirrorTPTeleportDown()
@@ -2461,6 +2699,9 @@ local _, yaw = root.CFrame:ToEulerAnglesYXZ()
 local y = (MIRROR_TP_DOWN_Y or -7) + (math.random() * 0.6 - 0.3)
 root.CFrame = CFrame.new(root.Position.X, y, root.Position.Z) * CFrame.Angles(0, yaw, 0)
 root.AssemblyLinearVelocity = Vector3.new((math.random()-0.5)*0.4, 0, (math.random()-0.5)*0.4)
+root.AssemblyAngularVelocity = Vector3.zero
+pcall(function() root.Velocity = Vector3.zero end)
+pcall(function() root.RotVelocity = Vector3.zero end)
 if _G.NexusClearLinVel then _G.NexusClearLinVel() end
 end
 
@@ -2605,15 +2846,19 @@ function _G.NexusStartTpBat()
             if tRoot then
 
                 if tpBatVersion == "V1" then
-                    local behind = tRoot.CFrame * CFrame.new(0, 0, 3)
-                    _G.NexusTpBatHrp.CFrame = CFrame.new(behind.Position, tRoot.Position)
-                    _G.NexusTpBatHrp.AssemblyLinearVelocity = Vector3.zero
-                    _G.NexusTpBatHrp.AssemblyAngularVelocity = Vector3.zero
-                    if not _G.NexusTpBatSilentAim then
-                        local cam = workspace.CurrentCamera
-                        if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
+                    -- V1 = Violette TP Bat: PhysicsRep stick + gap>8 teleport + camera aim + swing
+                    pcall(function()
+                        if sethiddenproperty then
+                            sethiddenproperty(_G.NexusTpBatHrp, "PhysicsRepRootPart", tRoot)
+                        end
+                    end)
+                    local aimPos1 = tRoot.Position + Vector3.new(0, 0.9, 0)
+                    local gap1 = (_G.NexusTpBatHrp.Position - aimPos1).Magnitude
+                    if gap1 > 8 then
+                        _G.NexusTpBatHrp.CFrame = CFrame.new(aimPos1)
                     end
-                    -- autoswing (0.08s cooldown, same as V2)
+                    local cam = workspace.CurrentCamera
+                    if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
                     _nexusTpBatTryHit()
                 elseif tpBatVersion == "V3" then
                     -- V3: Normal TP Bat (Scarlet V1) — PhysicsRep stick + CFrame teleport gap>8 + camera aim + swing
@@ -2893,39 +3138,85 @@ task.spawn(function()
 if #data.hold > 0 then
 for _, fn in ipairs(data.hold) do task.spawn(function() pcall(fn) end) end
 end
-local baseDur = 1.35 + (math.random() - 0.5) * 0.3
-local COMPLETE_RADIUS = (stealTriggerMode == "Tryhard") and 9 or 15
-local FILL_CAP = 0.80
-local HOLD_TIME = 2
-local function inRange()
+local duration = 1.3
+local stopPercent = 80
+local stopTime = duration * (stopPercent / 100)
+local fireRadius = 9
+local function shouldInterrupt()
+if ragdollStealEnabled then
+local ch = LP.Character
+local hm = ch and ch:FindFirstChildOfClass("Humanoid")
+if hm then
+local st = hm:GetState()
+if st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown then
+return true
+end
+end
+end
+if medusaStealEnabled then
+local ch = LP.Character
+if ch then
+local mv = ch:FindFirstChild("Medusa")
+if mv and mv:IsA("BoolValue") and mv.Value then return true end
+end
+end
+return false
+end
+local startTime = tick()
+while a.enabled and selectedStealMode == "Normal" do
+if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
+local elapsed = tick() - startTime
+local progress = math.min(elapsed / duration, stopPercent / 100)
+barProgress(progress)
+if elapsed >= stopTime then break end
+if not prompt.Parent or not prompt.Parent.Parent then break end
 local root = getRoot()
-if not root or not animalData or not animalData.worldPosition then return false end
-return (root.Position - animalData.worldPosition).Magnitude <= COMPLETE_RADIUS
+if root and animalData and animalData.worldPosition and (root.Position - animalData.worldPosition).Magnitude > (a.radius or 62) then break end
+task.wait()
 end
-local t0 = tick()
-while a.enabled and selectedStealMode == "Normal" and tick() - t0 < baseDur * FILL_CAP do
-barProgress((tick() - t0) / (baseDur * FILL_CAP))
-task.wait(0.02)
-end
-if not a.enabled or selectedStealMode ~= "Normal" then
+if not a.enabled or selectedStealMode ~= "Normal" or shouldInterrupt() then
 data.ready = true; a.isStealing = false; resetBar(); return
 end
-local holdT0 = tick()
-local completed = false
-while a.enabled and selectedStealMode == "Normal" and tick() - holdT0 < HOLD_TIME do
-barProgress(FILL_CAP)
-if inRange() then completed = true; break end
-task.wait(0.02)
+local stopProgress = math.clamp(stopTime / duration, 0, 1)
+barProgress(stopProgress)
+local phase2Start = tick()
+local timeout = 2.99
+local enteredRadius = false
+while a.enabled and selectedStealMode == "Normal" do
+if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
+if tick() - phase2Start >= timeout then break end
+if not prompt.Parent or not prompt.Parent.Parent then break end
+local root = getRoot()
+if root and animalData and animalData.worldPosition then
+local dist = (root.Position - animalData.worldPosition).Magnitude
+if dist <= fireRadius then
+enteredRadius = true
+break
+elseif dist > (a.radius or 62) then
+break
 end
-if not a.enabled or selectedStealMode ~= "Normal" or not completed then
-data.ready = true; a.isStealing = false; resetBar(); return
 end
-local t1 = tick()
-local fillDur = baseDur * (1 - FILL_CAP)
-while a.enabled and selectedStealMode == "Normal" and tick() - t1 < fillDur do
-local p = FILL_CAP + math.min((tick() - t1) / fillDur, 1) * (1 - FILL_CAP)
-barProgress(p)
-task.wait(0.02)
+task.wait()
+end
+if not enteredRadius or not a.enabled or selectedStealMode ~= "Normal" or shouldInterrupt() or not prompt.Parent then
+data.ready = true; a.isStealing = false; resetBar()
+task.wait()
+local nearest = nearestAnimal()
+if nearest then
+local newPrompt = findPrompt(nearest)
+if newPrompt then doSteal(newPrompt, nearest) end
+end
+return
+end
+local fillStart = tick()
+local fillDuration = math.max(duration - stopTime, 0.05)
+while a.enabled and selectedStealMode == "Normal" and prompt.Parent do
+if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
+local fp = math.clamp((tick() - fillStart) / fillDuration, 0, 1)
+local progress = stopProgress + fp * (1 - stopProgress)
+barProgress(progress)
+if fp >= 1 then break end
+task.wait()
 end
 if not a.enabled or selectedStealMode ~= "Normal" then
 data.ready = true; a.isStealing = false; resetBar(); return
@@ -4220,31 +4511,262 @@ end
 
 _G.NexusEnsureLinearVelocity = function(hrp) end
 
-RunService.RenderStepped:Connect(function()
+-- ============================================================
+-- SPEED ENGINE — exact port of the linked Vynx V3 movement core.
+-- The Humanoid move direction is pushed every RenderStep through the
+-- selected method (default "Velocity" = the impulse method Vynx V3 uses).
+-- ============================================================
+;(function()
+local MOVE_KEYS = {
+[Enum.KeyCode.W]=true,[Enum.KeyCode.A]=true,[Enum.KeyCode.S]=true,[Enum.KeyCode.D]=true,
+[Enum.KeyCode.Up]=true,[Enum.KeyCode.Left]=true,[Enum.KeyCode.Down]=true,[Enum.KeyCode.Right]=true,
+}
+local METHODS = {
+"Velocity", "AssemblyLinearVelocity", "Velocity Lerp", "AssemblyLinearVelocity Lerp",
+"CFrame", "CFrame Lerp", "Hyper CFrame", "Anchored CFrame", "PivotTo", "Model PivotTo", "Tween CFrame",
+"WalkSpeed", "Humanoid Move", "Humanoid MoveTo",
+"BodyVelocity", "BodyPosition", "BodyForce", "BodyThrust",
+"LinearVelocity", "VectorForce", "AlignPosition",
+"ApplyImpulse", "RocketPropulsion",
+}
+_G.NexusSpeedMethodList = METHODS
+local S = {method = "Velocity", last = nil, lastMoveDir = Vector3.zero,
+anchored=nil, bodyVel=nil, bodyPos=nil, bodyForce=nil, bodyThrust=nil, linVel=nil, vecForce=nil,
+alignPos=nil, rocket=nil, rocketTarget=nil, attLinVel=nil, attVecForce=nil, attAlign=nil, tween=nil}
+_G.NexusSpeedMethod = "Velocity"
+S.method = "Velocity"
+
+local function destroySpeedObjects()
+if S.anchored then pcall(function() S.anchored.Anchored = false end) end
+if S.anchored then S.anchored = nil end
+if S.bodyVel then pcall(function() S.bodyVel:Destroy() end); S.bodyVel = nil end
+if S.bodyPos then pcall(function() S.bodyPos:Destroy() end); S.bodyPos = nil end
+if S.bodyForce then pcall(function() S.bodyForce:Destroy() end); S.bodyForce = nil end
+if S.bodyThrust then pcall(function() S.bodyThrust:Destroy() end); S.bodyThrust = nil end
+if S.linVel then pcall(function() S.linVel:Destroy() end); S.linVel = nil end
+if S.vecForce then pcall(function() S.vecForce:Destroy() end); S.vecForce = nil end
+if S.alignPos then pcall(function() S.alignPos:Destroy() end); S.alignPos = nil end
+if S.rocket then pcall(function() S.rocket:Destroy() end); S.rocket = nil end
+if S.rocketTarget then pcall(function() S.rocketTarget:Destroy() end); S.rocketTarget = nil end
+if S.attLinVel then pcall(function() S.attLinVel:Destroy() end); S.attLinVel = nil end
+if S.attVecForce then pcall(function() S.attVecForce:Destroy() end); S.attVecForce = nil end
+if S.attAlign then pcall(function() S.attAlign:Destroy() end); S.attAlign = nil end
+if S.tween then pcall(function() S.tween:Cancel() end); S.tween = nil end
+end
+_G.NexusDestroySpeedObjects = destroySpeedObjects
+
+local function ensureSpeedAttachment(hrp, key, name)
+local att = S[key]
+if not att or att.Parent ~= hrp then
+if att then pcall(function() att:Destroy() end) end
+att = Instance.new("Attachment")
+att.Name = name or "NexusSpeedAtt"
+att.Parent = hrp
+S[key] = att
+end
+return att
+end
+
+local function massImpulse(hrp, dir, spd)
+local mass = hrp.AssemblyMass or 1
+local current = hrp.AssemblyLinearVelocity
+local desired = Vector3.new(dir.X * spd, current.Y, dir.Z * spd)
+local delta = desired - current
+pcall(function() hrp:ApplyImpulse(Vector3.new(delta.X, 0, delta.Z) * mass) end)
+end
+
+local function applySpeedMethod(hrp, hum, dir, spd, dt)
+local step = dt or 1/60
+local m = S.method
+if S.last ~= m then
+destroySpeedObjects()
+if m ~= "WalkSpeed" and hum.WalkSpeed ~= 16 then hum.WalkSpeed = 16 end
+S.last = m
+end
+local char = hrp.Parent
+local targetPos = hrp.Position + (dir * spd * step)
+
+if m == "Velocity" or m == "ApplyImpulse" or m == "AssemblyLinearVelocity" then
+massImpulse(hrp, dir, spd)
+elseif m == "Velocity Lerp" or m == "AssemblyLinearVelocity Lerp" then
+local current = hrp.AssemblyLinearVelocity
+local desired = Vector3.new(dir.X*spd, current.Y, dir.Z*spd)
+local blended = current:Lerp(desired, 0.6)
+local mass = hrp.AssemblyMass or 1
+pcall(function() hrp:ApplyImpulse(Vector3.new(blended.X - current.X, 0, blended.Z - current.Z) * mass) end)
+elseif m == "CFrame" then
+hrp.CFrame = hrp.CFrame + (dir * spd * step)
+elseif m == "CFrame Lerp" then
+hrp.CFrame = hrp.CFrame:Lerp(hrp.CFrame + (dir * spd * step), 0.5)
+elseif m == "Hyper CFrame" then
+hrp.CFrame = hrp.CFrame + (dir * spd * (_G.NexusHyperMult or 4) * step)
+elseif m == "Anchored CFrame" then
+if not hrp.Anchored then
+hrp.Anchored = true
+S.anchored = hrp
+end
+hrp.CFrame = hrp.CFrame + (dir * spd * step)
+elseif m == "PivotTo" then
+hrp:PivotTo(hrp.CFrame + (dir * spd * step))
+elseif m == "Model PivotTo" then
+if char and char:IsA("Model") then
+char:PivotTo(char:GetPivot() + (dir * spd * step))
+else
+hrp:PivotTo(hrp.CFrame + (dir * spd * step))
+end
+elseif m == "Tween CFrame" then
+if S.tween then pcall(function() S.tween:Cancel() end) end
+S.tween = TweenService:Create(hrp, TweenInfo.new(step, Enum.EasingStyle.Linear), {CFrame = hrp.CFrame + (dir * spd * step)})
+pcall(function() S.tween:Play() end)
+elseif m == "WalkSpeed" then
+hum.WalkSpeed = spd
+elseif m == "Humanoid Move" then
+hum.WalkSpeed = spd
+hum:Move(dir)
+elseif m == "Humanoid MoveTo" then
+hum:MoveTo(targetPos, hrp)
+elseif m == "BodyVelocity" then
+if not S.bodyVel or S.bodyVel.Parent ~= hrp then
+if S.bodyVel then pcall(function() S.bodyVel:Destroy() end) end
+S.bodyVel = Instance.new("BodyVelocity")
+S.bodyVel.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+S.bodyVel.Parent = hrp
+end
+S.bodyVel.Velocity = Vector3.new(dir.X*spd, S.bodyVel.Velocity.Y, dir.Z*spd)
+elseif m == "BodyPosition" then
+if not S.bodyPos or S.bodyPos.Parent ~= hrp then
+if S.bodyPos then pcall(function() S.bodyPos:Destroy() end) end
+S.bodyPos = Instance.new("BodyPosition")
+S.bodyPos.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+S.bodyPos.P = 500
+S.bodyPos.D = 50
+S.bodyPos.Parent = hrp
+end
+S.bodyPos.Position = targetPos
+elseif m == "BodyForce" then
+if not S.bodyForce or S.bodyForce.Parent ~= hrp then
+if S.bodyForce then pcall(function() S.bodyForce:Destroy() end) end
+S.bodyForce = Instance.new("BodyForce")
+S.bodyForce.Parent = hrp
+end
+S.bodyForce.Force = Vector3.new(dir.X*spd, 0, dir.Z*spd) * 100
+elseif m == "BodyThrust" then
+if not S.bodyThrust or S.bodyThrust.Parent ~= hrp then
+if S.bodyThrust then pcall(function() S.bodyThrust:Destroy() end) end
+S.bodyThrust = Instance.new("BodyThrust")
+S.bodyThrust.Force = Vector3.new(math.huge, math.huge, math.huge)
+S.bodyThrust.Parent = hrp
+end
+S.bodyThrust.Force = Vector3.new(dir.X*spd, 0, dir.Z*spd) * 100
+elseif m == "LinearVelocity" then
+if not S.linVel or S.linVel.Parent ~= hrp then
+if S.linVel then pcall(function() S.linVel:Destroy() end) end
+local att = ensureSpeedAttachment(hrp, "attLinVel", "NexusLinVelAtt")
+S.linVel = Instance.new("LinearVelocity")
+S.linVel.Attachment0 = att
+S.linVel.MaxForce = 1e8
+S.linVel.RelativeTo = Enum.ActuatorRelativeTo.World
+S.linVel.Parent = hrp
+end
+S.linVel.VectorVelocity = Vector3.new(dir.X*spd, S.linVel.VectorVelocity.Y, dir.Z*spd)
+elseif m == "VectorForce" then
+if not S.vecForce or S.vecForce.Parent ~= hrp then
+if S.vecForce then pcall(function() S.vecForce:Destroy() end) end
+local att = ensureSpeedAttachment(hrp, "attVecForce", "NexusVecForceAtt")
+S.vecForce = Instance.new("VectorForce")
+S.vecForce.Attachment0 = att
+S.vecForce.RelativeTo = Enum.ActuatorRelativeTo.World
+S.vecForce.Parent = hrp
+end
+S.vecForce.Force = Vector3.new(dir.X*spd, 0, dir.Z*spd) * 100
+elseif m == "AlignPosition" then
+if not S.alignPos or S.alignPos.Parent ~= hrp then
+if S.alignPos then pcall(function() S.alignPos:Destroy() end) end
+local att = ensureSpeedAttachment(hrp, "attAlign", "NexusAlignAtt")
+S.alignPos = Instance.new("AlignPosition")
+S.alignPos.Attachment0 = att
+S.alignPos.Mode = Enum.PositionAlignmentMode.OneAttachment
+S.alignPos.MaxForce = math.huge
+S.alignPos.Responsiveness = 15
+S.alignPos.RigidityEnabled = false
+S.alignPos.Parent = hrp
+end
+S.alignPos.Position = targetPos
+elseif m == "RocketPropulsion" then
+if not S.rocket or S.rocket.Parent ~= hrp or not S.rocketTarget then
+if S.rocket then pcall(function() S.rocket:Destroy() end) end
+if S.rocketTarget then pcall(function() S.rocketTarget:Destroy() end) end
+S.rocketTarget = Instance.new("Part")
+S.rocketTarget.Name = "NexusRocketTarget"
+S.rocketTarget.Anchored = true
+S.rocketTarget.CanCollide = false
+S.rocketTarget.Transparency = 1
+S.rocketTarget.Size = Vector3.new(1,1,1)
+S.rocketTarget.Parent = workspace
+S.rocket = Instance.new("RocketPropulsion")
+S.rocket.MaxThrust = 3000
+S.rocket.MaxTorque = 1000
+S.rocket.ThrustP = 100
+S.rocket.ThrustD = 20
+S.rocket.TurnP = 100
+S.rocket.TurnD = 10
+S.rocket.Target = S.rocketTarget
+S.rocket.Parent = hrp
+end
+S.rocketTarget.Position = targetPos
+pcall(function() S.rocket:Fire() end)
+end
+end
+
+function _G.NexusSetSpeedMethod(name)
+-- Speed technique is intentionally fixed to Vynx V3's default Velocity method.
+S.method = "Velocity"
+_G.NexusSpeedMethod = "Velocity"
+destroySpeedObjects()
+return true
+end
+_G.NexusGetSpeedMethod = function() return S.method end
+
+RunService.RenderStepped:Connect(function(dt)
 	local char = LP.Character
-	if not char then return end
+	if not char then destroySpeedObjects() return end
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	local root = char:FindFirstChild("HumanoidRootPart")
-	if not hum or not root or hum.Health <= 0 then return end
-
-	local dir = hum.MoveDirection
-	local spd = getCurrentSpeedValue()
-
-	if dir.Magnitude > 0.05 then
-		local unit = dir.Unit
-		local mass = root.AssemblyMass or 1
-		local current = root.AssemblyLinearVelocity
-		local desired = Vector3.new(unit.X * spd, current.Y, unit.Z * spd)
-		local delta = desired - current
-		pcall(function()
-			root:ApplyImpulse(Vector3.new(delta.X, 0, delta.Z) * mass)
-		end)
+	if not hum or not root or hum.Health <= 0 then destroySpeedObjects() return end
+	local st = hum:GetState()
+	if hum.PlatformStand or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown then
+		S.lastMoveDir = Vector3.zero
+		destroySpeedObjects()
+		return
 	end
-
+	local spd = getCurrentSpeedValue()
+	local md = hum.MoveDirection
+	local dir = Vector3.zero
+	if md.Magnitude > 0 then
+		S.lastMoveDir = md
+		dir = md
+	elseif antiRagdollEnabled and S.lastMoveDir.Magnitude > 0 then
+		local anyHeld = false
+		for key in pairs(MOVE_KEYS) do
+			if UserInputService:IsKeyDown(key) then anyHeld = true break end
+		end
+		if anyHeld then dir = S.lastMoveDir end
+	end
+	if dir.Magnitude > 0 then
+		applySpeedMethod(root, hum, dir, spd, dt)
+	else
+		destroySpeedObjects()
+	end
 	if overheadSpeedLabel then
 		overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
 	end
 end)
+
+LP.CharacterAdded:Connect(function()
+	task.wait(0.25)
+	destroySpeedObjects()
+end)
+end)()
 
 RunService.Heartbeat:Connect(function()
 	local char = LP.Character
@@ -4534,6 +5056,57 @@ OpenPill.MouseLeave:Connect(function()
 	TweenService:Create(pillStroke, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Color = COLORS.accentDim, Transparency = 0.3}):Play()
 end)
 local MainUIScale = Instance.new("UIScale", Main)
+do
+local debugGui = Instance.new("ScreenGui")
+debugGui.Name = "NexusDebug"
+debugGui.ResetOnSpawn = false
+debugGui.DisplayOrder = 10000
+debugGui.Enabled = false
+debugGui.Parent = PlayerGui
+local panel = Instance.new("Frame", debugGui)
+panel.Size = UDim2.new(0, 220, 0, 96)
+panel.Position = UDim2.new(1, -232, 0, 18)
+panel.BackgroundColor3 = COLORS.bg
+panel.BackgroundTransparency = 0.08
+panel.BorderSizePixel = 0
+corner(panel, 10)
+stroke(panel, COLORS.strokeSoft, 1, 0.35)
+local title = Instance.new("TextLabel", panel)
+title.Size = UDim2.new(1, -20, 0, 22)
+title.Position = UDim2.new(0, 10, 0, 7)
+title.BackgroundTransparency = 1
+title.Text = "NEXUS DEBUG"
+title.TextColor3 = COLORS.accent
+title.Font = Enum.Font.GothamBlack
+title.TextSize = 11
+title.TextXAlignment = Enum.TextXAlignment.Left
+local info = Instance.new("TextLabel", panel)
+info.Size = UDim2.new(1, -20, 0, 48)
+info.Position = UDim2.new(0, 10, 0, 31)
+info.BackgroundTransparency = 1
+info.TextColor3 = COLORS.white
+info.Font = Enum.Font.GothamBold
+info.TextSize = 10
+info.TextXAlignment = Enum.TextXAlignment.Left
+info.TextYAlignment = Enum.TextYAlignment.Top
+info.TextWrapped = true
+local function refresh()
+local fps, ping = _G.NexusGetDebugStats and _G.NexusGetDebugStats() or 60, 0
+local active = 0
+for _,v in pairs(_G) do if type(v) == "function" and tostring(v):find("Nexus") then active += 1 end end
+info.Text = string.format("FPS  %d\nPING  %dms\nCHARACTER  %s\nNEXUS API  %d", fps, ping, LP.Character and "READY" or "WAITING", active)
+end
+_G.NexusToggleDebug = function(on)
+debugGui.Enabled = on == nil and not debugGui.Enabled or on == true
+if debugGui.Enabled then refresh() end
+end
+task.spawn(function()
+while debugGui.Parent do
+if debugGui.Enabled then refresh() end
+task.wait(0.5)
+end
+end)
+end
 MainUIScale.Name = "NexusMainUIScale"
 MainUIScale.Scale = 1
 _G.NexusMainUIScaleRef = MainUIScale
@@ -4551,8 +5124,25 @@ bgImage.Visible = false
 bgImage.Image = ""
 return "None"
 end
-local asset = getCustomBackgroundAsset(currentBackground)
-bgImage.Image = asset or ("rbxassetid://" .. tostring(NEXUS_BACKGROUND_DECALS[currentBackground] or 0))
+local requested = currentBackground
+local asset = getCustomBackgroundAsset(requested)
+if asset then
+bgImage.Image = asset
+else
+local decal = NEXUS_BACKGROUND_DECALS[requested]
+bgImage.Image = (decal and decal > 0) and ("rbxassetid://" .. tostring(decal)) or ""
+local url = NEXUS_BACKGROUND_URLS[requested]
+local file = NEXUS_BACKGROUND_FILES[requested]
+if url and file then
+watchImageAsset(url, file, function(a)
+if not a or currentBackground ~= requested then return end
+if not bgImage or not bgImage.Parent then return end
+bgImage.Image = a
+bgImage.ImageColor3 = COLORS.white
+bgImage.Visible = true
+end)
+end
+end
 bgImage.ImageColor3 = COLORS.white
 bgImage.Visible = bgImage.Image ~= ""
 return bgImage.Visible and tostring(currentBackground) or "None"
@@ -4708,7 +5298,7 @@ return Gui,Main,Content,OpenPill,FULL_MAIN_SIZE,pages,BackgroundIDs,Close
 end)()
 applyBackground(currentBackground)
 function totalBackgroundCount()
-return 4
+return 3
 end
 
 addPage("MOVEMENT", "MOVEMENT")
@@ -5011,8 +5601,8 @@ function animationPackRow(parent, order)
     openBtn.TextColor3 = COLORS.white
     openBtn.TextSize = 10
     openBtn.Font = Enum.Font.GothamBold
-    openBtn.Size = UDim2.new(0, 50, 0, 22)
-    openBtn.Position = UDim2.new(1, -58, 0.5, -11)
+    openBtn.Size = UDim2.new(0, 58, 0, 22)
+    openBtn.Position = UDim2.new(1, -66, 0.5, -11)
     openBtn.BorderSizePixel = 0
     openBtn.ZIndex = 6
     openBtn.AutoButtonColor = false
@@ -5058,7 +5648,7 @@ function animationPackRow(parent, order)
         studioOpen = false
         if studioFrame then
             TweenService:Create(studioFrame, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In),
-                {Size = UDim2.new(0, 280, 0, 0)}):Play()
+                {Size = UDim2.new(0, 310, 0, 0)}):Play()
             task.delay(0.22, function()
                 if studioFrame and studioFrame.Parent then studioFrame:Destroy() end
                 studioFrame = nil
@@ -5078,8 +5668,8 @@ function animationPackRow(parent, order)
 
         studioFrame = Instance.new("Frame", sg)
         studioFrame.Name = "AnimStudioPopup"
-        studioFrame.Size = UDim2.new(0, 280, 0, 0)
-        studioFrame.Position = UDim2.new(0.5, -140, 0.5, -190)
+        studioFrame.Size = UDim2.new(0, 310, 0, 0)
+        studioFrame.Position = UDim2.new(0.5, -155, 0.5, -205)
         studioFrame.BackgroundColor3 = COLORS.bg
         studioFrame.BorderSizePixel = 0
         studioFrame.ClipsDescendants = true
@@ -5105,7 +5695,7 @@ function animationPackRow(parent, order)
         local sTitle = Instance.new("TextLabel", titleBar)
         sTitle.Size = UDim2.new(1, -40, 1, 0); sTitle.Position = UDim2.new(0, 12, 0, 0)
         sTitle.BackgroundTransparency = 1
-        sTitle.Text = "ANIMATION PACKS"; sTitle.TextColor3 = COLORS.white
+        sTitle.Text = "ANIMATION STUDIO"; sTitle.TextColor3 = COLORS.white
         sTitle.Font = Enum.Font.GothamBold; sTitle.TextSize = 12
         sTitle.TextXAlignment = Enum.TextXAlignment.Left; sTitle.ZIndex = 22
 
@@ -5194,7 +5784,7 @@ function animationPackRow(parent, order)
         for i, name in ipairs(AnimationPackList) do
             if name ~= "None" then
                 local btn = Instance.new("TextButton", listFrame)
-                btn.Size = UDim2.new(1, 0, 0, 30)
+                btn.Size = UDim2.new(1, 0, 0, 34)
                 btn.BackgroundColor3 = COLORS.row
                 btn.Text = ""; btn.AutoButtonColor = false
                 btn.BorderSizePixel = 0; btn.LayoutOrder = i; btn.ZIndex = 20
@@ -5536,7 +6126,7 @@ return row, setVisual, arrow
 end
 function autoStealSelectorRow(parent, order)
 	selectedStealMode = "Semi"
-	semiStopPercent = 75
+	semiStopPercent = 80
 	local row = Instance.new("Frame")	row.Name = "Auto Steal Stop"
 	row.BackgroundColor3 = COLORS.row
 	row.BackgroundTransparency = 0.75
@@ -5564,7 +6154,7 @@ function autoStealSelectorRow(parent, order)
 	lbl.Parent = row
 	local fixedVal = Instance.new("TextLabel")
 	fixedVal.BackgroundTransparency = 1
-	fixedVal.Text = "75%"
+	fixedVal.Text = "80%"
 	fixedVal.TextColor3 = COLORS.accent
 	fixedVal.TextSize = 11
 	fixedVal.Font = Enum.Font.GothamBold
@@ -5631,6 +6221,7 @@ end
 carrySpeedBox.Text = tostring(CS)
 end)
 modeDisplayRow(Movement, 4, "Normal")
+-- Speed Method chooser removed: Nexus uses the exact Vynx V3 default "Velocity" technique.
 section(Movement, "LAGGER SPEED", 5)
 _, laggerSpeedBox = textboxRow(Movement, "Lagger Speed", tostring(LAGGER_SPEED), 6)
 laggerSpeedBox.FocusLost:Connect(function()
@@ -5662,60 +6253,7 @@ saveNexusConfig()
 end)
 end
 end
-do
-local modeRow = baseRow(Movement, "Jump Mode", 16.5)
-modeRow.Size = UDim2.new(1, -4, 0, 32)
-local modeLabel = modeRow:FindFirstChild("Label")
-if modeLabel then modeLabel.Text = "Jump Mode" end
-local singleBtn = Instance.new("TextButton")
-singleBtn.Name = "SingleBtn"
-singleBtn.BackgroundColor3 = infJumpMode == "SINGLE" and COLORS.accent or COLORS.input
-singleBtn.BackgroundTransparency = 0.1
-singleBtn.Text = "SINGLE"
-singleBtn.TextColor3 = infJumpMode == "SINGLE" and COLORS.white or COLORS.textDim
-singleBtn.TextSize = 10
-singleBtn.Font = Enum.Font.GothamBold
-singleBtn.Size = UDim2.new(0, 56, 0, 22)
-singleBtn.Position = UDim2.new(1, -124, 0.5, -11)
-singleBtn.BorderSizePixel = 0
-singleBtn.ZIndex = 6
-singleBtn.AutoButtonColor = false
-singleBtn.Parent = modeRow
-Instance.new("UICorner", singleBtn).CornerRadius = UDim.new(0, 5)
-local singleSt = Instance.new("UIStroke", singleBtn)
-singleSt.Color = COLORS.stroke; singleSt.Thickness = 1; singleSt.Transparency = 0.5
-local holdBtn = Instance.new("TextButton")
-holdBtn.Name = "HoldBtn"
-holdBtn.BackgroundColor3 = infJumpMode == "HOLD" and COLORS.accent or COLORS.input
-holdBtn.BackgroundTransparency = 0.1
-holdBtn.Text = "HOLD"
-holdBtn.TextColor3 = infJumpMode == "HOLD" and COLORS.white or COLORS.textDim
-holdBtn.TextSize = 10
-holdBtn.Font = Enum.Font.GothamBold
-holdBtn.Size = UDim2.new(0, 56, 0, 22)
-holdBtn.Position = UDim2.new(1, -62, 0.5, -11)
-holdBtn.BorderSizePixel = 0
-holdBtn.ZIndex = 6
-holdBtn.AutoButtonColor = false
-holdBtn.Parent = modeRow
-Instance.new("UICorner", holdBtn).CornerRadius = UDim.new(0, 5)
-local holdSt = Instance.new("UIStroke", holdBtn)
-holdSt.Color = COLORS.stroke; holdSt.Thickness = 1; holdSt.Transparency = 0.5
-singleBtn.MouseButton1Click:Connect(function()
-infJumpMode = "SINGLE"
-singleBtn.BackgroundColor3 = COLORS.accent; singleBtn.TextColor3 = COLORS.white
-holdBtn.BackgroundColor3 = COLORS.input; holdBtn.TextColor3 = COLORS.textDim
-if infJumpEnabled then _G._nexusInfJumpInternal(true) end
-saveNexusConfig()
-end)
-holdBtn.MouseButton1Click:Connect(function()
-infJumpMode = "HOLD"
-holdBtn.BackgroundColor3 = COLORS.accent; holdBtn.TextColor3 = COLORS.white
-singleBtn.BackgroundColor3 = COLORS.input; singleBtn.TextColor3 = COLORS.textDim
-if infJumpEnabled then _G._nexusInfJumpInternal(true) end
-saveNexusConfig()
-end)
-end
+-- Jump Mode chooser removed: Infinite Jump is the exact Vynx V3 manual mode.
 -- Auto Dodge expand-arrow section
 do
 local dodgeContainer = Instance.new("Frame")
@@ -6285,6 +6823,7 @@ do
 			if _G.NexusNormalAimbotOn then
 				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
 				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
+				if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end
 				if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
 				task.delay(0.05, function()
 					if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
@@ -6308,7 +6847,7 @@ do
 		avBtn.BackgroundColor3 = COLORS.input
 		avBtn.BackgroundTransparency = 0.1
 		avBtn.BorderSizePixel = 0
-		avBtn.Text = aimbotVersion == "V2" and "V2" or "V1"
+		avBtn.Text = aimbotVersion == "V3" and "V3" or (aimbotVersion == "V2" and "V2" or "V1")
 		avBtn.TextColor3 = COLORS.white
 		avBtn.Font = Enum.Font.GothamBold
 		avBtn.TextSize = 10
@@ -6321,8 +6860,8 @@ do
 		avStroke.Thickness = 1
 		avStroke.Transparency = 0.5
 		avBtn.Activated:Connect(function()
-			aimbotVersion = (aimbotVersion == "V1") and "V2" or "V1"
-			avBtn.Text = aimbotVersion == "V2" and "V2" or "V1"
+			aimbotVersion = (aimbotVersion == "V1" and "V2") or (aimbotVersion == "V2" and "V3") or "V1"
+			avBtn.Text = aimbotVersion == "V3" and "V3" or (aimbotVersion == "V2" and "V2" or "V1")
 			if _G.NexusNormalAimbotOn then
 				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
 				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
@@ -6773,8 +7312,12 @@ local box=Instance.new("Frame",bb); box.Size=UDim2.new(1,0,1,0); box.BackgroundT
 Instance.new("UICorner",box).CornerRadius=UDim.new(0,9)
 local n=Instance.new("TextLabel",box); n.Size=UDim2.new(1,-10,0,17); n.Position=UDim2.new(0,5,0,2); n.BackgroundTransparency=1; n.TextColor3=Color3.fromRGB(255,255,255); n.Font=Enum.Font.GothamBlack; n.TextSize=15; n.TextStrokeTransparency=0.38
 local sub=Instance.new("TextLabel",box); sub.Size=UDim2.new(1,-10,0,11); sub.Position=UDim2.new(0,5,0,19); sub.BackgroundTransparency=1; sub.TextColor3=Color3.fromRGB(180,180,180); sub.Font=Enum.Font.GothamBold; sub.TextSize=10; sub.TextStrokeTransparency=0.58
+local espLastUpdate=0
 local conn=RunService.Heartbeat:Connect(function()
 if not PlayerESP.enabled or not hrp.Parent then return end
+local now=tick()
+if now-espLastUpdate < 0.05 then return end
+espLastUpdate=now
 local v=hrp.AssemblyLinearVelocity or hrp.Velocity
 n.Text=string.format("%d speed", math.floor(Vector3.new(v.X,0,v.Z).Magnitude+0.5)); sub.Text=plr.Name
 end)
@@ -7417,6 +7960,29 @@ cc.Enabled = true
 cc.Parent = Lighting
 end
 end
+-- Recall the saturated colors: other features (Ultra Mode, Anti Lag, sky themes,
+-- FPS boost) wipe post-processing, so re-apply the CC whenever it goes missing
+-- while the toggle is on, and keep the VISUALS row in sync.
+;(function()
+_G.NexusSaturatedLastCheck = _G.NexusSaturatedLastCheck or 0
+RunService.Heartbeat:Connect(function()
+if _G.NexusSaturatedColorsEnabled ~= true then return end
+local now = tick()
+if now - _G.NexusSaturatedLastCheck < 0.5 then return end
+_G.NexusSaturatedLastCheck = now
+local existing = Lighting:FindFirstChild("NexusSaturated")
+if existing and existing:IsA("ColorCorrectionEffect") and existing.Enabled then return end
+pcall(function() _G.NexusApplySaturatedColors(true) end)
+if _G.NexusSetSaturatedColorsVisual then pcall(function() _G.NexusSetSaturatedColorsVisual(true) end) end
+end)
+LP.CharacterAdded:Connect(function()
+task.wait(0.5)
+if _G.NexusSaturatedColorsEnabled == true then
+pcall(function() _G.NexusApplySaturatedColors(true) end)
+if _G.NexusSetSaturatedColorsVisual then pcall(function() _G.NexusSetSaturatedColorsVisual(true) end) end
+end
+end)
+end)()
 do
 local _S = {cd=false, th=nil, ch=nil, ok=false, stop=false}
 local function _stopIR()
@@ -7520,7 +8086,9 @@ terrain.MaterialColors = {}
 end
 end)
 for _, child in ipairs(Lighting:GetChildren()) do
-if child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect")
+if child:GetAttribute("NexusSaturatedCC") or child.Name == "NexusSaturated" then
+-- keep the Saturated Colors CC alive
+elseif child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect")
 or child:IsA("ColorCorrectionEffect") or child:IsA("Atmosphere") or child:IsA("Sky")
 or child:IsA("DepthOfFieldEffect") or child:IsA("SpaceSky") then
 child.Enabled = false
@@ -7658,7 +8226,8 @@ pcall(function()
 Lighting.GlobalShadows=false; Lighting.FogEnd=1e10; Lighting.FogStart=0
 Lighting.EnvironmentDiffuseScale=0; Lighting.EnvironmentSpecularScale=0; Lighting.Brightness=1
 for _,child in ipairs(Lighting:GetChildren()) do
-if child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect") or child:IsA("ColorCorrectionEffect") then child.Enabled=false end
+if child:GetAttribute("NexusSaturatedCC") or child.Name == "NexusSaturated" then
+elseif child:IsA("BloomEffect") or child:IsA("BlurEffect") or child:IsA("SunRaysEffect") or child:IsA("ColorCorrectionEffect") then child.Enabled=false end
 end
 pcall(function()
 local terrain=workspace:FindFirstChildOfClass("Terrain")
@@ -8084,10 +8653,14 @@ setSkyIndex(skyIndex + 1)
 end)
 return row
 end
-local bgList = {"None", "NX3"}
-local bgIndexMap = {[1] = 0, [2] = 3}
+local bgList = {"None", "BG 1"}
+local bgIndexMap = {[1] = 1}
 local bgIndex = 1
-if currentBackground == 0 then bgIndex = 1 elseif currentBackground == 3 then bgIndex = 2 end
+do
+for i = 1, #bgIndexMap do
+if bgIndexMap[i] == currentBackground then bgIndex = i break end
+end
+end
 function backgroundSelectorRow(parent, order)
 local row = baseRow(parent, "Background", order)
 row.Size = UDim2.new(1, -4, 0, 34)
@@ -8213,11 +8786,9 @@ end
 end
 section(Utility, "SKY THEME", 23)
 skyThemeSelectorRow(Utility, 24)
-section(Utility, "BACKGROUND", 24)
-backgroundSelectorRow(Utility, 25)
-section(Utility, "COLORS", 25)
+section(Utility, "COLORS", 24)
 do
-	local row, setVisual = toggleRow(Utility, "Saturated Colors", _G.NexusSaturatedColorsEnabled, 26)
+	local row, setVisual = toggleRow(Utility, "CC", _G.NexusSaturatedColorsEnabled, 26)
 	_G.NexusSetSaturatedColorsVisual = setVisual
 	_nexusBtn = row and row:FindFirstChild("ToggleButton")
 	if _nexusBtn then
@@ -8568,7 +9139,7 @@ do
 		overlay.ZIndex = 1
 		overlay.Parent = galleryGui
 
-		local panelW, panelH = 700, 470
+		local panelW, panelH = 660, 450
 		local galleryFit = 1
 		pcall(function()
 			local cam = workspace.CurrentCamera
@@ -8588,7 +9159,7 @@ do
 		holder.ZIndex = 2
 		holder.Parent = galleryGui
 		local panelScale = Instance.new("UIScale", holder)
-		panelScale.Scale = 0.86 * galleryFit
+		panelScale.Scale = 0.90 * galleryFit
 
 		local panel = Instance.new("Frame")
 		panel.Size = UDim2.new(1, 0, 1, 0)
@@ -8621,7 +9192,7 @@ do
 		titleLbl.Size = UDim2.new(1, -120, 0, 22)
 		titleLbl.Position = UDim2.new(0, 16, 0, 7)
 		titleLbl.BackgroundTransparency = 1
-		titleLbl.Text = "PACK COLLECTION"
+		titleLbl.Text = "NEXUS GALLERY"
 		titleLbl.TextColor3 = COLORS.white
 		titleLbl.Font = Enum.Font.GothamBlack
 		titleLbl.TextSize = 15
@@ -8635,7 +9206,7 @@ do
 		subtitleLbl.Size = UDim2.new(1, -120, 0, 13)
 		subtitleLbl.Position = UDim2.new(0, 16, 0, 29)
 		subtitleLbl.BackgroundTransparency = 1
-		subtitleLbl.Text = "Preview in 3D, then apply"
+		subtitleLbl.Text = "3D PACK COLLECTION  •  SELECT TO PREVIEW"
 		subtitleLbl.TextColor3 = COLORS.textDim
 		subtitleLbl.Font = Enum.Font.GothamMedium
 		subtitleLbl.TextSize = 10
@@ -8668,7 +9239,7 @@ do
 
 		local vpFrame = Instance.new("ViewportFrame")
 		vpFrame.Name = "PackPreview"
-		vpFrame.Size = UDim2.new(0, 300, 0, 316)
+		vpFrame.Size = UDim2.new(0, 270, 0, 300)
 		vpFrame.Position = UDim2.new(0, 0, 0, 0)
 		vpFrame.BackgroundColor3 = COLORS.input
 		vpFrame.BackgroundTransparency = 0
@@ -8681,14 +9252,14 @@ do
 		vpGrad.Color = ColorSequence.new(Color3.fromRGB(8, 8, 11), Color3.fromRGB(17, 17, 21))
 		vpGrad.Rotation = 90
 		local vpCamera = Instance.new("Camera")
-		vpCamera.FieldOfView = 50
+		vpCamera.FieldOfView = 46
 		vpCamera.Parent = vpFrame
 		vpFrame.CurrentCamera = vpCamera
 
 		local previewName = Instance.new("TextLabel")
 		previewName.Name = "PreviewName"
-		previewName.Size = UDim2.new(0, 300, 0, 16)
-		previewName.Position = UDim2.new(0, 0, 0, 324)
+		previewName.Size = UDim2.new(0, 270, 0, 16)
+		previewName.Position = UDim2.new(0, 0, 0, 308)
 		previewName.BackgroundTransparency = 1
 		previewName.Text = "OFF"
 		previewName.TextColor3 = COLORS.white
@@ -8700,8 +9271,8 @@ do
 
 		local previewSub = Instance.new("TextLabel")
 		previewSub.Name = "PreviewSub"
-		previewSub.Size = UDim2.new(0, 300, 0, 12)
-		previewSub.Position = UDim2.new(0, 0, 0, 342)
+		previewSub.Size = UDim2.new(0, 270, 0, 12)
+		previewSub.Position = UDim2.new(0, 0, 0, 326)
 		previewSub.BackgroundTransparency = 1
 		previewSub.Text = "No outfit"
 		previewSub.TextColor3 = COLORS.textDim
@@ -8712,8 +9283,8 @@ do
 		previewSub.Parent = body
 
 		local listFrame = Instance.new("Frame")
-		listFrame.Size = UDim2.new(1, -332, 0, 356)
-		listFrame.Position = UDim2.new(0, 316, 0, 0)
+		listFrame.Size = UDim2.new(1, -294, 0, 334)
+		listFrame.Position = UDim2.new(0, 286, 0, 0)
 		listFrame.BackgroundTransparency = 1
 		listFrame.BorderSizePixel = 0
 		listFrame.ZIndex = 4
@@ -9588,7 +10159,7 @@ do
 	musicBtn.BackgroundColor3 = COLORS.accentDim
 	musicBtn.BackgroundTransparency = 0.1
 	musicBtn.BorderSizePixel = 0
-	musicBtn.Text = "OPEN MUSIC PLAYER"
+	musicBtn.Text = "♫  MUSIC PLAYER"
 	musicBtn.TextColor3 = COLORS.white
 	musicBtn.TextStrokeTransparency = 1
 	musicBtn.TextSize = 11
@@ -9625,14 +10196,14 @@ _G.OpenMusicPanel = function()
 						TweenService:Create(panel, ti2, {Position = UDim2.new(0.5, 0, 0.5, 20)}):Play()
 						task.delay(0.25, function()
 							existing.Enabled = false
-							panel.Size = UDim2.new(0, 300, 0, 460)
-							panel.Position = UDim2.new(0.5, -150, 0.5, -230)
+							panel.Size = UDim2.new(0, 320, 0, 480)
+							panel.Position = UDim2.new(0.5, -160, 0.5, -240)
 							panel.BackgroundTransparency = 0.05
 						end)
 					else
 						existing.Enabled = false
 					end
-					if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "OPEN MUSIC PLAYER" end
+					if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "♫  MUSIC PLAYER" end
 					return
 				else
 					existing.Enabled = true
@@ -9642,10 +10213,10 @@ _G.OpenMusicPanel = function()
 						panel.Position = UDim2.new(0.5, 0, 0.5, 20)
 						panel.BackgroundTransparency = 1
 						local ti = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
-						TweenService:Create(panel, ti, {Size = UDim2.new(0, 300, 0, 460), BackgroundTransparency = 0.05}):Play()
-						TweenService:Create(panel, ti, {Position = UDim2.new(0.5, -150, 0.5, -230)}):Play()
+						TweenService:Create(panel, ti, {Size = UDim2.new(0, 320, 0, 480), BackgroundTransparency = 0.05}):Play()
+						TweenService:Create(panel, ti, {Position = UDim2.new(0.5, -160, 0.5, -240)}):Play()
 					end
-					if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "CLOSE MUSIC PLAYER" end
+					if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "♫  CLOSE MUSIC" end
 					return
 				end
 			end
@@ -9661,8 +10232,8 @@ _G.OpenMusicPanel = function()
 		sg.Parent = guiParent
 		if not sg.Parent then sg.Parent = PlayerGui end
 		_G.NexusMusicGui = sg
-		if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "CLOSE MUSIC PLAYER" end
-		local PW, PH = 300, 460
+		if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "♫  CLOSE MUSIC" end
+		local PW, PH = 320, 540
 		local f = Instance.new("Frame", sg)
 		f.Name = "MusicPanel"
 		f.Size = UDim2.new(0, PW, 0, PH)
@@ -9675,8 +10246,11 @@ _G.OpenMusicPanel = function()
 		f.Size = UDim2.new(0, 0, 0, 0)
 		f.Position = UDim2.new(0.5, 0, 0.5, 20)
 		f.BackgroundTransparency = 1
-		Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
+		Instance.new("UICorner", f).CornerRadius = UDim.new(0, 12)
 		stroke(f, COLORS.stroke, 1, 0.25)
+		local musicGrad = Instance.new("UIGradient", f)
+		musicGrad.Color = ColorSequence.new(COLORS.bg, COLORS.row)
+		musicGrad.Rotation = 135
 		task.defer(function()
 			local ti = TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out)
 			TweenService:Create(f, ti, {Size = UDim2.new(0, PW, 0, PH), BackgroundTransparency = 0.05}):Play()
@@ -9729,7 +10303,7 @@ _G.OpenMusicPanel = function()
 				f.Position = UDim2.new(0.5, -PW / 2, 0.5, -PH / 2)
 				f.BackgroundTransparency = 0.05
 			end)
-			if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "OPEN MUSIC PLAYER" end
+			if _G.NexusMusicBtnRef then _G.NexusMusicBtnRef.Text = "♫  MUSIC PLAYER" end
 		end)
 		local dragging2, dragStart2, startPos2
 		titleBar.InputBegan:Connect(function(input)
@@ -9779,8 +10353,8 @@ _G.OpenMusicPanel = function()
 		local songs = buildSongList()
 		local scroll = Instance.new("ScrollingFrame", f)
 		scroll.Name = "SongScroll"
-		scroll.Size = UDim2.new(1, -16, 0, 200)
-		scroll.Position = UDim2.new(0, 8, 0, 38)
+		scroll.Size = UDim2.new(1, -24, 0, 214)
+		scroll.Position = UDim2.new(0, 12, 0, 42)
 		scroll.BackgroundTransparency = 1
 		scroll.BorderSizePixel = 0
 		scroll.ScrollBarThickness = 3
@@ -9792,6 +10366,7 @@ _G.OpenMusicPanel = function()
 		Instance.new("UIPadding", scroll).PaddingTop = UDim.new(0, 2)
 		local activeFile = nil
 		local clickCount = 0
+		local musicState = {index = 0, shuffle = false}
 		local function highlightSong(idx)
 			for i, song in ipairs(songs) do
 				local btn = scroll:FindFirstChild("SongBtn" .. i)
@@ -9879,6 +10454,7 @@ _G.OpenMusicPanel = function()
 					end
 					clickCount += 1
 					local myClick = clickCount
+					musicState.index = songIdx
 					highlightSong(songIdx)
 					btn.Text = "Loading..."
 					task.spawn(function()
@@ -9917,8 +10493,8 @@ _G.OpenMusicPanel = function()
 			end
 		end)
 		local ctrlHolder = Instance.new("Frame", f)
-		ctrlHolder.Size = UDim2.new(1, -16, 0, 28)
-		ctrlHolder.Position = UDim2.new(0, 8, 0, 244)
+		ctrlHolder.Size = UDim2.new(1, -24, 0, 28)
+		ctrlHolder.Position = UDim2.new(0, 12, 0, 264)
 		ctrlHolder.BackgroundTransparency = 1
 		ctrlHolder.ZIndex = 2
 		local function makeBtn(text, pos, parent, color, w)
@@ -9961,8 +10537,8 @@ _G.OpenMusicPanel = function()
 			updateSpeedUI()
 		end)
 	local volHolder = Instance.new("Frame", f)
-	volHolder.Size = UDim2.new(1, -16, 0, 28)
-	volHolder.Position = UDim2.new(0, 8, 0, 278)
+	volHolder.Size = UDim2.new(1, -24, 0, 28)
+	volHolder.Position = UDim2.new(0, 12, 0, 298)
 	volHolder.BackgroundTransparency = 1
 	volHolder.ZIndex = 2
 	local volDown = makeBtn("Vol -", UDim2.new(0, 0, 0, 0), volHolder, nil, 80)
@@ -9989,8 +10565,8 @@ _G.OpenMusicPanel = function()
 	end)
 	updateVolUI()
 		local stopBtn = Instance.new("TextButton", f)
-		stopBtn.Size = UDim2.new(1, -16, 0, 28)
-		stopBtn.Position = UDim2.new(0, 8, 0, 312)
+		stopBtn.Size = UDim2.new(1, -24, 0, 30)
+		stopBtn.Position = UDim2.new(0, 12, 0, 400)
 		stopBtn.BackgroundColor3 = Color3.fromRGB(48, 18, 28)
 		stopBtn.Text = "STOP MUSIC"
 		stopBtn.TextColor3 = Color3.fromRGB(255, 170, 180)
@@ -10006,10 +10582,59 @@ _G.OpenMusicPanel = function()
 			highlightSong(nil)
 			activeFile = nil
 		end)
+		local navHolder = Instance.new("Frame", f)
+		navHolder.Name = "MusicNav"
+		navHolder.Size = UDim2.new(1, -24, 0, 30)
+		navHolder.Position = UDim2.new(0, 12, 0, 332)
+		navHolder.BackgroundTransparency = 1
+		navHolder.ZIndex = 3
+		local prevBtn = makeBtn("◀ PREV", UDim2.new(0, 0, 0, 0), navHolder, nil, 74)
+		local shuffleBtn = makeBtn("SHUFFLE", UDim2.new(0.5, -42, 0, 0), navHolder, COLORS.accent, 84)
+		local nextBtn = makeBtn("NEXT ▶", UDim2.new(1, -74, 0, 0), navHolder, nil, 74)
+		local function playSongAt(index)
+			if #songs == 0 then return end
+			index = ((index - 1) % #songs) + 1
+			local song = songs[index]
+			if not song then return end
+			clickCount += 1
+			local myClick = clickCount
+			musicState.index = index
+			highlightSong(index)
+			task.spawn(function()
+				local ok = pcall(function()
+					local cached = false
+					pcall(function() if isfile and isfile(song.file) then cached = true end end)
+					if not cached then writefile(song.file, game:HttpGet(song.url)) end
+					if myClick ~= clickCount then return end
+					sound:Stop()
+					local getCustomAsset = getcustomasset or getsynasset or function() return "" end
+					sound.SoundId = getCustomAsset(song.file)
+					sound.PlaybackSpeed = getSpeed()
+					sound:Play()
+					activeFile = song.file
+				end)
+				if not ok and myClick == clickCount then highlightSong(nil) end
+			end)
+		end
+		prevBtn.MouseButton1Click:Connect(function() playSongAt((musicState.index > 0 and musicState.index or 1) - 1) end)
+		nextBtn.MouseButton1Click:Connect(function()
+			if musicState.shuffle and #songs > 1 then
+				local n = math.random(1, #songs - 1)
+				if n >= musicState.index then n += 1 end
+				playSongAt(n)
+			else
+				playSongAt((musicState.index > 0 and musicState.index or 1) + 1)
+			end
+		end)
+		shuffleBtn.MouseButton1Click:Connect(function()
+			musicState.shuffle = not musicState.shuffle
+			shuffleBtn.Text = musicState.shuffle and "SHUFFLE • ON" or "SHUFFLE"
+			shuffleBtn.TextColor3 = musicState.shuffle and COLORS.accent or COLORS.white
+		end)
 		local addSection = Instance.new("Frame", f)
 		addSection.Name = "AddSong"
-		addSection.Size = UDim2.new(1, -16, 0, 80)
-		addSection.Position = UDim2.new(0, 8, 0, 348)
+		addSection.Size = UDim2.new(1, -24, 0, 82)
+		addSection.Position = UDim2.new(0, 12, 0, 438)
 		addSection.BackgroundColor3 = COLORS.row
 		addSection.BackgroundTransparency = 0.3
 		addSection.BorderSizePixel = 0
@@ -10201,7 +10826,7 @@ currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 autoSwitchEnabled = false
 autoTPHeight = 20
-autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 75
+autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 80
 ragdollStealEnabled = false; medusaStealEnabled = false
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"; aimbotVersion = "V1"
@@ -10221,7 +10846,7 @@ _G.NexusStretchRezEnabled = false
 _G.NexusGalaxyGravityEnabled = false; _G.NexusGalaxyGravityStrength = 0.35; pcall(disableGalaxyGravity)
 pcall(function() _G.NexusRemoveAccessoryPack() end)
 currentAccessoryPack = "Off"
-skyTheme = "Off"; currentBackground = 0
+skyTheme = "Off"; currentBackground = 1
 autoLeftEnabled = false; autoRightEnabled = false
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
 bodyLockEnabled = false; bodyLockRadius = 60; pcall(stopBodyLock)
@@ -10265,6 +10890,7 @@ if gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and not 
 if UserInputService:GetFocusedTextBox() then return end
 if input.UserInputType ~= Enum.UserInputType.Keyboard and not isControllerInput then return end
 if input.KeyCode == Enum.KeyCode.Unknown then return end
+if input.KeyCode == Enum.KeyCode.F8 and _G.NexusToggleDebug then _G.NexusToggleDebug() return end
 if speedKeybinds.ToggleUI and input.KeyCode == speedKeybinds.ToggleUI then
 if Main.Visible then
 	_G.__NexusDuelsMinimized = true
@@ -10377,9 +11003,9 @@ if _G.NexusToggleSelectedAimbot then
 _G.NexusToggleSelectedAimbot()
 elseif _G.NexusStartNormalAimbot and _G.NexusStopNormalAimbot then
 if _G.NexusNormalAimbotOn then
-if aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() else _G.NexusStopNormalAimbot() end
+if aimbotVersion == "V3" and _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() else _G.NexusStopNormalAimbot() end
 else
-if aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then _G.NexusStartNormalAimbotV2() else _G.NexusStartNormalAimbot() end
+if aimbotVersion == "V3" and _G.NexusStartNormalAimbotV3 then _G.NexusStartNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then _G.NexusStartNormalAimbotV2() else _G.NexusStartNormalAimbot() end
 end
 end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
