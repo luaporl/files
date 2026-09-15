@@ -83,7 +83,7 @@ grabTimerConn = nil
 autoStealEnabled = false
 selectedStealMode = "Semi"
 autoStealRadius = 9
-semiStopPercent = 80
+semiStopPercent = 75
 autoStealHitPauseEnabled = false
 autoStealHitPauseDuration = 1.35
 autoStealHitPauseActive = false
@@ -942,37 +942,6 @@ if _G._nexusStopInfJumpAll then _G._nexusStopInfJumpAll() end
 end
 ;(function()
 local _infJumpHoldConn = nil
-local _nexusJumpHeldActive = false
-
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-if gameProcessed then return end
-if not infJumpEnabled then return end
-if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
-_nexusJumpHeldActive = true
-elseif input.UserInputType == Enum.UserInputType.Touch then
-_nexusJumpHeldActive = true
-end
-end)
-UserInputService.InputEnded:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
-_nexusJumpHeldActive = false
-elseif input.UserInputType == Enum.UserInputType.Touch then
-_nexusJumpHeldActive = false
-end
-end)
-UserInputService.JumpRequest:Connect(function()
-if not infJumpEnabled then return end
-_nexusJumpHeldActive = true
-task.delay(0.1, function()
-if not UserInputService:IsKeyDown(Enum.KeyCode.Space) and not UserInputService:GetFocusedTextBox() then
-local char = LP.Character
-local hum = char and char:FindFirstChildOfClass("Humanoid")
-if not (hum and hum.Jump) then
-_nexusJumpHeldActive = false
-end
-end
-end)
-end)
 
 function _startInfJumpHoldMode()
 if _infJumpHoldConn then _infJumpHoldConn:Disconnect() end
@@ -983,7 +952,11 @@ if not char then return end
 local root = char:FindFirstChild("HumanoidRootPart")
 local hum = char:FindFirstChildOfClass("Humanoid")
 if not root or not hum then return end
-local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or _nexusJumpHeldActive or _G.NexusJumpHeld == true
+local isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
+if isMobile and _G.NexusMobileJumpUntil then
+    isJumpHeld = isJumpHeld or tick() < _G.NexusMobileJumpUntil
+end
 local vel = root.AssemblyLinearVelocity
 if isJumpHeld and vel.Y < 35 then
 root.AssemblyLinearVelocity = Vector3.new(vel.X, 55, vel.Z)
@@ -1033,7 +1006,7 @@ function _startInfJumpManualMode()
 if _infJumpManualConn then _infJumpManualConn:Disconnect() end
 _infJumpManualConn = RunService.Heartbeat:Connect(function()
 if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
-if not (_G.NexusJumpHeld or _nexusJumpHeldActive) then return end
+if not _G.NexusJumpHeld then return end
 local char = LP.Character
 if not char then return end
 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -1047,7 +1020,22 @@ if _infJumpManualConn then _infJumpManualConn:Disconnect(); _infJumpManualConn =
 _infJumpBoosting = false
 end
 UserInputService.JumpRequest:Connect(function()
-if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
+if not infJumpEnabled then return end
+if infJumpMode == "HOLD" then
+    -- Mobile Roblox jump buttons do not expose a normal KeyCode hold state.
+    -- Keep a short lease alive from JumpRequest so HOLD works on touch devices.
+    if UserInputService.TouchEnabled then
+        _G.NexusMobileJumpUntil = tick() + 0.30
+    end
+    _G.NexusJumpHeld = true
+    task.delay(0.30, function()
+        if not _G.NexusMobileJumpUntil or tick() >= _G.NexusMobileJumpUntil then
+            _G.NexusJumpHeld = false
+        end
+    end)
+    return
+end
+if infJumpMode ~= "SINGLE" then return end
 _G.NexusJumpHeld = true
 task.delay(0.08, function() _G.NexusJumpHeld = false end)
 end)
@@ -1060,6 +1048,7 @@ end)
 UserInputService.InputEnded:Connect(function(input)
 if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
 _G.NexusJumpHeld = false
+_G.NexusMobileJumpUntil = nil
 end
 end)
 _G._nexusInfJumpInternal = function(on)
@@ -1141,15 +1130,14 @@ if not pg then return end
 local function hookJumpButton(btn)
 if btn:IsA("GuiButton") and btn.Name == "JumpButton" and not btn:GetAttribute("NexusInfJumpHooked") then
 btn:SetAttribute("NexusInfJumpHooked", true)
-btn.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+btn.MouseButton1Down:Connect(function()
 if infJumpEnabled then _G.NexusJumpHeld = true end
-end
 end)
-btn.InputEnded:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.Touch or input.UserInputType == Enum.UserInputType.MouseButton1 then
+btn.MouseButton1Up:Connect(function()
 _G.NexusJumpHeld = false
-end
+end)
+btn.MouseLeave:Connect(function()
+_G.NexusJumpHeld = false
 end)
 end
 end
@@ -1412,6 +1400,8 @@ if data.infJumpMode == "SINGLE" or data.infJumpMode == "HOLD" then infJumpMode =
 selectedStealMode = data.selectedStealMode or "Semi"
 autoStealEnabled = data.autoStealEnabled == true
 autoStealRadius = tonumber(data.autoStealRadius) or autoStealRadius
+local loadedStopPct = tonumber(data.semiStopPercent)
+if loadedStopPct == 75 or loadedStopPct == 80 or loadedStopPct == 85 or loadedStopPct == 90 then semiStopPercent = loadedStopPct else semiStopPercent = 75 end
 autoStealHitPauseEnabled = data.autoStealHitPauseEnabled == true
 autoStealHitPauseDuration = math.clamp(tonumber(data.autoStealHitPauseDuration) or autoStealHitPauseDuration, 0.25, 10)
 ragdollStealEnabled = data.ragdollStealEnabled == true
@@ -2878,19 +2868,15 @@ function _G.NexusStartTpBat()
             if tRoot then
 
                 if tpBatVersion == "V1" then
-                    -- V1 = Violette TP Bat: PhysicsRep stick + gap>8 teleport + camera aim + swing
-                    pcall(function()
-                        if sethiddenproperty then
-                            sethiddenproperty(_G.NexusTpBatHrp, "PhysicsRepRootPart", tRoot)
-                        end
-                    end)
-                    local aimPos1 = tRoot.Position + Vector3.new(0, 0.9, 0)
-                    local gap1 = (_G.NexusTpBatHrp.Position - aimPos1).Magnitude
-                    if gap1 > 8 then
-                        _G.NexusTpBatHrp.CFrame = CFrame.new(aimPos1)
+                    local behind = tRoot.CFrame * CFrame.new(0, 0, 3)
+                    _G.NexusTpBatHrp.CFrame = CFrame.new(behind.Position, tRoot.Position)
+                    _G.NexusTpBatHrp.AssemblyLinearVelocity = Vector3.zero
+                    _G.NexusTpBatHrp.AssemblyAngularVelocity = Vector3.zero
+                    if not _G.NexusTpBatSilentAim then
+                        local cam = workspace.CurrentCamera
+                        if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
                     end
-                    local cam = workspace.CurrentCamera
-                    if cam then cam.CFrame = CFrame.new(cam.CFrame.Position, tRoot.Position) end
+                    -- autoswing (0.08s cooldown, same as V2)
                     _nexusTpBatTryHit()
                 elseif tpBatVersion == "V3" then
                     -- V3: Normal TP Bat (Scarlet V1) — PhysicsRep stick + CFrame teleport gap>8 + camera aim + swing
@@ -3170,85 +3156,39 @@ task.spawn(function()
 if #data.hold > 0 then
 for _, fn in ipairs(data.hold) do task.spawn(function() pcall(fn) end) end
 end
-local duration = 1.3
-local stopPercent = 80
-local stopTime = duration * (stopPercent / 100)
-local fireRadius = 9
-local function shouldInterrupt()
-if ragdollStealEnabled then
-local ch = LP.Character
-local hm = ch and ch:FindFirstChildOfClass("Humanoid")
-if hm then
-local st = hm:GetState()
-if st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown then
-return true
-end
-end
-end
-if medusaStealEnabled then
-local ch = LP.Character
-if ch then
-local mv = ch:FindFirstChild("Medusa")
-if mv and mv:IsA("BoolValue") and mv.Value then return true end
-end
-end
-return false
-end
-local startTime = tick()
-while a.enabled and selectedStealMode == "Normal" do
-if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
-local elapsed = tick() - startTime
-local progress = math.min(elapsed / duration, stopPercent / 100)
-barProgress(progress)
-if elapsed >= stopTime then break end
-if not prompt.Parent or not prompt.Parent.Parent then break end
+local baseDur = 1.35 + (math.random() - 0.5) * 0.3
+local COMPLETE_RADIUS = (stealTriggerMode == "Tryhard") and 9 or 15
+local FILL_CAP = 0.80
+local HOLD_TIME = 2
+local function inRange()
 local root = getRoot()
-if root and animalData and animalData.worldPosition and (root.Position - animalData.worldPosition).Magnitude > (a.radius or 62) then break end
-task.wait()
+if not root or not animalData or not animalData.worldPosition then return false end
+return (root.Position - animalData.worldPosition).Magnitude <= COMPLETE_RADIUS
 end
-if not a.enabled or selectedStealMode ~= "Normal" or shouldInterrupt() then
+local t0 = tick()
+while a.enabled and selectedStealMode == "Normal" and tick() - t0 < baseDur * FILL_CAP do
+barProgress((tick() - t0) / (baseDur * FILL_CAP))
+task.wait(0.02)
+end
+if not a.enabled or selectedStealMode ~= "Normal" then
 data.ready = true; a.isStealing = false; resetBar(); return
 end
-local stopProgress = math.clamp(stopTime / duration, 0, 1)
-barProgress(stopProgress)
-local phase2Start = tick()
-local timeout = 2.99
-local enteredRadius = false
-while a.enabled and selectedStealMode == "Normal" do
-if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
-if tick() - phase2Start >= timeout then break end
-if not prompt.Parent or not prompt.Parent.Parent then break end
-local root = getRoot()
-if root and animalData and animalData.worldPosition then
-local dist = (root.Position - animalData.worldPosition).Magnitude
-if dist <= fireRadius then
-enteredRadius = true
-break
-elseif dist > (a.radius or 62) then
-break
+local holdT0 = tick()
+local completed = false
+while a.enabled and selectedStealMode == "Normal" and tick() - holdT0 < HOLD_TIME do
+barProgress(FILL_CAP)
+if inRange() then completed = true; break end
+task.wait(0.02)
 end
+if not a.enabled or selectedStealMode ~= "Normal" or not completed then
+data.ready = true; a.isStealing = false; resetBar(); return
 end
-task.wait()
-end
-if not enteredRadius or not a.enabled or selectedStealMode ~= "Normal" or shouldInterrupt() or not prompt.Parent then
-data.ready = true; a.isStealing = false; resetBar()
-task.wait()
-local nearest = nearestAnimal()
-if nearest then
-local newPrompt = findPrompt(nearest)
-if newPrompt then doSteal(newPrompt, nearest) end
-end
-return
-end
-local fillStart = tick()
-local fillDuration = math.max(duration - stopTime, 0.05)
-while a.enabled and selectedStealMode == "Normal" and prompt.Parent do
-if shouldInterrupt() then data.ready = true; a.isStealing = false; resetBar(); return end
-local fp = math.clamp((tick() - fillStart) / fillDuration, 0, 1)
-local progress = stopProgress + fp * (1 - stopProgress)
-barProgress(progress)
-if fp >= 1 then break end
-task.wait()
+local t1 = tick()
+local fillDur = baseDur * (1 - FILL_CAP)
+while a.enabled and selectedStealMode == "Normal" and tick() - t1 < fillDur do
+local p = FILL_CAP + math.min((tick() - t1) / fillDur, 1) * (1 - FILL_CAP)
+barProgress(p)
+task.wait(0.02)
 end
 if not a.enabled or selectedStealMode ~= "Normal" then
 data.ready = true; a.isStealing = false; resetBar(); return
@@ -6158,7 +6098,7 @@ return row, setVisual, arrow
 end
 function autoStealSelectorRow(parent, order)
 	selectedStealMode = "Semi"
-	semiStopPercent = 80
+	semiStopPercent = 75
 	local row = Instance.new("Frame")	row.Name = "Auto Steal Stop"
 	row.BackgroundColor3 = COLORS.row
 	row.BackgroundTransparency = 0.75
@@ -6186,7 +6126,7 @@ function autoStealSelectorRow(parent, order)
 	lbl.Parent = row
 	local fixedVal = Instance.new("TextLabel")
 	fixedVal.BackgroundTransparency = 1
-	fixedVal.Text = "80%"
+	fixedVal.Text = "75%"
 	fixedVal.TextColor3 = COLORS.accent
 	fixedVal.TextSize = 11
 	fixedVal.Font = Enum.Font.GothamBold
@@ -8818,7 +8758,9 @@ end
 end
 section(Utility, "SKY THEME", 23)
 skyThemeSelectorRow(Utility, 24)
-section(Utility, "COLORS", 24)
+section(Utility, "BACKGROUND", 24)
+backgroundSelectorRow(Utility, 25)
+section(Utility, "COLORS", 25)
 do
 	local row, setVisual = toggleRow(Utility, "CC", _G.NexusSaturatedColorsEnabled, 26)
 	_G.NexusSetSaturatedColorsVisual = setVisual
@@ -10858,7 +10800,7 @@ currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 autoSwitchEnabled = false
 autoTPHeight = 20
-autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 80
+autoStealEnabled = false; selectedStealMode = "Semi"; autoStealRadius = 9; semiStopPercent = 75
 ragdollStealEnabled = false; medusaStealEnabled = false
 _G.NexusStealRadii = {Normal = 62, Semi = 9}
 selectedAnimationPack = "None"; selectedAimbotMode = "Normal"; aimbotVersion = "V1"
@@ -10878,7 +10820,7 @@ _G.NexusStretchRezEnabled = false
 _G.NexusGalaxyGravityEnabled = false; _G.NexusGalaxyGravityStrength = 0.35; pcall(disableGalaxyGravity)
 pcall(function() _G.NexusRemoveAccessoryPack() end)
 currentAccessoryPack = "Off"
-skyTheme = "Off"; currentBackground = 1
+skyTheme = "Off"; currentBackground = 0
 autoLeftEnabled = false; autoRightEnabled = false
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
 bodyLockEnabled = false; bodyLockRadius = 60; pcall(stopBodyLock)
