@@ -8719,11 +8719,7 @@ do
 			pcall(function() fx3CrownConn:Disconnect() end)
 			fx3CrownConn = nil
 		end
-		local _fxAcc = 0
-		fx3CrownConn = RunService.Heartbeat:Connect(function(dt)
-			_fxAcc = _fxAcc + (dt or 0.016)
-			if _fxAcc < 0.033 then return end
-			_fxAcc = 0
+		fx3CrownConn = RunService.RenderStepped:Connect(function()
 			if not char or not char.Parent then
 				if fx3CrownConn then fx3CrownConn:Disconnect(); fx3CrownConn = nil end
 				if crownFolder then pcall(function() crownFolder:Destroy() end) end
