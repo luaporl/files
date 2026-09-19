@@ -133,6 +133,24 @@ ragdollCountdownEnabled = false
 fpsBoostEnabled = false
 antiLagVisualEnabled = false
 removeAccessoriesEnabled = false
+wingsAuraEnabled = false
+wingsAuraModel = nil
+wingsAuraTemplate = nil
+wingsAuraFollowConn = nil
+wingsAuraApplying = false
+hitSoundEnabled = false
+hitSoundVolume = 1.0
+hitSoundPitch = 1.0
+_lastHitSoundTick = 0
+_enemyHealthCache = {}
+_lastPlayerSwingTick = 0
+fx3Enabled = false
+fx3Variant = "Black"
+fx3AppliedChar = nil
+fx3AppliedVariant = nil
+fx3CrownConn = nil
+customShirt = "None"
+customPants = "None"
 bodyLockEnabled = false
 bodyLockRadius = 20
 bodyLockConn = nil
@@ -347,10 +365,11 @@ end
 saveNexusConfig()
 end
 local dropBrainrotActive = false
-local DROP_ASCEND_DURATION = 0.2
+local DROP_ASCEND_DURATION = 0.15
 local DROP_ASCEND_SPEED = 150
 local function runDropBrainrot()
 	if dropBrainrotActive then return end
+	if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
 	local char = LP.Character
 	if not char then return end
 	local root = char:FindFirstChild("HumanoidRootPart")
@@ -361,41 +380,38 @@ local function runDropBrainrot()
 		antibatEnabled = false
 		if _G._nexusAntibatStop then _G._nexusAntibatStop() end
 		if setAntibatVisual then setAntibatVisual(false) end
-		task.wait(0.1)
 	end
-	if _G.NexusClearLinVel then _G.NexusClearLinVel() end
-	root.AssemblyLinearVelocity = Vector3.new(0, DROP_ASCEND_SPEED, 0)
-	root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-	task.delay(DROP_ASCEND_DURATION, function()
-		if not char or not char.Parent or not root or not root.Parent then
+	local startTime = tick()
+	local dropConn
+	dropConn = RunService.Heartbeat:Connect(function()
+		local currentChar = LP.Character
+		local currentRoot = currentChar and currentChar:FindFirstChild("HumanoidRootPart")
+		if not currentChar or not currentRoot then
+			if dropConn then dropConn:Disconnect() end
 			dropBrainrotActive = false
 			return
 		end
-		if _G.NexusClearLinVel then _G.NexusClearLinVel() end
-		root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-		root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-		local rp = RaycastParams.new()
-		rp.FilterDescendantsInstances = {char}
-		rp.FilterType = Enum.RaycastFilterType.Exclude
-		rp.RespectCanCollide = true
-		local rr = workspace:Raycast(root.Position, Vector3.new(0, -500, 0), rp)
-		local hum2 = char:FindFirstChildOfClass("Humanoid")
-		local off = (hum2 and hum2.HipHeight or 2) + (root.Size.Y / 2)
-		if rr then
-			root.CFrame = CFrame.new(rr.Position + Vector3.new(0, off, 0)) * CFrame.Angles(0, select(2, root.CFrame:ToEulerAnglesYXZ()), 0)
-		else
-			root.CFrame = CFrame.new(root.Position.X, off, root.Position.Z)
+		if tick() - startTime >= DROP_ASCEND_DURATION then
+			if dropConn then dropConn:Disconnect() end
+			doAutoTPDown(true)
+			dropBrainrotActive = false
+			if wasAntibatOn then
+				antibatEnabled = true
+				antibatSpaceHeld = true
+				if _G._nexusAntibatStart then _G._nexusAntibatStart() end
+				if setAntibatVisual then setAntibatVisual(true) end
+				saveNexusConfig()
+			end
+			return
 		end
-		root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-		root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-		if _G.NexusClearLinVel then _G.NexusClearLinVel() end
-		dropBrainrotActive = false
-		if wasAntibatOn then
-			antibatEnabled = true
-			antibatSpaceHeld = true
-			if _G._nexusAntibatStart then _G._nexusAntibatStart() end
-			if setAntibatVisual then setAntibatVisual(true) end
-			saveNexusConfig()
+		local v = currentRoot.AssemblyLinearVelocity
+		currentRoot.AssemblyLinearVelocity = Vector3.new(v.X, DROP_ASCEND_SPEED, v.Z)
+		currentRoot.Velocity = Vector3.new(v.X, DROP_ASCEND_SPEED, v.Z)
+	end)
+	task.delay(1.0, function()
+		if dropBrainrotActive then
+			dropBrainrotActive = false
+			if dropConn then pcall(function() dropConn:Disconnect() end) end
 		end
 	end)
 end
@@ -917,6 +933,23 @@ root.AssemblyAngularVelocity = Vector3.zero
 end
 end)
 end
+do
+local _afFixing = false
+local _afUntil = 0
+RunService.Heartbeat:Connect(function()
+local c = LP.Character
+local root = c and c:FindFirstChild("HumanoidRootPart")
+if not root then return end
+if _afFixing then
+root.AssemblyLinearVelocity = Vector3.zero
+root.AssemblyAngularVelocity = Vector3.zero
+if os.clock() >= _afUntil then _afFixing = false end
+elseif not dropBrainrotActive and (root.AssemblyLinearVelocity.Magnitude >= 140 or root.AssemblyAngularVelocity.Magnitude >= 90) then
+_afFixing = true
+_afUntil = os.clock() + 0.15
+end
+end)
+end
 local function stopAntiRagdoll()
 antiRagdollEnabled = false
 if antiRagdollConn then
@@ -982,14 +1015,38 @@ UserInputService.JumpRequest:Connect(function()
 end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+	if input.KeyCode == Enum.KeyCode.Space then
 		_G.NexusJumpHeld = true
 	end
 end)
 UserInputService.InputEnded:Connect(function(input)
-	if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+	if input.KeyCode == Enum.KeyCode.Space then
 		_G.NexusJumpHeld = false
 	end
+end)
+task.spawn(function()
+	local pg = LP:WaitForChild("PlayerGui", 10)
+	if not pg then return end
+	local function hookJumpButton(btn)
+		if btn:IsA("GuiButton") and btn.Name == "JumpButton" and not btn:GetAttribute("NexusInfJumpHooked") then
+			btn:SetAttribute("NexusInfJumpHooked", true)
+			btn.MouseButton1Down:Connect(function()
+				if infJumpEnabled then
+					_G.NexusJumpHeld = true
+				end
+			end)
+			btn.MouseButton1Up:Connect(function()
+				_G.NexusJumpHeld = false
+			end)
+			btn.MouseLeave:Connect(function()
+				_G.NexusJumpHeld = false
+			end)
+		end
+	end
+	for _, d in ipairs(pg:GetDescendants()) do
+		hookJumpButton(d)
+	end
+	pg.DescendantAdded:Connect(hookJumpButton)
 end)
 _G._nexusInfJumpInternal = function(on)
 	infJumpEnabled = on and true or false
@@ -1238,6 +1295,10 @@ ragdollCountdownEnabled = ragdollCountdownEnabled,
 fpsBoostEnabled = fpsBoostEnabled,
 antiLagVisualEnabled = antiLagVisualEnabled,
 removeAccessoriesEnabled = removeAccessoriesEnabled,
+fx3Enabled = fx3Enabled,
+fx3Variant = fx3Variant,
+customShirt = customShirt,
+customPants = customPants,
 -- autoPlayMode removed
 
 fovEnabled = fovEnabled,
@@ -1370,6 +1431,10 @@ ragdollCountdownEnabled = data.ragdollCountdownEnabled == true
 fpsBoostEnabled = data.fpsBoostEnabled == true
 antiLagVisualEnabled = data.antiLagVisualEnabled == true
 removeAccessoriesEnabled = data.removeAccessoriesEnabled == true
+fx3Enabled = data.fx3Enabled == true
+if type(data.fx3Variant) == "string" then fx3Variant = data.fx3Variant end
+if type(data.customShirt) == "string" then customShirt = data.customShirt end
+if type(data.customPants) == "string" then customPants = data.customPants end
 -- autoPlayMode removed
 fovEnabled = data.fovEnabled == true
 fovValue = tonumber(data.fovValue) or fovValue
@@ -1446,6 +1511,11 @@ end)
 LP.CharacterAdded:Connect(function(char)
 task.wait(0.65)
 applySavedAnimationPackToCharacter(char)
+if fx3Enabled then pcall(function() applyAvatarFX3(char) end) end
+if (customShirt and customShirt ~= "None") or (customPants and customPants ~= "None") then
+	task.wait(0.2)
+	pcall(function() applyCustomClothing(char) end)
+end
 if unwalkEnabled then
 task.wait(0.2)
 enableUnwalk()
@@ -6400,8 +6470,9 @@ dodgeToggle.Text = autoDodgeEnabled and "ON" or "OFF"
 dodgeToggle.BackgroundColor3 = autoDodgeEnabled and COLORS.accent or COLORS.input
 if setAutoDodgeVisual then setAutoDodgeVisual(autoDodgeEnabled) end
 if mobileButtons and mobileButtons.autoDodge then mobileButtons.autoDodge.setActive(autoDodgeEnabled) end
-saveNexusConfig()
-end)
+		saveNexusConfig()
+	end)
+end
 do
 local hRow = Instance.new("Frame", dodgePanel)	hRow.Name = "Dodge Height"
 	hRow.BackgroundColor3 = COLORS.row
@@ -6451,7 +6522,6 @@ autoDodgeHeightBox.Text = tostring(autoDodgeHeight)
 end
 saveNexusConfig()
 end)
-end
 end
 
 _, _rawSetAntibatVisual = toggleRow(Movement, "Antibat", antibatEnabled, 17)
@@ -7848,7 +7918,7 @@ antiDropEnabled = false
 end
 end)()
 function enableAntiLag()
-removeAccessoriesEnabled=true;antiLagVisualEnabled=true
+antiLagVisualEnabled=true
 if not _alDefLightSave then
 _alDefLightSave = {
 Brightness = Lighting.Brightness, ClockTime = Lighting.ClockTime,
@@ -7917,7 +7987,7 @@ end
 end)
 end
 function disableAntiLag()
-removeAccessoriesEnabled=false;antiLagVisualEnabled=false
+antiLagVisualEnabled=false
 if _nexusNukeDescConn then _nexusNukeDescConn:Disconnect(); _nexusNukeDescConn = nil end
 if _nexusNukeLightConn then _nexusNukeLightConn:Disconnect(); _nexusNukeLightConn = nil end
 if antiLagDescConn then antiLagDescConn:Disconnect(); antiLagDescConn = nil end
@@ -8290,34 +8360,540 @@ end
 function disableUltraMode()
 V.ultraModeEnabled = false
 end
+_G._NexusRemovedAccs = {}
+function _G._NexusDoRemoveAcc()
+	if not removeAccessoriesEnabled then return end
+	local char = LP.Character; if not char then return end
+	for _, obj in ipairs(char:GetDescendants()) do
+		if (obj:IsA("Accessory") or obj:IsA("Hat")) and not _G._NexusRemovedAccs[obj] then
+			_G._NexusRemovedAccs[obj] = true
+			pcall(function() obj:Destroy() end)
+		end
+	end
+end
 function enableRemoveAccessories()
-V.removeAccessoriesEnabledSep = true
-removeAccessoriesEnabled = true
-removeAllAccessories()
-if V.removeAccConn then V.removeAccConn:Disconnect() end
-V.removeAccConn = Players.PlayerAdded:Connect(function(player)
-player.CharacterAdded:Connect(function(char)
-task.wait(0.5)
-if V.removeAccessoriesEnabledSep or removeAccessoriesEnabled then
-for _,obj in ipairs(char:GetDescendants()) do applyAntiLagDerender(obj) end
-end
-end)
-end)
-if antiLagDescConn then antiLagDescConn:Disconnect() end
-antiLagDescConn = Workspace.DescendantAdded:Connect(function(obj)
-if antiLagVisualEnabled or V.ultraModeEnabled or removeAccessoriesEnabled or V.removeAccessoriesEnabledSep then
-applyAntiLagDerender(obj)
-end
-end)
+	removeAccessoriesEnabled = true
+	_G._NexusDoRemoveAcc()
+	if V.removeAccConn then V.removeAccConn:Disconnect() end
+	V.removeAccConn = LP.CharacterAdded:Connect(function(char)
+		task.wait(0.5)
+		if removeAccessoriesEnabled then _G._NexusDoRemoveAcc() end
+	end)
 end
 function disableRemoveAccessories()
-V.removeAccessoriesEnabledSep = false
-removeAccessoriesEnabled = false
-if V.removeAccConn then V.removeAccConn:Disconnect(); V.removeAccConn = nil end
-if not antiLagEnabled and not V.ultraModeEnabled and antiLagDescConn then antiLagDescConn:Disconnect(); antiLagDescConn = nil end
+	removeAccessoriesEnabled = false
+	if V.removeAccConn then V.removeAccConn:Disconnect(); V.removeAccConn = nil end
+	_G._NexusRemovedAccs = {}
+end
+do
+	local FX3_BLACK = Color3.fromRGB(0, 0, 0)
+	local FX3_NAME = "FX3_AvatarBlackout"
+	local FX3_STAR_COUNT = 5
+	local FX3_RADIUS = 0.95
+	local FX3_HEIGHT_ABOVE_HEAD = 0.7
+	local FX3_ORBIT_SPEED = 0.8
+	local FX3_SPIN_SPEED = 1.6
+	local FX3_STAR_SIZE = 0.7
+	local FX3_BAR_WIDTH = 0.07
+	local FX3_CORE_DEPTH = 0.03
+	local FX3_BEVEL = 0.038
+	local FX3_SWAY = 0.025
+	local FX3_STAR_COLOR = Color3.fromRGB(0, 0, 0)
+	local FX3_STAR_MATERIAL = Enum.Material.SmoothPlastic
+	local function fx3NewPart(class, size, parent)
+		local p = Instance.new(class)
+		p.Size = size
+		p.Color = FX3_BLACK
+		p.Material = Enum.Material.SmoothPlastic
+		p.CanCollide = false
+		p.CanQuery = false
+		p.CanTouch = false
+		p.Massless = true
+		p.Parent = parent
+		return p
+	end
+	local function fx3Weld(part, to, cf)
+		part.CFrame = to.CFrame * cf
+		local w = Instance.new("Weld")
+		w.Part0 = to
+		w.Part1 = part
+		w.C0 = cf
+		w.Parent = part
+		return w
+	end
+	local function fx3CreateDavidStar(parent)
+		local model = Instance.new("Model")
+		model.Name = "Davidstern"
+		model.Parent = parent
+		local side = FX3_STAR_SIZE
+		local inradius = side / (2 * math.sqrt(3))
+		local parts = {}
+		local function addBar(baseAngle)
+			local barCF = CFrame.Angles(0, 0, baseAngle) * CFrame.new(0, inradius, 0)
+			local core = Instance.new("Part")
+			core.Size = Vector3.new(side, FX3_BAR_WIDTH, FX3_CORE_DEPTH)
+			core.Color = FX3_STAR_COLOR
+			core.Material = FX3_STAR_MATERIAL
+			core.Reflectance = 0.06
+			core.Anchored = true
+			core.CanCollide = false
+			core.CanQuery = false
+			core.CanTouch = false
+			core.CastShadow = false
+			core.Parent = model
+			parts[#parts + 1] = { part = core, offset = barCF }
+			for _, dir in ipairs({1, -1}) do
+				for _, sideSign in ipairs({1, -1}) do
+					local w = Instance.new("WedgePart")
+					w.Size = Vector3.new(side, FX3_BEVEL, FX3_BAR_WIDTH / 2)
+					w.Color = FX3_STAR_COLOR
+					w.Material = FX3_STAR_MATERIAL
+					w.Reflectance = 0.06
+					w.Anchored = true
+					w.CanCollide = false
+					w.CanQuery = false
+					w.CanTouch = false
+					w.CastShadow = false
+					w.Parent = model
+					local off = barCF
+						* CFrame.new(0, sideSign * FX3_BAR_WIDTH / 4, dir * (FX3_CORE_DEPTH / 2 + FX3_BEVEL / 2))
+						* CFrame.Angles(0, 0, math.rad(90))
+						* CFrame.Angles(math.rad(dir > 0 and -90 or 90), 0, 0)
+						* CFrame.Angles(0, sideSign > 0 and 0 or math.rad(180), 0)
+					parts[#parts + 1] = { part = w, offset = off }
+				end
+			end
+		end
+		for tri = 0, 1 do
+			for i = 0, 2 do
+				addBar(math.rad(tri * 180 + i * 120))
+			end
+		end
+		return model, parts
+	end
+	function clearAvatarFX3(char)
+		char = char or LP.Character
+		fx3AppliedChar = nil
+		fx3AppliedVariant = nil
+		if char then
+			local old = char:FindFirstChild(FX3_NAME)
+			if old then pcall(function() old:Destroy() end) end
+			local head = char:FindFirstChild("Head")
+			if head then pcall(function() head.Transparency = 0 end) end
+			for _, n in ipairs({"Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot"}) do
+				local p = char:FindFirstChild(n)
+				if p and p:IsA("BasePart") then
+					pcall(function() p.Transparency = 0; p.CanCollide = true end)
+				end
+			end
+			task.spawn(function()
+				task.wait(0.15)
+				if not char or not char.Parent then return end
+				pcall(function()
+					local anim = char:FindFirstChild("Animate")
+					if anim and (anim:IsA("LocalScript") or anim:IsA("Script")) then
+						anim.Disabled = false
+					end
+				end)
+			end)
+		end
+		local cam = workspace.CurrentCamera
+		if cam then
+			local oldCrown = cam:FindFirstChild("DavidsterneKrone")
+			if oldCrown then pcall(function() oldCrown:Destroy() end) end
+		end
+		if fx3CrownConn then
+			pcall(function() fx3CrownConn:Disconnect() end)
+			fx3CrownConn = nil
+		end
+	end
+	function applyAvatarFX3(char)
+		if not char then return end
+		if not fx3Enabled then
+			clearAvatarFX3(char)
+			return
+		end
+		pcall(function()
+			local anim = char:FindFirstChild("Animate")
+			if anim and anim:IsA("LocalScript") then anim.Disabled = false end
+		end)
+		local hum = char:FindFirstChildOfClass("Humanoid") or char:WaitForChild("Humanoid", 8)
+		if not hum then return end
+		local root = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart", 8)
+		if not root then return end
+		local bodyCol = (fx3Variant == "White") and Color3.fromRGB(245, 245, 250) or Color3.fromRGB(0, 0, 0)
+		FX3_STAR_COLOR = bodyCol
+		FX3_BLACK = bodyCol
+		local existingFx = char:FindFirstChild(FX3_NAME)
+		if existingFx and fx3AppliedChar == char and fx3AppliedVariant == fx3Variant then
+			return
+		end
+		fx3AppliedChar = char
+		fx3AppliedVariant = fx3Variant
+		if existingFx then existingFx:Destroy() end
+		local cam = workspace.CurrentCamera
+		if cam then
+			local oldCrown = cam:FindFirstChild("DavidsterneKrone")
+			if oldCrown then oldCrown:Destroy() end
+		end
+		local fx = Instance.new("Folder")
+		fx.Name = FX3_NAME
+		fx.Parent = char
+		for _, d in ipairs(char:GetChildren()) do
+			if d:IsA("Accessory") or d:IsA("Hat") then
+				pcall(function() d:Destroy() end)
+			end
+		end
+		local head = char:FindFirstChild("Head")
+		if head then
+			for _, d in ipairs(head:GetChildren()) do
+				if d:IsA("Accessory") or d:IsA("Decal") or d:IsA("SpecialMesh") or d.Name == "face" then
+					pcall(function() d:Destroy() end)
+				end
+			end
+		end
+		local bc = char:FindFirstChildOfClass("BodyColors")
+		if not bc then
+			bc = Instance.new("BodyColors")
+			bc.Parent = char
+		end
+		bc.HeadColor3 = bodyCol
+		bc.TorsoColor3 = bodyCol
+		bc.LeftArmColor3 = bodyCol
+		bc.RightArmColor3 = bodyCol
+		bc.LeftLegColor3 = bodyCol
+		bc.RightLegColor3 = bodyCol
+		for _, d in ipairs(char:GetDescendants()) do
+			if d:IsA("BasePart") then
+				d.Color = bodyCol
+				d.Material = Enum.Material.SmoothPlastic
+			elseif d:IsA("Shirt") or d:IsA("Pants") or d:IsA("ShirtGraphic") then
+				pcall(function() d:Destroy() end)
+			end
+		end
+		if head then
+			head.Transparency = 1
+			for _, d in ipairs(head:GetDescendants()) do
+				if d:IsA("Decal") or d:IsA("Texture") then
+					pcall(function() d:Destroy() end)
+				end
+			end
+		end
+		for _, n in ipairs({"Right Leg", "RightUpperLeg", "RightLowerLeg", "RightFoot"}) do
+			local p = char:FindFirstChild(n)
+			if p then
+				p.Transparency = 1
+				p.CanCollide = false
+				for _, d in ipairs(p:GetDescendants()) do
+					if d:IsA("Decal") or d:IsA("Texture") then
+						pcall(function() d:Destroy() end)
+					end
+				end
+			end
+		end
+		if head then
+			local firePart = fx3NewPart("Part", Vector3.new(0.35, 0.35, 0.35), fx)
+			firePart.Transparency = 1
+			firePart.Shape = Enum.PartType.Ball
+			fx3Weld(firePart, head, CFrame.new(0, 0.05, 0))
+			local fire = Instance.new("ParticleEmitter")
+			fire.Name = "WhiteFire"
+			fire.Texture = "rbxassetid://241650934"
+			fire.Color = ColorSequence.new({
+				ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+				ColorSequenceKeypoint.new(0.3, Color3.fromRGB(245, 250, 255)),
+				ColorSequenceKeypoint.new(0.7, Color3.fromRGB(200, 220, 255)),
+				ColorSequenceKeypoint.new(1, Color3.fromRGB(160, 190, 255))
+			})
+			fire.Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.25),
+				NumberSequenceKeypoint.new(0.3, 0.55),
+				NumberSequenceKeypoint.new(0.7, 0.4),
+				NumberSequenceKeypoint.new(1, 0.1)
+			})
+			fire.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.1),
+				NumberSequenceKeypoint.new(0.5, 0.25),
+				NumberSequenceKeypoint.new(1, 1)
+			})
+			fire.Lifetime = NumberRange.new(0.25, 0.45)
+			fire.Rate = 70
+			fire.Speed = NumberRange.new(1.8, 3.2)
+			fire.SpreadAngle = Vector2.new(12, 12)
+			fire.Rotation = NumberRange.new(0, 360)
+			fire.RotSpeed = NumberRange.new(-120, 120)
+			fire.LightEmission = 0.9
+			fire.LightInfluence = 0
+			fire.Acceleration = Vector3.new(0, 8, 0)
+			fire.Drag = 3
+			fire.Parent = firePart
+			local fireCore = fire:Clone()
+			fireCore.Rate = 40
+			fireCore.Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.15),
+				NumberSequenceKeypoint.new(0.4, 0.35),
+				NumberSequenceKeypoint.new(1, 0.05)
+			})
+			fireCore.Speed = NumberRange.new(1.2, 2.2)
+			fireCore.Lifetime = NumberRange.new(0.2, 0.35)
+			fireCore.Parent = firePart
+			local sparks = Instance.new("ParticleEmitter")
+			sparks.Name = "Sparks"
+			sparks.Texture = "rbxassetid://241650934"
+			sparks.Color = ColorSequence.new(Color3.fromRGB(255, 255, 255))
+			sparks.Size = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.08),
+				NumberSequenceKeypoint.new(0.5, 0.06),
+				NumberSequenceKeypoint.new(1, 0.02)
+			})
+			sparks.Transparency = NumberSequence.new({
+				NumberSequenceKeypoint.new(0, 0.2),
+				NumberSequenceKeypoint.new(1, 1)
+			})
+			sparks.Lifetime = NumberRange.new(0.15, 0.3)
+			sparks.Rate = 18
+			sparks.Speed = NumberRange.new(3, 6)
+			sparks.SpreadAngle = Vector2.new(25, 25)
+			sparks.LightEmission = 1
+			sparks.Acceleration = Vector3.new(0, 4, 0)
+			sparks.Parent = firePart
+		end
+		local torso = char:FindFirstChild("UpperTorso") or char:FindFirstChild("Torso")
+		if torso then
+			local mount = CFrame.new(0.18, 0.05, 0.65) * CFrame.Angles(math.rad(5), math.rad(8), math.rad(28))
+			local kashira = fx3NewPart("Part", Vector3.new(0.145, 0.08, 0.145), fx)
+			kashira.Color = Color3.fromRGB(30, 30, 30)
+			kashira.Material = Enum.Material.Metal
+			fx3Weld(kashira, torso, mount * CFrame.new(0, -1.12, 0))
+			local tsuka = fx3NewPart("Part", Vector3.new(0.125, 0.72, 0.125), fx)
+			tsuka.Color = Color3.fromRGB(22, 22, 22)
+			fx3Weld(tsuka, torso, mount * CFrame.new(0, -0.72, 0))
+			for i = 1, 6 do
+				local wrap = fx3NewPart("Part", Vector3.new(0.135, 0.038, 0.135), fx)
+				wrap.Color = Color3.fromRGB(48, 48, 48)
+				fx3Weld(wrap, torso, mount * CFrame.new(0, -0.95 + (i * 0.095), 0))
+			end
+			local tsuba = fx3NewPart("Part", Vector3.new(0.52, 0.045, 0.32), fx)
+			tsuba.Color = Color3.fromRGB(28, 28, 28)
+			tsuba.Material = Enum.Material.Metal
+			fx3Weld(tsuba, torso, mount * CFrame.new(0, -0.28, 0))
+			local habaki = fx3NewPart("Part", Vector3.new(0.15, 0.09, 0.09), fx)
+			habaki.Color = Color3.fromRGB(55, 55, 55)
+			habaki.Material = Enum.Material.Metal
+			habaki.Reflectance = 0.25
+			fx3Weld(habaki, torso, mount * CFrame.new(0, -0.18, 0))
+			local blade = fx3NewPart("Part", Vector3.new(0.065, 1.95, 0.032), fx)
+			blade.Color = Color3.fromRGB(235, 238, 245)
+			blade.Material = Enum.Material.Metal
+			blade.Reflectance = 0.55
+			fx3Weld(blade, torso, mount * CFrame.new(0, 0.82, 0))
+			local tip = fx3NewPart("WedgePart", Vector3.new(0.032, 0.28, 0.065), fx)
+			tip.Color = blade.Color
+			tip.Material = Enum.Material.Metal
+			tip.Reflectance = 0.55
+			fx3Weld(tip, torso, mount * CFrame.new(0, 1.88, 0) * CFrame.Angles(0, 0, math.rad(90)))
+			local saya = fx3NewPart("Part", Vector3.new(0.115, 1.85, 0.085), fx)
+			saya.Color = Color3.fromRGB(10, 10, 10)
+			fx3Weld(saya, torso, mount * CFrame.new(0, 0.72, 0.085))
+			local kojiri = fx3NewPart("Part", Vector3.new(0.13, 0.11, 0.1), fx)
+			kojiri.Color = Color3.fromRGB(25, 25, 25)
+			kojiri.Material = Enum.Material.Metal
+			fx3Weld(kojiri, torso, mount * CFrame.new(0, 1.72, 0.085))
+			local kurikata = fx3NewPart("Part", Vector3.new(0.04, 0.08, 0.06), fx)
+			kurikata.Color = Color3.fromRGB(40, 40, 40)
+			fx3Weld(kurikata, torso, mount * CFrame.new(0.08, 0.35, 0.12))
+		end
+		if not cam then return end
+		local crownFolder = Instance.new("Folder")
+		crownFolder.Name = "DavidsterneKrone"
+		crownFolder.Parent = cam
+		local stars = {}
+		for i = 1, FX3_STAR_COUNT do
+			local model, parts = fx3CreateDavidStar(crownFolder)
+			stars[i] = {
+				parts = parts,
+				angle = (i - 1) * (math.pi * 2 / FX3_STAR_COUNT),
+			}
+		end
+		if fx3CrownConn then
+			pcall(function() fx3CrownConn:Disconnect() end)
+			fx3CrownConn = nil
+		end
+		local _fxAcc = 0
+		fx3CrownConn = RunService.Heartbeat:Connect(function(dt)
+			_fxAcc = _fxAcc + (dt or 0.016)
+			if _fxAcc < 0.033 then return end
+			_fxAcc = 0
+			if not char or not char.Parent then
+				if fx3CrownConn then fx3CrownConn:Disconnect(); fx3CrownConn = nil end
+				if crownFolder then pcall(function() crownFolder:Destroy() end) end
+				return
+			end
+			local h = char:FindFirstChild("Head")
+			if not h then return end
+			local basePos = h.Position + Vector3.new(0, FX3_HEIGHT_ABOVE_HEAD, 0)
+			local tt = tick()
+			for _, star in ipairs(stars) do
+				local a = star.angle + tt * FX3_ORBIT_SPEED
+				local pos = basePos + Vector3.new(
+					math.cos(a) * FX3_RADIUS,
+					math.sin(tt * 1.2 + a) * FX3_SWAY,
+					math.sin(a) * FX3_RADIUS
+				)
+				local starCF = CFrame.new(pos, pos + Vector3.new(math.cos(a), 0, math.sin(a)))
+					* CFrame.Angles(0, 0, tt * FX3_SPIN_SPEED)
+				for _, e in ipairs(star.parts) do
+					e.part.CFrame = starCF * e.offset
+				end
+			end
+		end)
+		pcall(function()
+			local anim = char:FindFirstChild("Animate")
+			if anim and (anim:IsA("LocalScript") or anim:IsA("Script")) then
+				anim.Disabled = false
+			end
+		end)
+	end
+end
+-- CUSTOM CLOTHING (Shirts / Pants)
+local SHIRT_IDS = {
+	CyberY2K = 14170222665,
+	Vkei = 98593483529471,
+	PinkAnime = 16300488206,
+	Y2KA = 114981569019395,
+	Y2KB = 101849068911391,
+}
+local PANTS_IDS = {
+	Polo = 84077295836297,
+	EmoY2K = 110871132349654,
+	White = 8437577912,
+	Y2KA = 12073038211,
+	Y2KB = 11494847724,
+}
+local function applyCustomClothing(char)
+	char = char or LP.Character
+	if not char then return end
+	local hum = char:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	local shirtKey = customShirt or "None"
+	local pantsKey = customPants or "None"
+	local shirtId = (shirtKey ~= "None") and SHIRT_IDS[shirtKey] or nil
+	local pantsId = (pantsKey ~= "None") and PANTS_IDS[pantsKey] or nil
+	pcall(function()
+		local desc = hum:GetAppliedDescription()
+		if shirtId then desc.Shirt = shirtId end
+		if pantsId then desc.Pants = pantsId end
+		hum:ApplyDescription(desc)
+	end)
+	local function applyTemplate(className, prop, id)
+		if not id then return end
+		local inst = char:FindFirstChildOfClass(className)
+		if not inst then
+			inst = Instance.new(className)
+			inst.Name = className
+			inst.Parent = char
+		end
+		pcall(function() inst[prop] = "rbxassetid://" .. tostring(id) end)
+		pcall(function()
+			if not inst[prop] or inst[prop] == "" or inst[prop] == "rbxassetid://0" then
+				inst[prop] = "http://www.roblox.com/asset/?id=" .. tostring(id)
+			end
+		end)
+		task.spawn(function()
+			local loaded = nil
+			pcall(function()
+				if typeof(game.GetObjects) == "function" then
+					local objs = game:GetObjects("rbxassetid://" .. tostring(id))
+					loaded = objs and objs[1]
+				end
+			end)
+			if not loaded then
+				pcall(function() loaded = game:GetService("InsertService"):LoadAsset(id) end)
+			end
+			if loaded then
+				local src = loaded:FindFirstChildOfClass(className) or (loaded:IsA(className) and loaded)
+				if src and src[prop] and src[prop] ~= "" then
+					pcall(function()
+						local i = char:FindFirstChildOfClass(className) or Instance.new(className)
+						i.Name = className
+						i[prop] = src[prop]
+						i.Parent = char
+					end)
+				end
+				pcall(function() loaded:Destroy() end)
+			end
+		end)
+	end
+	applyTemplate("Shirt", "ShirtTemplate", shirtId)
+	applyTemplate("Pants", "PantsTemplate", pantsId)
 end
 function enableCustomFont() customFontVisualEnabled=false; if V then V.customFontEnabled=false end end
 function disableCustomFont() customFontVisualEnabled=false; if V then V.customFontEnabled=false end end
+local WINGS_AURA_ASSET_ID = 90816193741219
+local InsertService = game:GetService("InsertService")
+local WINGS_DUMMY_PARTS = {Head=true,Torso=true,HumanoidRootPart=true,["Left Arm"]=true,["Right Arm"]=true,["Left Leg"]=true,["Right Leg"]=true,UpperTorso=true,LowerTorso=true,LeftUpperArm=true,LeftLowerArm=true,LeftHand=true,RightUpperArm=true,RightLowerArm=true,RightHand=true,LeftUpperLeg=true,LeftLowerLeg=true,LeftFoot=true,RightUpperLeg=true,RightLowerLeg=true,RightFoot=true}
+local function isWingsDummyBodyPart(inst)
+	if not inst or not inst:IsA("BasePart") then return false end
+	if WINGS_DUMMY_PARTS[inst.Name] then return true end
+	local n = string.lower(inst.Name)
+	return n == "dummy" or n == "dummyhead" or n == "nub"
+end
+local function isWingsCreditPart(inst)
+	if not inst then return false end
+	local n = string.lower(inst.Name)
+	return n:find("credit",1,true) or n:find("label",1,true) or n:find("title",1,true) or n:find("billboard",1,true) or n:find("nametag",1,true) or n:find("watermark",1,true) or n:find("text",1,true) or n:find("gui",1,true) or n == "name" or n == "info"
+end
+local function isWingsFxInstance(inst)
+	return inst:IsA("ParticleEmitter") or inst:IsA("Beam") or inst:IsA("Trail") or inst:IsA("PointLight") or inst:IsA("SpotLight") or inst:IsA("SurfaceLight") or inst:IsA("Fire") or inst:IsA("Smoke") or inst:IsA("Sparkles") or inst:IsA("Attachment")
+end
+local function stripWingsTextGuis(root)
+	if not root then return end
+	local kill = {}
+	local list = {root}
+	pcall(function() for _, d in ipairs(root:GetDescendants()) do table.insert(list, d) end end)
+	for _, d in ipairs(list) do
+		if d:IsA("BillboardGui") or d:IsA("SurfaceGui") or d:IsA("TextLabel") or d:IsA("TextButton") or d:IsA("TextBox") then
+			table.insert(kill, d)
+		end
+	end
+	for _, d in ipairs(kill) do pcall(function() d:Destroy() end) end
+end
+
+local function neutralizeWingsAsset(asset)
+	if not asset then return end
+	pcall(function() asset.Parent = nil end)
+	local toKill = {}
+	for _, desc in ipairs(asset:GetDescendants()) do
+		if desc:IsA("Humanoid") or desc:IsA("Animator") or desc:IsA("AnimationController") or desc:IsA("Script") or desc:IsA("LocalScript") or desc:IsA("ModuleScript") or desc:IsA("BodyColors") or desc:IsA("Shirt") or desc:IsA("Pants") or desc:IsA("ShirtGraphic") or desc:IsA("CharacterMesh") or desc:IsA("ForceField") or desc:IsA("HumanoidDescription") or desc:IsA("BillboardGui") or desc:IsA("SurfaceGui") or desc:IsA("TextLabel") or desc:IsA("TextButton") or desc:IsA("TextBox") then
+			table.insert(toKill, desc)
+		elseif desc:IsA("BasePart") then
+			desc.Anchored = true; desc.CanCollide = false; desc.Massless = true
+			pcall(function() desc.CanQuery = false; desc.CanTouch = false; desc.AssemblyLinearVelocity = Vector3.zero; desc.AssemblyAngularVelocity = Vector3.zero end)
+		end
+	end
+	for _, inst in ipairs(toKill) do pcall(function() inst:Destroy() end) end
+end
+local function stripStrayWingsDummies(char)
+	if not char then return end
+	for _, child in ipairs(char:GetChildren()) do
+		if child ~= char and child:IsA("Model") then
+			local extraHum = child:FindFirstChildOfClass("Humanoid")
+			local looksDummy = extraHum or child.Name == "Dummy" or (child:FindFirstChild("HumanoidRootPart") and child:FindFirstChild("Head") and child:FindFirstChild("Torso"))
+			if looksDummy and not child:FindFirstChild("WingsAuraTag") then pcall(function() child:Destroy() end) end
+		elseif child:IsA("Humanoid") and child ~= char:FindFirstChildOfClass("Humanoid") then
+			pcall(function() child:Destroy() end)
+		end
+	end
+end
+local function enableWingsFx(root)
+	if not root then return end
+	if root:IsA("ParticleEmitter") or root:IsA("Beam") or root:IsA("Trail") or root:IsA("Fire") or root:IsA("Smoke") or root:IsA("Sparkles") then root.Enabled = true
+	elseif root:IsA("PointLight") or root:IsA("SpotLight") or root:IsA("SurfaceLight") then root.Enabled = true end
+	for _, d in ipairs(root:GetDescendants()) do
+		if d:IsA("ParticleEmitter") or d:IsA("Beam") or d:IsA("Trail") or d:IsA("Fire") or d:IsA("Smoke") or d:IsA("Sparkles") then d.Enabled = true
+		elseif d:IsA("PointLight") or d:IsA("SpotLight") or d:IsA("SurfaceLight") then d.Enabled = true end
+	end
+end
 
 local ACCESSORY_PACK_ORDER = {
 	{"Off", "Off"},
@@ -8824,17 +9400,186 @@ end
 section(Utility, "PERFORMANCE", 25)
 do
 	local row, setVisual = toggleRow(Utility, "Anti Lag", antiLagVisualEnabled, 27)
-_G.NexusSetAntiLagVisual = setVisual
-_nexusBtn = row and row:FindFirstChild("ToggleButton")
-if _nexusBtn then
-_nexusBtn.Activated:Connect(function()
-local turningOn = not antiLagVisualEnabled
-if setVisual then setVisual(turningOn) end
-if turningOn then pcall(enableAntiLag) else pcall(disableAntiLag) end
-if setVisual then setVisual(antiLagVisualEnabled) end
-saveNexusConfig()
-end)
+	_G.NexusSetAntiLagVisual = setVisual
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+		_nexusBtn.Activated:Connect(function()
+			local turningOn = not antiLagVisualEnabled
+			if setVisual then setVisual(turningOn) end
+			if turningOn then pcall(enableAntiLag) else pcall(disableAntiLag) end
+			if setVisual then setVisual(antiLagVisualEnabled) end
+			saveNexusConfig()
+		end)
+	end
 end
+do
+	local row, setVisual = toggleRow(Utility, "Remove Accessories", removeAccessoriesEnabled, 27.5)
+	_G.NexusSetRemoveAccVisual = setVisual
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+		_nexusBtn.Activated:Connect(function()
+			removeAccessoriesEnabled = not removeAccessoriesEnabled
+			if removeAccessoriesEnabled then pcall(enableRemoveAccessories) else pcall(disableRemoveAccessories) end
+			if setVisual then setVisual(removeAccessoriesEnabled) end
+			saveNexusConfig()
+		end)
+	end
+end
+do
+	local row, setVisual = toggleRow(Utility, "FX3 Skin", fx3Enabled, 27.8)
+	_G.NexusSetFx3Visual = setVisual
+	_nexusBtn = row and row:FindFirstChild("ToggleButton")
+	if _nexusBtn then
+		_nexusBtn.Activated:Connect(function()
+			fx3Enabled = not fx3Enabled
+			if setVisual then setVisual(fx3Enabled) end
+			if fx3Enabled then
+				pcall(function() applyAvatarFX3(LP.Character) end)
+			else
+				pcall(function() clearAvatarFX3(LP.Character) end)
+			end
+			saveNexusConfig()
+		end)
+	end
+end
+do
+	local row = Instance.new("Frame")
+	row.Name = "FX3Variant"
+	row.BackgroundColor3 = COLORS.row
+	row.BackgroundTransparency = 0.45
+	row.Size = UDim2.new(1, -4, 0, 38)
+	row.BorderSizePixel = 0
+	row.LayoutOrder = 27.9
+	row.ZIndex = 4
+	row.Parent = Utility
+	corner(row, 10)
+	stroke(row, COLORS.strokeSoft, 1, 0.15)
+	local lbl = Instance.new("TextLabel", row)
+	lbl.Size = UDim2.new(0, 140, 1, 0)
+	lbl.Position = UDim2.new(0, 14, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "FX3 Color"
+	lbl.TextColor3 = COLORS.white
+	lbl.TextSize = 13
+	lbl.Font = Enum.Font.GothamMedium
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 5
+	lbl.Parent = row
+	local val = Instance.new("TextLabel", row)
+	val.Name = "ValueLabel"
+	val.Size = UDim2.new(1, -170, 1, 0)
+	val.Position = UDim2.new(0, 155, 0, 0)
+	val.BackgroundTransparency = 1
+	val.Text = tostring(fx3Variant)
+	val.TextColor3 = COLORS.accent
+	val.Font = Enum.Font.GothamBold
+	val.TextSize = 12
+	val.TextXAlignment = Enum.TextXAlignment.Right
+	val.ZIndex = 5
+	val.Parent = row
+	local btn = Instance.new("TextButton", row)
+	btn.Size = UDim2.new(1, 0, 1, 0)
+	btn.BackgroundTransparency = 1
+	btn.Text = ""
+	btn.ZIndex = 6
+	btn.Parent = row
+	btn.Activated:Connect(function()
+		fx3Variant = (fx3Variant == "White") and "Black" or "White"
+		val.Text = fx3Variant
+		if fx3Enabled then pcall(function() applyAvatarFX3(LP.Character) end) end
+		saveNexusConfig()
+	end)
+end
+section(Utility, "CUSTOM CLOTHING", 27.95)
+do
+	local shirtOptions = {"None", "Cyber Y2K", "Vkei", "Pink Anime", "Y2K A", "Y2K B"}
+	local shirtKeyMap = {["None"]="None",["Cyber Y2K"]="CyberY2K",["Vkei"]="Vkei",["Pink Anime"]="PinkAnime",["Y2K A"]="Y2KA",["Y2K B"]="Y2KB"}
+	local shirtLabelMap = {None="None",CyberY2K="Cyber Y2K",Vkei="Vkei",PinkAnime="Pink Anime",Y2KA="Y2K A",Y2KB="Y2K B"}
+	local shirtIdx = 1
+	for i, o in ipairs(shirtOptions) do if o == (shirtLabelMap[customShirt] or "None") then shirtIdx = i break end end
+	local row = baseRow(Utility, "Shirt", 28)
+	row.Size = UDim2.new(1, -4, 0, 34)
+	row.ClipsDescendants = true
+	local label = row:FindFirstChild("Label")
+	if label then label.Size = UDim2.new(0, 92, 1, 0); label.TextSize = 14 end
+	local left = Instance.new("TextButton")
+	left.BackgroundColor3 = COLORS.input; left.BackgroundTransparency = 0; left.Text = "<"
+	left.TextColor3 = Color3.fromRGB(235,235,235); left.TextSize = 12; left.Font = Enum.Font.GothamBold
+	left.Size = UDim2.new(0, 42, 0, 28); left.Position = UDim2.new(1, -186, 0.5, -14)
+	left.BorderSizePixel = 0; left.ZIndex = 8; left.AutoButtonColor = false; left.Parent = row
+	corner(left, 6)
+	local holder = Instance.new("Frame")
+	holder.BackgroundColor3 = COLORS.input; holder.BackgroundTransparency = 0.15
+	holder.BorderSizePixel = 0; holder.Size = UDim2.new(0, 92, 0, 28)
+	holder.Position = UDim2.new(1, -139, 0.5, -14); holder.ClipsDescendants = true; holder.ZIndex = 7; holder.Parent = row
+	corner(holder, 6)
+	local shirtVal = Instance.new("TextLabel")
+	shirtVal.BackgroundTransparency = 1; shirtVal.Text = shirtOptions[shirtIdx]
+	shirtVal.TextColor3 = Color3.fromRGB(235,235,235); shirtVal.TextSize = 11
+	shirtVal.Font = Enum.Font.GothamBold; shirtVal.TextXAlignment = Enum.TextXAlignment.Center
+	shirtVal.Size = UDim2.new(1,0,1,0); shirtVal.ZIndex = 9; shirtVal.Parent = holder
+	local right = Instance.new("TextButton")
+	right.BackgroundColor3 = COLORS.input; right.BackgroundTransparency = 0; right.Text = ">"
+	right.TextColor3 = Color3.fromRGB(235,235,235); right.TextSize = 12; right.Font = Enum.Font.GothamBold
+	right.Size = UDim2.new(0, 42, 0, 28); right.Position = UDim2.new(1, -42, 0.5, -14)
+	right.BorderSizePixel = 0; right.ZIndex = 8; right.AutoButtonColor = false; right.Parent = row
+	corner(right, 6)
+	local function setShirtIdx(idx)
+		if idx < 1 then idx = #shirtOptions end
+		if idx > #shirtOptions then idx = 1 end
+		shirtIdx = idx
+		customShirt = shirtKeyMap[shirtOptions[shirtIdx]] or "None"
+		shirtVal.Text = shirtOptions[shirtIdx]
+		pcall(function() applyCustomClothing(LP.Character) end)
+		saveNexusConfig()
+	end
+	left.Activated:Connect(function() setShirtIdx(shirtIdx - 1) end)
+	right.Activated:Connect(function() setShirtIdx(shirtIdx + 1) end)
+end
+do
+	local pantsOptions = {"None", "Polo", "Emo Y2K", "White", "Y2K A", "Y2K B"}
+	local pantsKeyMap = {["None"]="None",["Polo"]="Polo",["Emo Y2K"]="EmoY2K",["White"]="White",["Y2K A"]="Y2KA",["Y2K B"]="Y2KB"}
+	local pantsLabelMap = {None="None",Polo="Polo",EmoY2K="Emo Y2K",White="White",Y2KA="Y2K A",Y2KB="Y2K B"}
+	local pantsIdx = 1
+	for i, o in ipairs(pantsOptions) do if o == (pantsLabelMap[customPants] or "None") then pantsIdx = i break end end
+	local row = baseRow(Utility, "Pants", 28.1)
+	row.Size = UDim2.new(1, -4, 0, 34)
+	row.ClipsDescendants = true
+	local label = row:FindFirstChild("Label")
+	if label then label.Size = UDim2.new(0, 92, 1, 0); label.TextSize = 14 end
+	local left = Instance.new("TextButton")
+	left.BackgroundColor3 = COLORS.input; left.BackgroundTransparency = 0; left.Text = "<"
+	left.TextColor3 = Color3.fromRGB(235,235,235); left.TextSize = 12; left.Font = Enum.Font.GothamBold
+	left.Size = UDim2.new(0, 42, 0, 28); left.Position = UDim2.new(1, -186, 0.5, -14)
+	left.BorderSizePixel = 0; left.ZIndex = 8; left.AutoButtonColor = false; left.Parent = row
+	corner(left, 6)
+	local holder = Instance.new("Frame")
+	holder.BackgroundColor3 = COLORS.input; holder.BackgroundTransparency = 0.15
+	holder.BorderSizePixel = 0; holder.Size = UDim2.new(0, 92, 0, 28)
+	holder.Position = UDim2.new(1, -139, 0.5, -14); holder.ClipsDescendants = true; holder.ZIndex = 7; holder.Parent = row
+	corner(holder, 6)
+	local pantsVal = Instance.new("TextLabel")
+	pantsVal.BackgroundTransparency = 1; pantsVal.Text = pantsOptions[pantsIdx]
+	pantsVal.TextColor3 = Color3.fromRGB(235,235,235); pantsVal.TextSize = 11
+	pantsVal.Font = Enum.Font.GothamBold; pantsVal.TextXAlignment = Enum.TextXAlignment.Center
+	pantsVal.Size = UDim2.new(1,0,1,0); pantsVal.ZIndex = 9; pantsVal.Parent = holder
+	local right = Instance.new("TextButton")
+	right.BackgroundColor3 = COLORS.input; right.BackgroundTransparency = 0; right.Text = ">"
+	right.TextColor3 = Color3.fromRGB(235,235,235); right.TextSize = 12; right.Font = Enum.Font.GothamBold
+	right.Size = UDim2.new(0, 42, 0, 28); right.Position = UDim2.new(1, -42, 0.5, -14)
+	right.BorderSizePixel = 0; right.ZIndex = 8; right.AutoButtonColor = false; right.Parent = row
+	corner(right, 6)
+	local function setPantsIdx(idx)
+		if idx < 1 then idx = #pantsOptions end
+		if idx > #pantsOptions then idx = 1 end
+		pantsIdx = idx
+		customPants = pantsKeyMap[pantsOptions[pantsIdx]] or "None"
+		pantsVal.Text = pantsOptions[pantsIdx]
+		pcall(function() applyCustomClothing(LP.Character) end)
+		saveNexusConfig()
+	end
+	left.Activated:Connect(function() setPantsIdx(pantsIdx - 1) end)
+	right.Activated:Connect(function() setPantsIdx(pantsIdx + 1) end)
 end
 do
 	local row, setVisual = toggleRow(Utility, "Galaxy Gravity", _G.NexusGalaxyGravityEnabled, 28)
@@ -10029,9 +10774,9 @@ _G.OpenMusicPanel = function()
 					else
 						btn.BackgroundColor3 = COLORS.input
 						btn.TextColor3 = COLORS.white
-					end
-				end
-			end
+		end
+	end
+end
 		end
 		local function refreshSongButtons()
 			for _, child in ipairs(scroll:GetChildren()) do
@@ -10494,6 +11239,10 @@ headlessEnabled = false; korbloxEnabled = false
 batCounterEnabled = false; medCounterEnabled = false; autoMedusaEnabled = false; antiKickEnabled = true
 espEnabled = false; showTracerEnabled = false; ragdollCountdownEnabled = false
 fpsBoostEnabled = false; antiLagVisualEnabled = false; removeAccessoriesEnabled = false
+fx3Enabled = false; fx3Variant = "Black"
+customShirt = "None"; customPants = "None"
+pcall(disableRemoveAccessories)
+pcall(function() clearAvatarFX3(LP.Character) end)
 _G.NexusStretchRezEnabled = false
 _G.NexusGalaxyGravityEnabled = false; _G.NexusGalaxyGravityStrength = 0.35; pcall(disableGalaxyGravity)
 pcall(function() _G.NexusRemoveAccessoryPack() end)
@@ -11211,6 +11960,11 @@ if _G.NexusSetRagdollCountdownVisual then _G.NexusSetRagdollCountdownVisual(ragd
 if ragdollCountdownEnabled then hookRagdollCountdown(LP.Character) else stopRagdollCountdown() end
 if _G.NexusSetAntiLagVisual then _G.NexusSetAntiLagVisual(antiLagVisualEnabled) end
 if antiLagVisualEnabled then enableAntiLag() else disableAntiLag() end
+if _G.NexusSetRemoveAccVisual then _G.NexusSetRemoveAccVisual(removeAccessoriesEnabled) end
+if removeAccessoriesEnabled then pcall(enableRemoveAccessories) else pcall(disableRemoveAccessories) end
+if _G.NexusSetFx3Visual then _G.NexusSetFx3Visual(fx3Enabled) end
+if fx3Enabled then pcall(function() applyAvatarFX3(LP.Character) end) else pcall(function() clearAvatarFX3(LP.Character) end) end
+if (customShirt and customShirt ~= "None") or (customPants and customPants ~= "None") then pcall(function() applyCustomClothing(LP.Character) end) end
 if _G.NexusSetFOVVisual then _G.NexusSetFOVVisual(fovEnabled) end
 if fovEnabled then enableCustomFov() else disableCustomFov() end
 if _G.NexusSetStretchRezVisual then _G.NexusSetStretchRezVisual(_G.NexusStretchRezEnabled == true) end
@@ -11304,6 +12058,17 @@ end)
 pcall(function()
 if _G.NexusSetAntiLagVisual then _G.NexusSetAntiLagVisual(antiLagVisualEnabled == true) end
 if antiLagVisualEnabled then enableAntiLag() else disableAntiLag() end
+end)
+pcall(function()
+if _G.NexusSetRemoveAccVisual then _G.NexusSetRemoveAccVisual(removeAccessoriesEnabled == true) end
+if removeAccessoriesEnabled then enableRemoveAccessories() else disableRemoveAccessories() end
+end)
+pcall(function()
+if _G.NexusSetFx3Visual then _G.NexusSetFx3Visual(fx3Enabled == true) end
+if fx3Enabled then pcall(function() applyAvatarFX3(LP.Character) end) else pcall(function() clearAvatarFX3(LP.Character) end) end
+end)
+pcall(function()
+if (customShirt and customShirt ~= "None") or (customPants and customPants ~= "None") then applyCustomClothing(LP.Character) end
 end)
 pcall(function()
 if _G.NexusSetStretchRezVisual then _G.NexusSetStretchRezVisual(_G.NexusStretchRezEnabled == true) end
