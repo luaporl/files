@@ -134,7 +134,7 @@ fpsBoostEnabled = false
 antiLagVisualEnabled = false
 removeAccessoriesEnabled = false
 bodyLockEnabled = false
-bodyLockRadius = 60
+bodyLockRadius = 20
 bodyLockConn = nil
 -- ping notification removed
 _G.NexusGalaxyGravityEnabled = false
@@ -161,7 +161,6 @@ tpBatVersion = tpBatVersion or "V2"
 customSongs = {}
 autoLeftEnabled = false
 autoRightEnabled = false
-antiDropEnabled = false
 -- autoPlayMode removed
 _G.NexusFreezeConns = _G.NexusFreezeConns or {}
 -- Anti-anti-desync: predictive PhysicsRep stick (Brainrot only) — see block ~2224
@@ -404,7 +403,6 @@ local function doDrop()
 runDropBrainrot()
 end
 local infJumpEnabled = false
-local infJumpMode = "SINGLE" -- exact Vynx V3 manual mode
 local antiRagdollEnabled = false
 local antiRagdollMode = "V1"
 local antiRagdollConn = nil
@@ -943,126 +941,69 @@ end
 ;(function()
 local _infJumpHoldConn = nil
 
+local function _applyImpulseVel(part, targetVel)
+	if not part or not part.Parent then return end
+	pcall(function()
+		local mass = part.AssemblyMass
+		if not mass or mass ~= mass or mass <= 0 then mass = 1 end
+		local current = part.AssemblyLinearVelocity
+		local delta = targetVel - current
+		part:ApplyImpulse(delta * mass)
+	end)
+end
+
 function _startInfJumpHoldMode()
-if _infJumpHoldConn then _infJumpHoldConn:Disconnect() end
-_infJumpHoldConn = RunService.Heartbeat:Connect(function()
-if not infJumpEnabled then return end
-local char = LP.Character
-if not char then return end
-local root = char:FindFirstChild("HumanoidRootPart")
-local hum = char:FindFirstChildOfClass("Humanoid")
-if not root or not hum then return end
-local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
-local vel = root.AssemblyLinearVelocity
-if isJumpHeld and vel.Y < 35 then
-root.AssemblyLinearVelocity = Vector3.new(vel.X, 55, vel.Z)
-end
-vel = root.AssemblyLinearVelocity
-if vel.Y < -120 then
-root.AssemblyLinearVelocity = Vector3.new(vel.X, -120, vel.Z)
-end
-end)
+	if _infJumpHoldConn then _infJumpHoldConn:Disconnect() end
+	_infJumpHoldConn = RunService.Heartbeat:Connect(function()
+		if not infJumpEnabled then return end
+		local char = LP.Character
+		if not char then return end
+		local root = char:FindFirstChild("HumanoidRootPart")
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not root or not hum then return end
+		local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
+		local vel = root.AssemblyLinearVelocity
+		if isJumpHeld and vel.Y < 35 then
+			_applyImpulseVel(root, Vector3.new(vel.X, 55, vel.Z))
+		end
+		vel = root.AssemblyLinearVelocity
+		if vel.Y < -120 then
+			_applyImpulseVel(root, Vector3.new(vel.X, -120, vel.Z))
+		end
+	end)
 end
 function _stopInfJumpHoldMode()
-if _infJumpHoldConn then _infJumpHoldConn:Disconnect(); _infJumpHoldConn = nil end
-end
--- SINGLE mode = Vynx V3 "manual" infinite jump: a short BodyVelocity boost on
--- the root (anti-kick), 2 frames then destroyed, re-armed every 0.12s.
-local _infJumpManualConn = nil
-local _infJumpBoosting = false
-local _infJumpLastBoost = 0
-local INF_JUMP_BOOST_FORCE = 25
-local INF_JUMP_BOOST_FRAMES = 2
-local INF_JUMP_BOOST_COOLDOWN = 0.12
-local function _applyInfJumpBoost(root)
-if not root or _infJumpBoosting then return end
-local now = tick()
-if now - _infJumpLastBoost < INF_JUMP_BOOST_COOLDOWN then return end
-_infJumpLastBoost = now
-_infJumpBoosting = true
-local bv = Instance.new("BodyVelocity")
-bv.MaxForce = Vector3.new(0, math.huge, 0)
-bv.P = 1250
-bv.Velocity = Vector3.new(root.Velocity.X, INF_JUMP_BOOST_FORCE, root.Velocity.Z)
-bv.Parent = root
-local frameCount = 0
-local conn
-conn = RunService.Heartbeat:Connect(function()
-if frameCount < INF_JUMP_BOOST_FRAMES then
-frameCount = frameCount + 1
-if bv and bv.Parent then bv.Velocity = bv.Velocity + Vector3.new(0, 0.01, 0) end
-else
-if bv then pcall(function() bv:Destroy() end) end
-if conn then conn:Disconnect() end
-_infJumpBoosting = false
-end
-end)
-end
-function _startInfJumpManualMode()
-if _infJumpManualConn then _infJumpManualConn:Disconnect() end
-_infJumpManualConn = RunService.Heartbeat:Connect(function()
-if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
-if not _G.NexusJumpHeld then return end
-local char = LP.Character
-if not char then return end
-local hum = char:FindFirstChildOfClass("Humanoid")
-local root = char:FindFirstChild("HumanoidRootPart")
-if not hum or not root or hum.Health <= 0 then return end
-_applyInfJumpBoost(root)
-end)
-end
-function _stopInfJumpManualMode()
-if _infJumpManualConn then _infJumpManualConn:Disconnect(); _infJumpManualConn = nil end
-_infJumpBoosting = false
+	if _infJumpHoldConn then _infJumpHoldConn:Disconnect(); _infJumpHoldConn = nil end
 end
 UserInputService.JumpRequest:Connect(function()
-if not infJumpEnabled or infJumpMode ~= "SINGLE" then return end
-_G.NexusJumpHeld = true
-task.delay(0.08, function() _G.NexusJumpHeld = false end)
+	if not infJumpEnabled then return end
+	_G.NexusJumpHeld = true
+	task.delay(0.08, function() _G.NexusJumpHeld = false end)
 end)
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
-if gameProcessed then return end
-if infJumpEnabled and infJumpMode == "SINGLE" and input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
-_G.NexusJumpHeld = true
-end
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+		_G.NexusJumpHeld = true
+	end
 end)
 UserInputService.InputEnded:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode == Enum.KeyCode.Space then
-_G.NexusJumpHeld = false
-end
+	if input.KeyCode == Enum.KeyCode.Space or input.UserInputType == Enum.UserInputType.Touch then
+		_G.NexusJumpHeld = false
+	end
 end)
 _G._nexusInfJumpInternal = function(on)
-infJumpEnabled = on and true or false
-if not infJumpEnabled then
-_stopInfJumpHoldMode()
-_stopInfJumpManualMode()
-else
-if infJumpMode == "HOLD" then
-_startInfJumpHoldMode()
-_stopInfJumpManualMode()
-else
-_stopInfJumpHoldMode()
-_startInfJumpManualMode()
-end
-end
+	infJumpEnabled = on and true or false
+	if not infJumpEnabled then
+		_stopInfJumpHoldMode()
+	else
+		_startInfJumpHoldMode()
+	end
 end
 _G._nexusStartInfJumpForMode = function()
-if infJumpMode == "HOLD" then
-_startInfJumpHoldMode()
-else
-_startInfJumpManualMode()
-end
+	_startInfJumpHoldMode()
 end
 _G._nexusStopInfJumpAll = function()
-_stopInfJumpHoldMode()
-_stopInfJumpManualMode()
-end
-_G._nexusSetInfJumpMode = function(mode)
-infJumpMode = "SINGLE"
-if infJumpEnabled then
-_G._nexusInfJumpInternal(true)
-end
-saveNexusConfig()
+	_stopInfJumpHoldMode()
 end
 end)()
 _G.NexusJumpHeld = false
@@ -1262,7 +1203,6 @@ autoDodgeEnabled = autoDodgeEnabled,
 autoDodgeOnSteal = autoDodgeOnSteal,
 dodgeValue = autoDodgeHeight,
 infJumpEnabled = infJumpEnabled,
-infJumpMode = infJumpMode,
 	antibatEnabled = antibatEnabled == true,
 	antiRagdollEnabled = antiRagdollEnabled,
 	antiRagdollMode = antiRagdollMode,
@@ -1287,9 +1227,6 @@ LAGGER_AIMBOT_SPEED = LAGGER_AIMBOT_SPEED,	bypassAimbotSpeed = _G.NexusBypassAim
 
 tpBatEnabled = _G.NexusTpBatEnabled == true,
 normalAimbotEnabled = _G.NexusNormalAimbotOn == true,
-laggerMode = _G.NexusLaggerMode or "HIGH",
-laggerKeybind = _G.NexusLaggerKeybind and _G.NexusLaggerKeybind.Name or "V",
-laggerPanelOpen = _G.NexusLaggerGui ~= nil,
 batCounterEnabled = batCounterEnabled,
 batCounterVersion = batCounterVersion,
 medCounterEnabled = medCounterEnabled,
@@ -1301,7 +1238,6 @@ ragdollCountdownEnabled = ragdollCountdownEnabled,
 fpsBoostEnabled = fpsBoostEnabled,
 antiLagVisualEnabled = antiLagVisualEnabled,
 removeAccessoriesEnabled = removeAccessoriesEnabled,
-antiDropEnabled = antiDropEnabled == true,
 -- autoPlayMode removed
 
 fovEnabled = fovEnabled,
@@ -1397,7 +1333,6 @@ autoDodgeOnSteal = data.autoDodgeOnSteal == true
 autoDodgeForcedBySteal = autoDodgeOnSteal and not (data.autoDodgeEnabled == true)
 autoDodgeHeight = tonumber(data.dodgeValue) or autoDodgeHeight
 infJumpEnabled = data.infJumpEnabled == true
-if data.infJumpMode == "SINGLE" or data.infJumpMode == "HOLD" then infJumpMode = data.infJumpMode end
 	antibatEnabled = data.antibatEnabled == true
 	antiRagdollEnabled = data.antiRagdollEnabled == true
 	antiRagdollMode = data.antiRagdollMode or antiRagdollMode
@@ -1423,20 +1358,6 @@ autoSwingEnabled = true
 _G.NexusTpBatEnabled = data.tpBatEnabled == true
 
 _G.NexusNormalAimbotOn = data.normalAimbotEnabled == true
-if data.laggerMode ~= nil then
-local validModes = {ULTRA=true, HIGH=true, MID=true, LOW=true}
-if validModes[data.laggerMode] then _G.NexusLaggerMode = data.laggerMode end
-end
-if data.laggerKeybind ~= nil then
-local lkc = Enum.KeyCode[data.laggerKeybind]
-if lkc then _G.NexusLaggerKeybind = lkc end
-end
-if data.laggerPanelOpen == true then
-task.defer(function()
-if _G.NexusCreateLaggerPanel then _G.NexusCreateLaggerPanel() end
-if _G.NexusSetLaggerOpenVisual then _G.NexusSetLaggerOpenVisual(true) end
-end)
-end
 batCounterEnabled = data.batCounterEnabled == true
 batCounterVersion = (data.batCounterVersion == "V1" or data.batCounterVersion == "V2") and data.batCounterVersion or "V1"
 medCounterEnabled = data.medCounterEnabled == true
@@ -1449,7 +1370,6 @@ ragdollCountdownEnabled = data.ragdollCountdownEnabled == true
 fpsBoostEnabled = data.fpsBoostEnabled == true
 antiLagVisualEnabled = data.antiLagVisualEnabled == true
 removeAccessoriesEnabled = data.removeAccessoriesEnabled == true
-antiDropEnabled = data.antiDropEnabled == true
 -- autoPlayMode removed
 fovEnabled = data.fovEnabled == true
 fovValue = tonumber(data.fovValue) or fovValue
@@ -1475,7 +1395,7 @@ if data.currentAccessoryPack and data.currentAccessoryPack ~= "Off" then
 		for i, entry in ipairs(ACCESSORY_PACK_ORDER) do if entry[2] == currentAccessoryPack then break end end
 	end
 end
-bodyLockEnabled = data.bodyLockEnabled == true
+	bodyLockEnabled = data.bodyLockEnabled == true
 bodyLockRadius = tonumber(data.bodyLockRadius) or 60
 if data.fovIndex then fovIndex = tonumber(data.fovIndex) or fovIndex end
 tpBatOnHitEnabled = data.tpBatOnHitEnabled == true
@@ -2483,16 +2403,21 @@ if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 end
 
-do -- Bypass Aimbot Mode (Sakura Hub anti-bypass: simple velocity chase)
-_G.NexusBypassAimbot = {conn = nil, swingCooldown = false, prevAutoRotate = nil}
-_G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 56.5
+do -- Bypass Aimbot + Anti-Bat Defense (combined offensive chase + defensive knockback cancel)
+_G.NexusBypassAimbot = {conn = nil, antiBatConn = nil, swingCooldown = false, prevAutoRotate = nil, prevVelocity = Vector3.zero, prevHealth = 100}
+_G.NexusBypassAimbotSpeed = _G.NexusBypassAimbotSpeed or 58
 _G.NexusBypassAimbotLaggerSpeed = _G.NexusBypassAimbotLaggerSpeed or 40
 _G.NexusBypassAimbotHitDist = _G.NexusBypassAimbotHitDist or 5
+_G.NexusBypassUseHiddenProp = _G.NexusBypassUseHiddenProp or false
+_G.NexusBypassAntiBat = _G.NexusBypassAntiBat or true
+_G.NexusBypassAntiBatVelocitySpike = _G.NexusBypassAntiBatVelocitySpike or false
 
 local _bypassCharConn = nil
+local _bypassKnockbackThreshold = 40
+local _bypassVelocityHardCap = 120
 
 local function _bypassGetSpeed()
-    return _G.NexusBypassAimbotSpeed or 56.5
+    return _G.NexusBypassAimbotSpeed or 58
 end
 
 local function _bypassGetClosest()
@@ -2516,12 +2441,23 @@ end
 local function _bypassGetBat()
     local char = LP.Character
     if not char then return nil end
-    local tool = char:FindFirstChild("Bat")
-    if tool then return tool end
-    local bp = LP:FindFirstChild("Backpack")
+    local batNames = {"Bat", "Slap", "Iron Slap", "Gold Slap", "Diamond Slap", "Emerald Slap", "Ruby Slap", "Dark Matter Slap", "Flame Slap", "Nuclear Slap", "Galaxy Slap", "Glitched Slap"}
+    for _, name in ipairs(batNames) do
+        local t = char:FindFirstChild(name)
+        if t and t:IsA("Tool") then return t end
+    end
+    for _, ch in ipairs(char:GetChildren()) do
+        if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then return ch end
+    end
+    local bp = LP:FindFirstChildOfClass("Backpack") or LP:FindFirstChild("Backpack")
     if bp then
-        tool = bp:FindFirstChild("Bat")
-        if tool then tool.Parent = char; return tool end
+        for _, name in ipairs(batNames) do
+            local t = bp:FindFirstChild(name)
+            if t and t:IsA("Tool") then return t end
+        end
+        for _, ch in ipairs(bp:GetChildren()) do
+            if ch:IsA("Tool") and (ch.Name:lower():find("bat") or ch.Name:lower():find("slap")) then return ch end
+        end
     end
     return nil
 end
@@ -2546,8 +2482,10 @@ local function _bypassEquip()
         local hum = char and char:FindFirstChildOfClass("Humanoid")
         if not char or not hum or hum.Health <= 0 then return end
         if char:FindFirstChildOfClass("Tool") then return end
-        local bat = _G.NexusFindAimbotBat and _G.NexusFindAimbotBat() or nil
-        if bat then pcall(function() hum:EquipTool(bat) end) end
+        local bat = _bypassGetBat()
+        if bat and bat.Parent ~= char then
+            pcall(function() hum:EquipTool(bat) end)
+        end
     end)
 end
 
@@ -2566,15 +2504,74 @@ local function _bypassHookCharacter(char)
     end)
 end
 
+local function _bypassAntiBatDefend(c, root, h)
+    if not _G.NexusBypassAntiBat then return false end
+    local ba = _G.NexusBypassAimbot
+    local curVel = root.AssemblyLinearVelocity
+    local delta = curVel - ba.prevVelocity
+    local hDelta = Vector3.new(delta.X, 0, delta.Z).Magnitude
+    local curHSpeed = Vector3.new(curVel.X, 0, curVel.Z).Magnitude
+    local healthDrop = ba.prevHealth - h.Health
+    local knockbackDetected = false
+
+    if hDelta > _bypassKnockbackThreshold then knockbackDetected = true end
+    if curHSpeed > _bypassVelocityHardCap then knockbackDetected = true end
+    if healthDrop > 0 and hDelta > 20 then knockbackDetected = true end
+
+    local st = h:GetState()
+    local isRagdoll = st == Enum.HumanoidStateType.Physics
+        or st == Enum.HumanoidStateType.Ragdoll
+        or st == Enum.HumanoidStateType.FallingDown
+    if isRagdoll then knockbackDetected = true end
+
+    if knockbackDetected then
+        root.AssemblyLinearVelocity = Vector3.new(0, math.clamp(curVel.Y, -20, 20), 0)
+        root.AssemblyAngularVelocity = Vector3.zero
+        pcall(function() h:ChangeState(Enum.HumanoidStateType.Running) end)
+        workspace.CurrentCamera.CameraSubject = h
+        pcall(function()
+            local pm = LP.PlayerScripts:FindFirstChild("PlayerModule")
+            if pm then require(pm:FindFirstChild("ControlModule")):Enable() end
+        end)
+        for _, obj in ipairs(c:GetDescendants()) do
+            if obj:IsA("BallSocketConstraint")
+            or (obj:IsA("Attachment") and obj.Name and obj.Name:find("Ragdoll")) then
+                pcall(function() obj:Destroy() end)
+            elseif obj:IsA("Motor6D") and not obj.Enabled then
+                obj.Enabled = true
+            end
+        end
+        pcall(function() c:SetAttribute("RagdollEndTime", workspace:GetServerTimeNow()) end)
+    end
+
+    for _, child in ipairs(root:GetChildren()) do
+        if child:IsA("BodyVelocity") or child:IsA("BodyGyro") then
+            pcall(function() child:Destroy() end)
+        elseif child:IsA("Velocity") then
+            pcall(function() child:Destroy() end)
+        end
+    end
+
+    ba.prevVelocity = curVel
+    ba.prevHealth = h.Health
+    return knockbackDetected
+end
+
 function _G.NexusStartBypassAimbot()
     if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
     if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
     local ba = _G.NexusBypassAimbot
     if ba.conn then ba.conn:Disconnect(); ba.conn = nil end
+    if ba.antiBatConn then ba.antiBatConn:Disconnect(); ba.antiBatConn = nil end
     _G.NexusNormalAimbotOn = true
     local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    if hum then ba.prevAutoRotate = hum.AutoRotate; hum.AutoRotate = false end
+    if hum then ba.prevAutoRotate = hum.AutoRotate; hum.AutoRotate = false; hum.JumpPower = 0 end
+    if char then
+        local root = char:FindFirstChild("HumanoidRootPart")
+        if root then ba.prevVelocity = root.AssemblyLinearVelocity end
+        if hum then ba.prevHealth = hum.Health end
+    end
     _bypassHookCharacter(char)
     _bypassEquip()
 
@@ -2587,6 +2584,20 @@ function _G.NexusStartBypassAimbot()
         if not root then return end
         local h = c:FindFirstChildOfClass("Humanoid")
         if not h or h.Health <= 0 then return end
+
+        _bypassAntiBatDefend(c, root, h)
+
+        if _G.NexusBypassAntiBatVelocitySpike then
+            local origXZ = Vector3.new(root.AssemblyLinearVelocity.X, 0, root.AssemblyLinearVelocity.Z)
+            root.AssemblyLinearVelocity = Vector3.new(4000, root.AssemblyLinearVelocity.Y, 4000)
+            task.defer(function()
+                if root and root.Parent then
+                    root.AssemblyLinearVelocity = Vector3.new(origXZ.X, root.AssemblyLinearVelocity.Y, origXZ.Z)
+                end
+            end)
+        end
+
+        h.JumpPower = 0
 
         if autoSwingEnabled then
             local swingTool = c:FindFirstChildOfClass("Tool")
@@ -2603,16 +2614,20 @@ function _G.NexusStartBypassAimbot()
         end
         h.AutoRotate = false
 
-        local myPos = root.Position
-        local targetPos = target.Position
-        local targetLook = target.CFrame and target.CFrame.LookVector or Vector3.zero
-        local predictPos = targetPos + targetLook * 1.5
-        local dir = (predictPos - myPos)
-        if dir.Magnitude < 0.01 then return end
-        dir = dir.Unit
+        local spd = laggerActive and _G.NexusBypassAimbotLaggerSpeed or _bypassGetSpeed()
 
-        local chaseSpeed = _bypassGetSpeed()
-        root.Velocity = Vector3.new(dir.X * chaseSpeed, dir.Y * chaseSpeed, dir.Z * chaseSpeed)
+        if _G.NexusBypassUseHiddenProp then
+            if sethiddenproperty then
+                pcall(function() sethiddenproperty(root, "PhysicsRepRootPart", target) end)
+            end
+        end
+
+        local forwardPredict = target.Position + target.CFrame.LookVector * 1.5
+        local dir = (forwardPredict - root.Position).Unit
+        root.Velocity = Vector3.new(dir.X * spd, dir.Y * spd, dir.Z * spd)
+
+        local lookTarget = CFrame.lookAt(root.Position, target.Position)
+        root.CFrame = CFrame.new(root.Position) * CFrame.Angles(0, math.atan2(-lookTarget.LookVector.X, -lookTarget.LookVector.Z), 0)
 
         if targetDist <= _G.NexusBypassAimbotHitDist then
             _bypassTryHitBat()
@@ -2625,6 +2640,7 @@ function _G.NexusStopBypassAimbot()
     _G.NexusNormalAimbotOn = false
     local ba = _G.NexusBypassAimbot
     if ba.conn then ba.conn:Disconnect(); ba.conn = nil end
+    if ba.antiBatConn then ba.antiBatConn:Disconnect(); ba.antiBatConn = nil end
     if _bypassCharConn then _bypassCharConn:Disconnect(); _bypassCharConn = nil end
     ba.swingCooldown = false
     local c = LP.Character
@@ -2636,6 +2652,7 @@ function _G.NexusStopBypassAimbot()
     local hum = c and c:FindFirstChildOfClass("Humanoid")
     if hum then
         hum.AutoRotate = (ba.prevAutoRotate == nil) and true or ba.prevAutoRotate
+        hum.JumpPower = 60
         hum.PlatformStand = false
         pcall(function() hum:ChangeState(Enum.HumanoidStateType.GettingUp) end)
     end
@@ -2690,6 +2707,7 @@ local hum = char and char:WaitForChild("Humanoid", 5)
 if hum then
 _G.NexusBypassAimbot.prevAutoRotate = nil
 hum.AutoRotate = false
+hum.JumpPower = 0
 end
 _bypassHookCharacter(char)
 _bypassEquip()
@@ -6287,7 +6305,7 @@ saveNexusConfig()
 end)
 end
 end
--- Jump Mode chooser removed: Infinite Jump is the exact Vynx V3 manual mode.
+-- Jump Mode chooser removed: Infinite Jump is always hold mode (K7-style ApplyImpulse).
 -- Auto Dodge expand-arrow section
 do
 local dodgeContainer = Instance.new("Frame")
@@ -8349,7 +8367,7 @@ local NEXUS_BLEED_PACKS = {
 		pants = "http://www.roblox.com/asset/?id=91321960147976",
 		korblox = "right",
 	},
-		["Bleed 5"] = {
+	["Bleed 5"] = {
 		accessory = 100894157872138,
 		offset = Vector3.new(0.0000, 0.3000, 0.0000),
 		headMesh = "http://www.roblox.com/asset/?id=134079402",
@@ -8501,37 +8519,6 @@ local function applyBleedOutfit(packName)
 				weld.Parent = h
 			end
 			for _, o in ipairs(objs) do pcall(function() o:Destroy() end) end
-		end
-	end
-
-	if config.accessories and head then
-		for idx, accData in ipairs(config.accessories) do
-			pcall(function()
-				local oldAcc = char:FindFirstChild("NexusPackAcc_" .. idx)
-				if oldAcc then oldAcc:Destroy() end
-				local objs = nil
-				local ok, res = pcall(function() return game:GetObjects("rbxassetid://" .. tostring(accData.id)) end)
-				if ok and typeof(res) == "table" and #res > 0 then objs = res end
-				if objs then
-					local handle
-					for _, o in ipairs(objs) do
-						if o:IsA("BasePart") then handle = o; break end
-						local f = o:FindFirstChildWhichIsA("BasePart", true)
-						if f then handle = f; break end
-					end
-					if handle then
-						local h = handle:Clone()
-						h.Name = "NexusPackAcc_" .. idx
-						h.CanCollide = false; h.Anchored = false; h.Massless = true
-						h.Parent = char
-						local weld = Instance.new("Weld")
-						weld.Part0 = head; weld.Part1 = h
-						weld.C0 = CFrame.new(accData.offset or Vector3.zero)
-						weld.Parent = h
-					end
-					for _, o in ipairs(objs) do pcall(function() o:Destroy() end) end
-				end
-			end)
 		end
 	end
 
@@ -8978,6 +8965,7 @@ if setVisual then setVisual(_G.NexusStretchRezEnabled) end
 saveNexusConfig()
 end)
 end
+end
 do
 	local accPackIndex = 1
 	for i, entry in ipairs(ACCESSORY_PACK_ORDER) do
@@ -9042,8 +9030,6 @@ do
 		local head = char:FindFirstChild("Head")
 		if not head then return end
 
-		-- The preview is made from anchored visual parts, so do not use live-character
-		-- welds here.  Position preview accessories directly relative to the preview head.
 		if config.headMesh then
 			pcall(function()
 				for _, d in ipairs(char:GetChildren()) do
@@ -9105,18 +9091,11 @@ do
 			h.Anchored = true
 			h.CanCollide = false
 			h.Massless = true
-			h.CFrame = head.CFrame * CFrame.new(offset or Vector3.zero)
+			h.CFrame = head.CFrame * CFrame.new(offset or Vector3.new(0, head.Size.Y * 0.5 + 0.3, 0))
 			h.Parent = char
 		end
 
 		addPreviewAccessory(config.accessory, config.offset, "NexusPreviewAcc")
-		if config.accessories then
-			for idx, accData in ipairs(config.accessories) do
-				pcall(function()
-					addPreviewAccessory(accData.id, accData.offset, "NexusPreviewAcc_" .. idx)
-				end)
-			end
-		end
 
 		if config.korblox and config.korblox ~= "none" then
 			pcall(function()
@@ -9148,510 +9127,473 @@ do
 
 	local function openGallery()
 		if galleryGui and galleryGui.Parent then return end
-		local galleryClosing = false
-		local char = LP.Character
-		if not char then return end
+		galleryClosing = false
+
 		local guiParent = game:GetService("CoreGui")
-		pcall(function() if not guiParent then guiParent = LP:FindFirstChild("PlayerGui") end end)
+		pcall(function()
+			if not guiParent then guiParent = LP:FindFirstChild("PlayerGui") end
+		end)
 
-		galleryGui = Instance.new("ScreenGui")
-		galleryGui.Name = "NexusAccessoryGallery"
-		galleryGui.ResetOnSpawn = false
-		galleryGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-		galleryGui.DisplayOrder = 50
-		pcall(function() galleryGui.Parent = guiParent end)
-		if not galleryGui.Parent then galleryGui.Parent = LP:WaitForChild("PlayerGui") end
+		local screen = Instance.new("ScreenGui")
+		screen.Name = "NexusSkinGallery"
+		screen.ResetOnSpawn = false
+		screen.IgnoreGuiInset = true
+		screen.DisplayOrder = 999
+		screen.Parent = guiParent
 
-		local panelW, panelH = 660, 450
-		local galleryScale = Instance.new("UIScale", galleryGui)
-		galleryScale.Name = "NexusGalleryScale"
+		local overlay = Instance.new("TextButton")
+		overlay.Name = "Overlay"
+		overlay.Size = UDim2.fromScale(1, 1)
+		overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+		overlay.BackgroundTransparency = 0.38
+		overlay.BorderSizePixel = 0
+		overlay.Text = ""
+		overlay.AutoButtonColor = false
+		overlay.ZIndex = 1
+		overlay.Parent = screen
+
+		-- The gallery is built at a fixed design size and scaled as one unit.
+		-- This keeps the cards, text and spacing proportional on both PC and mobile.
+		local PANEL_W = 440
+		local PANEL_H = 440
+		local panel = Instance.new("Frame")
+		panel.Name = "Panel"
+		panel.AnchorPoint = Vector2.new(0.5, 0.5)
+		panel.Position = UDim2.fromScale(0.5, 0.5)
+		panel.Size = UDim2.fromOffset(PANEL_W, PANEL_H)
+		panel.BackgroundColor3 = Color3.fromRGB(8, 8, 9)
+		panel.BorderSizePixel = 0
+		panel.ZIndex = 2
+		panel.Parent = screen
+		corner(panel, 14)
+		stroke(panel, COLORS.accentDim, 1, 0.25)
+
+		local panelScale = Instance.new("UIScale")
+		panelScale.Name = "ResponsiveScale"
+		panelScale.Parent = panel
+
 		local function updateGalleryScale()
-			galleryScale.Scale = NexusGetResponsiveScale(panelW, panelH, 0.88)
+			local cam = workspace.CurrentCamera
+			if not cam then return end
+			local vs = cam.ViewportSize
+			local fit = math.min((vs.X - 18) / PANEL_W, (vs.Y - 28) / PANEL_H, 1)
+			-- Never let the gallery become too large on tablets or too small on phones.
+			panelScale.Scale = math.clamp(fit, 0.48, 1)
 		end
 		updateGalleryScale()
+		local viewportConn
 		pcall(function()
-			workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateGalleryScale)
-		end)
-
-		local overlay = Instance.new("Frame")
-		overlay.Size = UDim2.new(1, 0, 1, 0)
-		overlay.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-		overlay.BackgroundTransparency = 1
-		overlay.BorderSizePixel = 0
-		overlay.ZIndex = 1
-		overlay.Parent = galleryGui
-
-		local galleryFit = 1
-		pcall(function()
-			local cam = workspace.CurrentCamera
-			if cam then
-				local vs = cam.ViewportSize
-				galleryFit = math.min((vs.X - 24) / panelW, (vs.Y - 40) / panelH, 1)
-				if UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled then
-					galleryFit = math.min(galleryFit, 0.96)
-				end
-				if galleryFit <= 0 then galleryFit = 0.5 end
+			if workspace.CurrentCamera then
+				viewportConn = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateGalleryScale)
 			end
 		end)
-		local holder = Instance.new("Frame")
-		holder.AnchorPoint = Vector2.new(0.5, 0.5)
-		holder.Position = UDim2.new(0.5, 0, 0.5, 0)
-		holder.Size = UDim2.new(0, panelW, 0, panelH)
-		holder.BackgroundTransparency = 1
-		holder.BorderSizePixel = 0
-		holder.ZIndex = 2
-		holder.Parent = galleryGui
-		local panelScale = Instance.new("UIScale", holder)
-		panelScale.Scale = 0.90 * math.min(galleryFit, 1)
 
-		local panel = Instance.new("Frame")
-		panel.Size = UDim2.new(1, 0, 1, 0)
-		panel.BackgroundColor3 = COLORS.bg
-		panel.BackgroundTransparency = 0.06
-		panel.BorderSizePixel = 0
-		panel.ClipsDescendants = true
-		panel.ZIndex = 3
-		panel.Parent = holder
-		corner(panel, 16)
-		stroke(panel, COLORS.strokeSoft, 1, 0.15)
-		local glowStroke = Instance.new("UIStroke", panel)
-		glowStroke.Color = COLORS.accent
-		glowStroke.Thickness = 1.5
-		glowStroke.Transparency = 0.68
+		local header = Instance.new("Frame")
+		header.Name = "Header"
+		header.Size = UDim2.new(1, -32, 0, 58)
+		header.Position = UDim2.fromOffset(16, 8)
+		header.BackgroundTransparency = 1
+		header.ZIndex = 4
+		header.Parent = panel
 
-		local titleBar = Instance.new("Frame")
-		titleBar.Size = UDim2.new(1, 0, 0, 50)
-		titleBar.BackgroundColor3 = COLORS.row
-		titleBar.BackgroundTransparency = 0.1
-		titleBar.BorderSizePixel = 0
-		titleBar.ZIndex = 4
-		titleBar.Parent = panel
-		corner(titleBar, 16)
-		local titleGrad = Instance.new("UIGradient", titleBar)
-		titleGrad.Color = ColorSequence.new(COLORS.row2, COLORS.bg)
-		titleGrad.Rotation = 90
+		local title = Instance.new("TextLabel")
+		title.Name = "Title"
+		title.Size = UDim2.new(1, -70, 0, 30)
+		title.Position = UDim2.fromOffset(2, 3)
+		title.BackgroundTransparency = 1
+		title.Text = "NEXUS SKINS"
+		title.TextColor3 = Color3.fromRGB(238, 238, 242)
+		title.TextSize = 21
+		title.Font = Enum.Font.GothamBold
+		title.TextXAlignment = Enum.TextXAlignment.Left
+		title.ZIndex = 5
+		title.Parent = header
 
-		local titleLbl = Instance.new("TextLabel")
-		titleLbl.Size = UDim2.new(1, -120, 0, 22)
-		titleLbl.Position = UDim2.new(0, 16, 0, 7)
-		titleLbl.BackgroundTransparency = 1
-		titleLbl.Text = "NEXUS GALLERY"
-		titleLbl.TextColor3 = COLORS.white
-		titleLbl.Font = Enum.Font.GothamBlack
-		titleLbl.TextSize = 15
-		titleLbl.TextXAlignment = Enum.TextXAlignment.Left
-		titleLbl.ZIndex = 5
-		titleLbl.Parent = titleBar
-		local titleGradTxt = Instance.new("UIGradient", titleLbl)
-		titleGradTxt.Color = ColorSequence.new(COLORS.white, COLORS.accent)
-
-		local subtitleLbl = Instance.new("TextLabel")
-		subtitleLbl.Size = UDim2.new(1, -120, 0, 13)
-		subtitleLbl.Position = UDim2.new(0, 16, 0, 29)
-		subtitleLbl.BackgroundTransparency = 1
-		subtitleLbl.Text = "3D PACK COLLECTION  •  SELECT TO PREVIEW"
-		subtitleLbl.TextColor3 = COLORS.textDim
-		subtitleLbl.Font = Enum.Font.GothamMedium
-		subtitleLbl.TextSize = 10
-		subtitleLbl.TextXAlignment = Enum.TextXAlignment.Left
-		subtitleLbl.ZIndex = 5
-		subtitleLbl.Parent = titleBar
+		local selectedText = Instance.new("TextLabel")
+		selectedText.Name = "Selected"
+		selectedText.Size = UDim2.new(1, -70, 0, 20)
+		selectedText.Position = UDim2.fromOffset(2, 32)
+		selectedText.BackgroundTransparency = 1
+		selectedText.Text = "SELECTED  •  " .. tostring(currentAccessoryPack or "Off")
+		selectedText.TextColor3 = Color3.fromRGB(145, 145, 155)
+		selectedText.TextSize = 11
+		selectedText.Font = Enum.Font.GothamMedium
+		selectedText.TextXAlignment = Enum.TextXAlignment.Left
+		selectedText.ZIndex = 5
+		selectedText.Parent = header
 
 		local closeBtn = Instance.new("TextButton")
-		closeBtn.Size = UDim2.new(0, 30, 0, 30)
-		closeBtn.Position = UDim2.new(1, -40, 0.5, -15)
-		closeBtn.BackgroundColor3 = COLORS.input
+		closeBtn.Name = "CloseBtn"
+		closeBtn.AnchorPoint = Vector2.new(1, 0)
+		closeBtn.Position = UDim2.new(1, 0, 0, 2)
+		closeBtn.Size = UDim2.fromOffset(32, 32)
+		closeBtn.BackgroundColor3 = Color3.fromRGB(25, 25, 28)
 		closeBtn.BorderSizePixel = 0
-		closeBtn.Text = "X"
-		closeBtn.TextColor3 = COLORS.textDim
+		closeBtn.Text = "×"
+		closeBtn.TextColor3 = Color3.fromRGB(225, 225, 230)
+		closeBtn.TextSize = 20
 		closeBtn.Font = Enum.Font.GothamBold
-		closeBtn.TextSize = 12
-		closeBtn.ZIndex = 6
 		closeBtn.AutoButtonColor = false
-		closeBtn.Parent = titleBar
-		corner(closeBtn, 9)
-		stroke(closeBtn, COLORS.strokeSoft, 1, 0.3)
+		closeBtn.ZIndex = 6
+		closeBtn.Parent = header
+		corner(closeBtn, 8)
+		stroke(closeBtn, COLORS.strokeSoft, 1, 0.45)
 
-		local body = Instance.new("Frame")
-		body.Size = UDim2.new(1, -32, 0, 356)
-		body.Position = UDim2.new(0, 16, 0, 58)
-		body.BackgroundTransparency = 1
-		body.BorderSizePixel = 0
-		body.ZIndex = 4
-		body.Parent = panel
+		local divider = Instance.new("Frame")
+		divider.Name = "Divider"
+		divider.Size = UDim2.new(1, -32, 0, 1)
+		divider.Position = UDim2.fromOffset(16, 66)
+		divider.BackgroundColor3 = Color3.fromRGB(34, 34, 38)
+		divider.BorderSizePixel = 0
+		divider.ZIndex = 4
+		divider.Parent = panel
 
-		local vpFrame = Instance.new("ViewportFrame")
-		vpFrame.Name = "PackPreview"
-		vpFrame.Size = UDim2.new(0, 270, 0, 300)
-		vpFrame.Position = UDim2.new(0, 0, 0, 0)
-		vpFrame.BackgroundColor3 = COLORS.input
-		vpFrame.BackgroundTransparency = 0
-		vpFrame.BorderSizePixel = 0
-		vpFrame.ZIndex = 5
-		vpFrame.Parent = body
-		corner(vpFrame, 12)
-		stroke(vpFrame, COLORS.strokeSoft, 1, 0.25)
-		local vpGrad = Instance.new("UIGradient", vpFrame)
-		vpGrad.Color = ColorSequence.new(Color3.fromRGB(8, 8, 11), Color3.fromRGB(17, 17, 21))
-		vpGrad.Rotation = 90
-		local vpCamera = Instance.new("Camera")
-		vpCamera.FieldOfView = 46
-		vpCamera.Parent = vpFrame
-		vpFrame.CurrentCamera = vpCamera
+		local gridScroll = Instance.new("ScrollingFrame")
+		gridScroll.Name = "SkinScroll"
+		gridScroll.Size = UDim2.new(1, -32, 1, -144)
+		gridScroll.Position = UDim2.fromOffset(16, 76)
+		gridScroll.BackgroundTransparency = 1
+		gridScroll.BorderSizePixel = 0
+		gridScroll.ScrollBarThickness = 3
+		gridScroll.ScrollBarImageColor3 = Color3.fromRGB(115, 80, 255)
+		gridScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+		gridScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+		gridScroll.ScrollingDirection = Enum.ScrollingDirection.Y
+		gridScroll.ZIndex = 3
+		gridScroll.Parent = panel
 
-		local previewName = Instance.new("TextLabel")
-		previewName.Name = "PreviewName"
-		previewName.Size = UDim2.new(0, 270, 0, 16)
-		previewName.Position = UDim2.new(0, 0, 0, 308)
-		previewName.BackgroundTransparency = 1
-		previewName.Text = "OFF"
-		previewName.TextColor3 = COLORS.white
-		previewName.Font = Enum.Font.GothamBold
-		previewName.TextSize = 13
-		previewName.TextXAlignment = Enum.TextXAlignment.Left
-		previewName.ZIndex = 6
-		previewName.Parent = body
+		local gridFrame = Instance.new("Frame")
+		gridFrame.Name = "SkinGrid"
+		gridFrame.Size = UDim2.new(1, -4, 0, 0)
+		gridFrame.AutomaticSize = Enum.AutomaticSize.Y
+		gridFrame.BackgroundTransparency = 1
+		gridFrame.ZIndex = 3
+		gridFrame.Parent = gridScroll
 
-		local previewSub = Instance.new("TextLabel")
-		previewSub.Name = "PreviewSub"
-		previewSub.Size = UDim2.new(0, 270, 0, 12)
-		previewSub.Position = UDim2.new(0, 0, 0, 326)
-		previewSub.BackgroundTransparency = 1
-		previewSub.Text = "No outfit"
-		previewSub.TextColor3 = COLORS.textDim
-		previewSub.Font = Enum.Font.GothamMedium
-		previewSub.TextSize = 9
-		previewSub.TextXAlignment = Enum.TextXAlignment.Left
-		previewSub.ZIndex = 6
-		previewSub.Parent = body
+		local gridLayout = Instance.new("UIGridLayout")
+		gridLayout.Name = "GridLayout"
+		gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+		gridLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+		gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+		gridLayout.CellSize = UDim2.fromOffset(132, 154)
+		gridLayout.CellPadding = UDim2.fromOffset(7, 7)
+		gridLayout.Parent = gridFrame
 
-		local listFrame = Instance.new("Frame")
-		listFrame.Size = UDim2.new(1, -294, 0, 334)
-		listFrame.Position = UDim2.new(0, 286, 0, 0)
-		listFrame.BackgroundTransparency = 1
-		listFrame.BorderSizePixel = 0
-		listFrame.ZIndex = 4
-		listFrame.Parent = body
-		local listLayout = Instance.new("UIListLayout", listFrame)
-		listLayout.SortOrder = Enum.SortOrder.LayoutOrder
-		listLayout.Padding = UDim.new(0, 6)
-
-		local previewModel = nil
-		local previewFocus = Vector3.new(0, 2.5, 0)
-		local previewDist = 6
-		local previewAngle = 0
-		local spinConn = nil
-		local selectedPack = currentAccessoryPack or "Off"
-		local packRows = {}
-
-		local function clearPreviewModel()
-			if previewModel then pcall(function() previewModel:Destroy() end); previewModel = nil end
-		end
-
-		local previewBaseCFrames = {}
-
-		local function clearPreviewModel()
-			previewBaseCFrames = {}
-			if previewModel then
-				pcall(function() previewModel:Destroy() end)
-				previewModel = nil
-			end
-		end
-
-		local function buildPreviewModel(packName)
-			clearPreviewModel()
-			local model = Instance.new("Model")
-			model.Name = "PackPreviewModel"
-
-			-- Copy the visible character geometry.  Keeping the original CFrames first
-			-- lets us preserve R15/R6 proportions and all accessory positioning.
-			for _, child in ipairs(char:GetChildren()) do
-				if child:IsA("BasePart") and child.Name ~= "HumanoidRootPart" then
-					local c = child:Clone()
-					c.Anchored = true
-					c.CanCollide = false
-					c.Massless = true
-					c.Parent = model
-				elseif child:IsA("Shirt") or child:IsA("Pants") or child:IsA("BodyColors") then
-					child:Clone().Parent = model
-				elseif child:IsA("Accessory") then
-					local handle = child:FindFirstChild("Handle")
-					if handle and handle:IsA("BasePart") then
-						local accClone = handle:Clone()
-						accClone.Anchored = true
-						accClone.CanCollide = false
-						accClone.Massless = true
-						accClone.Parent = model
-					end
-				end
-			end
-
-			-- Apply the selected pack before normalizing the model so custom accessories
-			-- are included in the same rotation/zoom calculation.
-			if packName ~= "Off" then
-				pcall(function() applyOutfitToPreview(model, packName) end)
-			end
-
-			model.Parent = vpFrame
-
-			-- Normalize preview materials for consistent viewport lighting.
-			-- This only affects the cloned preview model, not the real character.
-			for _, part in ipairs(model:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.Material = Enum.Material.SmoothPlastic
-				end
-			end
-
-			-- Move the whole visual model into local viewport space.  The old preview
-			-- kept the live character's world coordinates, which made accessories/body
-			-- parts appear disconnected or outside the useful camera range.
-			local bboxCFrame, bboxSize = model:GetBoundingBox()
-			local center = bboxCFrame.Position
-			for _, part in ipairs(model:GetDescendants()) do
-				if part:IsA("BasePart") then
-					local rotationOnly = part.CFrame - part.Position
-					part.CFrame = CFrame.new(part.Position - center) * rotationOnly
-					previewBaseCFrames[part] = part.CFrame
-				end
-			end
-
-			pcall(function()
-				if vpFrame then
-					vpFrame.Ambient = Color3.fromRGB(255, 255, 255)
-					vpFrame.LightColor = Color3.fromRGB(255, 255, 255)
-					-- Strong studio-style key light from above/front.
-					vpFrame.LightDirection = Vector3.new(-0.35, -0.8, -0.55).Unit
-				end
-			end)
-
-			-- Add subtle fill lights to the main body parts.
-			for _, pn in ipairs({"Head", "UpperTorso", "Torso", "LowerTorso", "RightUpperLeg", "LeftUpperLeg", "Right Leg", "Left Leg"}) do
-				local p = model:FindFirstChild(pn)
-				if p and p:IsA("BasePart") then
-					local pl = Instance.new("PointLight")
-					pl.Name = "NexusPreviewLight"
-					pl.Brightness = 6
-					pl.Range = 45
-					pl.Shadows = false
-					pl.Color = Color3.fromRGB(255, 255, 255)
-					pl.Parent = p
-				end
-			end
-
-			-- Dedicated 3D studio lighting.  The ViewportFrame ambient light handles
-			-- the base exposure while these lights keep the character readable from
-			-- every side as the model rotates.
-			pcall(function()
-				local lightTargets = {
-					model:FindFirstChild("Head"),
-					model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso"),
-					model:FindFirstChild("LowerTorso"),
-				}
-
-				for _, target in ipairs(lightTargets) do
-					if target and target:IsA("BasePart") then
-						local light = Instance.new("PointLight")
-						light.Name = "NexusStudioFill"
-						light.Brightness = 4
-						light.Range = 50
-						light.Shadows = false
-						light.Color = Color3.fromRGB(255, 255, 255)
-						light.Parent = target
-					end
-				end
-			end)
-
-			previewFocus = Vector3.new(0, 0, 0)
-			local height = math.max(bboxSize.Y, 1)
-			local width = math.max(bboxSize.X, bboxSize.Z)
-			previewDist = math.clamp(height * 1.25 + width * 0.55, 4.5, 8.5)
-			previewModel = model
-			previewAngle = 0
-		end
-
-		local function selectPack(packName)
-			selectedPack = packName
-			previewName.Text = packName == "Off" and "OFF" or string.upper(packName)
-			previewSub.Text = ACC_PACK_SUBTITLES[packName] or "Pack"
-			buildPreviewModel(packName)
-			for name, data in pairs(packRows) do
-				local isSel = (name == packName)
-				data.row.BackgroundColor3 = isSel and COLORS.row2 or COLORS.row
-				data.row.BackgroundTransparency = isSel and 0.1 or 0.3
-				data.stroke.Transparency = isSel and 0.15 or 0.65
-				data.chevron.TextColor3 = isSel and COLORS.accent or COLORS.textDim
-				data.dot.BackgroundTransparency = isSel and 0 or 0.45
-			end
-		end
-
-		for i, entry in ipairs(ACCESSORY_PACK_ORDER) do
-			local packName = entry[2]
-			local subtitle = ACC_PACK_SUBTITLES[packName] or "Pack"
-
-			local row = Instance.new("TextButton")
-			row.Name = "PackRow_" .. packName
-			row.Size = UDim2.new(1, 0, 0, 52)
-			row.BackgroundColor3 = COLORS.row
-			row.BackgroundTransparency = 0.3
-			row.BorderSizePixel = 0
-			row.Text = ""
-			row.AutoButtonColor = false
-			row.ZIndex = 5
-			row.LayoutOrder = i
-			row.Parent = listFrame
-			corner(row, 9)
-			local rowStroke = Instance.new("UIStroke", row)
-			rowStroke.Color = COLORS.accent
-			rowStroke.Thickness = 1
-			rowStroke.Transparency = 0.65
-
-			local dot = Instance.new("Frame")
-			dot.Name = "Dot"
-			dot.Size = UDim2.new(0, 12, 0, 12)
-			dot.Position = UDim2.new(0, 14, 0.5, -6)
-			dot.BackgroundColor3 = ACC_PACK_COLORS[packName] or COLORS.textDim
-			dot.BackgroundTransparency = 0.45
-			dot.BorderSizePixel = 0
-			dot.ZIndex = 6
-			dot.Parent = row
-			corner(dot, 6)
-
-			local rName = Instance.new("TextLabel")
-			rName.Size = UDim2.new(1, -96, 0, 15)
-			rName.Position = UDim2.new(0, 34, 0, 6)
-			rName.BackgroundTransparency = 1
-			rName.Text = packName == "Off" and "OFF" or packName
-			rName.TextColor3 = COLORS.white
-			rName.Font = Enum.Font.GothamBold
-			rName.TextSize = 12
-			rName.TextXAlignment = Enum.TextXAlignment.Left
-			rName.TextTruncate = Enum.TextTruncate.AtEnd
-			rName.ZIndex = 6
-			rName.Parent = row
-
-			local rSub = Instance.new("TextLabel")
-			rSub.Size = UDim2.new(1, -96, 0, 12)
-			rSub.Position = UDim2.new(0, 34, 0, 22)
-			rSub.BackgroundTransparency = 1
-			rSub.Text = subtitle
-			rSub.TextColor3 = COLORS.textDim
-			rSub.Font = Enum.Font.GothamMedium
-			rSub.TextSize = 9
-			rSub.TextXAlignment = Enum.TextXAlignment.Left
-			rSub.TextTruncate = Enum.TextTruncate.AtEnd
-			rSub.ZIndex = 6
-			rSub.Parent = row
-
-			local chevron = Instance.new("TextLabel")
-			chevron.Name = "Chevron"
-			chevron.Size = UDim2.new(0, 20, 1, 0)
-			chevron.Position = UDim2.new(1, -26, 0, 0)
-			chevron.BackgroundTransparency = 1
-			chevron.Text = "›"
-			chevron.TextColor3 = COLORS.textDim
-			chevron.Font = Enum.Font.GothamBlack
-			chevron.TextSize = 20
-			chevron.ZIndex = 6
-			chevron.Parent = row
-
-			packRows[packName] = {row = row, stroke = rowStroke, dot = dot, chevron = chevron}
-
-			row.MouseButton1Click:Connect(function()
-				selectPack(packName)
-			end)
-		end
+		local gridPadding = Instance.new("UIPadding")
+		gridPadding.PaddingTop = UDim.new(0, 2)
+		gridPadding.PaddingBottom = UDim.new(0, 4)
+		gridPadding.Parent = gridFrame
 
 		local footer = Instance.new("Frame")
-		footer.Size = UDim2.new(1, -32, 0, 34)
-		footer.Position = UDim2.new(0, 16, 1, -44)
+		footer.Name = "Footer"
+		footer.Size = UDim2.new(1, -32, 0, 48)
+		footer.Position = UDim2.new(0, 16, 1, -58)
 		footer.BackgroundTransparency = 1
-		footer.BorderSizePixel = 0
 		footer.ZIndex = 5
 		footer.Parent = panel
 
-		local cancelBtn = Instance.new("TextButton")
-		cancelBtn.Size = UDim2.new(0, 110, 0, 30)
-		cancelBtn.Position = UDim2.new(1, -232, 0.5, -15)
-		cancelBtn.BackgroundColor3 = COLORS.input
-		cancelBtn.BorderSizePixel = 0
-		cancelBtn.Text = "CANCEL"
-		cancelBtn.TextColor3 = COLORS.textDim
-		cancelBtn.Font = Enum.Font.GothamBold
-		cancelBtn.TextSize = 11
-		cancelBtn.ZIndex = 6
-		cancelBtn.AutoButtonColor = false
-		cancelBtn.Parent = footer
-		corner(cancelBtn, 8)
-		stroke(cancelBtn, COLORS.strokeSoft, 1, 0.3)
+		local footerHint = Instance.new("TextLabel")
+		footerHint.Size = UDim2.new(1, -132, 1, 0)
+		footerHint.BackgroundTransparency = 1
+		footerHint.Text = "Choose a skin to preview it"
+		footerHint.TextColor3 = Color3.fromRGB(120, 120, 130)
+		footerHint.TextSize = 11
+		footerHint.Font = Enum.Font.GothamMedium
+		footerHint.TextXAlignment = Enum.TextXAlignment.Left
+		footerHint.ZIndex = 6
+		footerHint.Parent = footer
 
 		local applyBtn = Instance.new("TextButton")
-		applyBtn.Size = UDim2.new(0, 110, 0, 30)
-		applyBtn.Position = UDim2.new(1, -114, 0.5, -15)
+		applyBtn.Name = "ApplyBtn"
+		applyBtn.AnchorPoint = Vector2.new(1, 0.5)
+		applyBtn.Position = UDim2.new(1, 0, 0.5, 0)
+		applyBtn.Size = UDim2.fromOffset(112, 36)
 		applyBtn.BackgroundColor3 = COLORS.accent
 		applyBtn.BorderSizePixel = 0
-		applyBtn.Text = "APPLY"
-		applyBtn.TextColor3 = COLORS.bg
-		applyBtn.Font = Enum.Font.GothamBlack
-		applyBtn.TextSize = 11
-		applyBtn.ZIndex = 6
+		applyBtn.Text = "EQUIP"
+		applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+		applyBtn.TextSize = 12
+		applyBtn.Font = Enum.Font.GothamBold
 		applyBtn.AutoButtonColor = false
+		applyBtn.ZIndex = 7
 		applyBtn.Parent = footer
 		corner(applyBtn, 8)
-		local applyStroke = Instance.new("UIStroke", applyBtn)
-		applyStroke.Color = COLORS.white
-		applyStroke.Thickness = 1
-		applyStroke.Transparency = 0.5
+
+		local selectedPack = currentAccessoryPack or "Off"
+		local cardBorders = {}
+		local cards = {}
+
+		local function refreshSelection()
+			for pack, border in pairs(cardBorders) do
+				local active = pack == selectedPack
+				border.Color = active and COLORS.accent or COLORS.strokeSoft
+				border.Thickness = active and 2 or 1
+				border.Transparency = active and 0 or 0.5
+			end
+			selectedText.Text = "SELECTED  •  " .. tostring(selectedPack)
+		end
+
+		local function clearPreviewViewport(vp)
+			for _, child in ipairs(vp:GetChildren()) do
+				if not child:IsA("Camera") and not child:IsA("UIAspectRatioConstraint") then
+					child:Destroy()
+				end
+			end
+		end
+
+		local function makePreview(vp, packName)
+			clearPreviewViewport(vp)
+
+			-- ViewportFrames use their own 3D lighting. PointLights do not reliably light
+			-- ViewportFrames, so use the built-in Ambient/LightDirection system.
+			vp.Ambient = Color3.fromRGB(190, 190, 190)
+			vp.LightColor = Color3.fromRGB(255, 255, 255)
+			vp.LightDirection = Vector3.new(-1, -1, -1)
+
+			local cam = Instance.new("Camera")
+			cam.Name = "Camera"
+			cam.FieldOfView = 32
+			cam.Parent = vp
+			vp.CurrentCamera = cam
+
+			local world = Instance.new("WorldModel")
+			world.Name = "World"
+			world.Parent = vp
+
+			local source = LP.Character
+			local model
+			if source then
+				local oldArchivable
+				local ok, cloned = pcall(function()
+					oldArchivable = source.Archivable
+					source.Archivable = true
+					local c = source:Clone()
+					source.Archivable = oldArchivable
+					return c
+				end)
+				if ok and cloned then model = cloned end
+				pcall(function() if oldArchivable ~= nil then source.Archivable = oldArchivable end end)
+			end
+
+			if not model then
+				-- Fallback for characters that cannot be cloned directly.
+				pcall(function()
+					local Players = game:GetService("Players")
+					if Players.CreateHumanoidModelFromUserId then
+						model = Players:CreateHumanoidModelFromUserId(LP.UserId)
+					end
+				end)
+			end
+			if not model then return end
+
+			model.Name = "NexusSkinPreview"
+			for _, desc in ipairs(model:GetDescendants()) do
+				if desc:IsA("Script") or desc:IsA("LocalScript") or desc:IsA("ModuleScript") or desc:IsA("Tool") then
+					desc:Destroy()
+				end
+			end
+
+			-- IMPORTANT: previews must NOT inherit the player's currently worn outfit.
+			-- Keep only the base character body, then build the selected Nexus skin on top.
+			-- This prevents the current avatar/clothes/accessories from appearing underneath
+			-- the skin or making it look like there are two avatars.
+			for _, child in ipairs(model:GetChildren()) do
+				if child:IsA("Accessory") or child:IsA("Hat") or child:IsA("Tool")
+					or child:IsA("Shirt") or child:IsA("Pants")
+					or child:IsA("ShirtGraphic") then
+					child:Destroy()
+				end
+			end
+
+			-- Remove layered clothing/accessory remnants nested inside the model too.
+			for _, desc in ipairs(model:GetDescendants()) do
+				if desc:IsA("Accessory") or desc:IsA("Tool") then
+					desc:Destroy()
+				end
+			end
+
+			if packName ~= "Off" then
+				local okApply, err = pcall(function()
+					applyOutfitToPreview(model, packName)
+				end)
+				if not okApply then
+					warn("[NexusSkinGallery] Preview apply failed: " .. tostring(err))
+				end
+			end
+
+			for _, part in ipairs(model:GetDescendants()) do
+				if part:IsA("BasePart") then
+					part.Anchored = true
+					part.CanCollide = false
+					part.CanTouch = false
+					part.CanQuery = false
+					part.CastShadow = false
+				end
+			end
+
+			model.Parent = world
+			pcall(function()
+				model:PivotTo(CFrame.new(0, 0, 0) * CFrame.Angles(0, math.rad(180), 0))
+			end)
+
+			-- Frame the BODY, not the accessories. Some Nexus accessories have large
+			-- offsets/bounds; using model:GetBoundingBox() would make the whole skin
+			-- suddenly tiny when the gallery is reopened after equipping it.
+			local root = model:FindFirstChild("HumanoidRootPart")
+			local torso = model:FindFirstChild("UpperTorso") or model:FindFirstChild("Torso") or root
+			local head = model:FindFirstChild("Head")
+			local target
+			if torso and torso:IsA("BasePart") then
+				target = torso.Position + Vector3.new(0, 0.45, 0)
+			elseif root and root:IsA("BasePart") then
+				target = root.Position + Vector3.new(0, 1.0, 0)
+			elseif head and head:IsA("BasePart") then
+				target = head.Position + Vector3.new(0, -0.6, 0)
+			else
+				target = Vector3.new(0, 1, 0)
+			end
+
+			-- Fixed character-sized framing keeps every skin visually consistent.
+			-- Accessories are still fully visible because the camera is aimed at the
+			-- center of the body instead of calculating distance from their bounds.
+			local distance = 6.65
+			cam.FieldOfView = 30
+			cam.CFrame = CFrame.lookAt(target + Vector3.new(0, 0.05, distance), target)
+			cam.Focus = CFrame.new(target)
+		end
+
+		local function updateGridLayout()
+			local cam = workspace.CurrentCamera
+			local width = cam and cam.ViewportSize.X or 1000
+			if width < 500 then
+				gridLayout.CellSize = UDim2.fromOffset(130, 152)
+				gridLayout.CellPadding = UDim2.fromOffset(6, 6)
+			else
+				gridLayout.CellSize = UDim2.fromOffset(132, 154)
+				gridLayout.CellPadding = UDim2.fromOffset(7, 7)
+			end
+		end
+		updateGridLayout()
+		pcall(function()
+			if workspace.CurrentCamera then
+				workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(updateGridLayout)
+			end
+		end)
+
+		local function selectCard(packName)
+			selectedPack = packName
+			refreshSelection()
+		end
+
+		local function buildCard(packName, displayName, order)
+			local card = Instance.new("TextButton")
+			card.Name = "Card_" .. packName
+			card.BackgroundColor3 = Color3.fromRGB(22, 22, 24)
+			card.BackgroundTransparency = 0
+			card.BorderSizePixel = 0
+			card.Text = ""
+			card.AutoButtonColor = false
+			card.LayoutOrder = order
+			card.ZIndex = 4
+			card.Parent = gridFrame
+			corner(card, 10)
+
+			local border = stroke(card, COLORS.strokeSoft, 1, 0.5)
+			cardBorders[packName] = border
+			cards[packName] = card
+
+			local vp = Instance.new("ViewportFrame")
+			vp.Name = "Preview"
+			vp.Size = UDim2.new(1, -10, 1, -43)
+			vp.Position = UDim2.fromOffset(5, 5)
+			vp.BackgroundColor3 = Color3.fromRGB(11, 11, 13)
+			vp.BackgroundTransparency = 0
+			vp.BorderSizePixel = 0
+			vp.Ambient = Color3.fromRGB(170, 170, 170)
+			vp.LightColor = Color3.fromRGB(255, 255, 255)
+			vp.ZIndex = 5
+			vp.Parent = card
+			corner(vp, 8)
+
+			makePreview(vp, packName)
+
+			local label = Instance.new("TextLabel")
+			label.Name = "Name"
+			label.Size = UDim2.new(1, -14, 0, 28)
+			label.Position = UDim2.new(0, 7, 1, -32)
+			label.BackgroundTransparency = 1
+			label.Text = string.upper(displayName)
+			label.TextColor3 = Color3.fromRGB(185, 185, 192)
+			label.TextSize = 11
+			label.Font = Enum.Font.GothamBold
+			label.TextTruncate = Enum.TextTruncate.AtEnd
+			label.TextXAlignment = Enum.TextXAlignment.Center
+			label.ZIndex = 6
+			label.Parent = card
+
+			card.Activated:Connect(function()
+				selectCard(packName)
+			end)
+		end
+
+		for i, entry in ipairs(ACCESSORY_PACK_ORDER) do
+			buildCard(entry[2], entry[1], i)
+		end
+		refreshSelection()
 
 		local function closeGallery()
 			if galleryClosing then return end
 			galleryClosing = true
-			if spinConn then pcall(function() spinConn:Disconnect() end); spinConn = nil end
-			TweenService:Create(overlay, TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {BackgroundTransparency = 1}):Play()
-			TweenService:Create(panelScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {Scale = 0.9 * galleryFit}):Play()
-			task.delay(0.22, function()
-				if galleryGui then pcall(function() galleryGui:Destroy() end) end
-				galleryGui = nil
-			end)
+			if viewportConn then pcall(function() viewportConn:Disconnect() end) end
+
+			if accSelectorLabel then
+				accSelectorLabel.Text = tostring(currentAccessoryPack or "Off")
+			end
+
+			local info = TweenInfo.new(0.16, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+			local outPanel = TweenService:Create(panelScale, info, {Scale = panelScale.Scale * 0.94})
+			local outOverlay = TweenService:Create(overlay, info, {BackgroundTransparency = 1})
+			outPanel:Play()
+			outOverlay:Play()
+			outPanel.Completed:Wait()
+
+			screen:Destroy()
+			galleryGui = nil
+			galleryClosing = false
 		end
 
-		applyBtn.MouseButton1Click:Connect(function()
-			currentAccessoryPack = selectedPack
-			if accSelectorLabel then accSelectorLabel.Text = selectedPack end
-			_G.NexusApplyAccessoryPack(selectedPack)
-			saveNexusConfig()
+		overlay.Activated:Connect(closeGallery)
+		closeBtn.Activated:Connect(closeGallery)
+
+		applyBtn.Activated:Connect(function()
+			currentAccessoryPack = selectedPack or "Off"
+			if currentAccessoryPack ~= "Off" and _G.NexusApplyAccessoryPack then
+				pcall(function() _G.NexusApplyAccessoryPack(currentAccessoryPack) end)
+			end
+			if currentAccessoryPack == "Off" then
+				pcall(function()
+					local char = LP.Character
+					if char then
+						nexusRestoreOriginalOutfit(char)
+						nexusRestoreOriginalAccessories(char)
+					end
+				end)
+			end
+			pcall(saveNexusConfig)
 			closeGallery()
 		end)
-		cancelBtn.MouseButton1Click:Connect(closeGallery)
-		closeBtn.MouseButton1Click:Connect(closeGallery)
-		overlay.InputBegan:Connect(function(input)
-			if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-				closeGallery()
-			end
-		end)
 
-		spinConn = RunService.RenderStepped:Connect(function(dt)
-			if not vpFrame or not vpFrame.Parent or not previewModel or not previewModel.Parent then return end
-			previewAngle = previewAngle + (dt or 0.016) * 0.75
+		-- Opening animation.
+		panelScale.Scale = panelScale.Scale * 0.94
+		overlay.BackgroundTransparency = 1
+		local info = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+		TweenService:Create(panelScale, info, {Scale = panelScale.Scale / 0.94}):Play()
+		TweenService:Create(overlay, info, {BackgroundTransparency = 0.38}):Play()
 
-			-- Keep the camera stationary and rotate the actual character around its
-			-- vertical center, producing a true 3D character turn like the reference.
-			local camY = 0.15
-			vpCamera.CFrame = CFrame.new(Vector3.new(0, camY, previewDist), Vector3.new(0, 0, 0))
-			local rotation = CFrame.Angles(0, previewAngle, 0)
-			for part, baseCFrame in pairs(previewBaseCFrames) do
-				if part and part.Parent then
-					part.CFrame = rotation * baseCFrame
-				end
-			end
-		end)
-
-		selectPack(currentAccessoryPack or "Off")
-		TweenService:Create(overlay, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {BackgroundTransparency = 0.6}):Play()
-		TweenService:Create(panelScale, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Scale = galleryFit}):Play()
+		galleryGui = screen
 	end
 
 	openBtn.MouseButton1Click:Connect(openGallery)
-end
 end
 end
 task.wait()
@@ -9705,290 +9647,6 @@ _G.NexusIsBindableInput = function(inp)
 if not inp or inp.KeyCode == Enum.KeyCode.Unknown then return false end
 if inp.UserInputType == Enum.UserInputType.Keyboard then return true end
 return _G.NexusIsGamepadInput(inp) and _G.NexusGamepadKeys[inp.KeyCode] == true
-end
-if _G.NexusLaggerMode == nil then _G.NexusLaggerMode = "HIGH" end
-if _G.NexusLaggerKeybind == nil then _G.NexusLaggerKeybind = Enum.KeyCode.V end
-_G.NexusLaggerActive = _G.NexusLaggerActive or false
-_G.NexusLaggerGui = nil
-_G.NexusLaggerThread = nil
-_G.NexusSetLaggerOpenVisual = nil
-_G.NexusCreateLaggerPanel = function()
-local guiParent = game:GetService("CoreGui")
-pcall(function() if not guiParent then guiParent = PlayerGui end end)
-if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end) end
-local sg = Instance.new("ScreenGui")
-sg.Name = "NexusLaggerPanel"; sg.ResetOnSpawn = false; sg.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-pcall(function() sg.Parent = guiParent end)
-if not sg.Parent then sg.Parent = PlayerGui end
-_G.NexusLaggerGui = sg
-local laggerScale = Instance.new("UIScale", sg)
-laggerScale.Scale = nexusGuiScaleValue or 1
-local PW, PH = 270, 140
-local f = Instance.new("Frame", sg)
-f.Size = UDim2.new(0, PW, 0, 0); f.Position = UDim2.new(0.5, -PW / 2, 0.5, -PH / 2)
-f.BackgroundColor3 = COLORS.bg; f.BorderSizePixel = 0; f.Active = true; f.ClipsDescendants = true
-Instance.new("UICorner", f).CornerRadius = UDim.new(0, 10)
-local fStroke = Instance.new("UIStroke", f)
-fStroke.Color = COLORS.accentDim
-fStroke.Thickness = 1
-fStroke.Transparency = 0.4
-local titleBar = Instance.new("Frame", f)
-titleBar.Size = UDim2.new(1, 0, 0, 32); titleBar.BackgroundColor3 = COLORS.row; titleBar.BorderSizePixel = 0
-Instance.new("UICorner", titleBar).CornerRadius = UDim.new(0, 10)
-local titleLabel = Instance.new("TextLabel", titleBar)
-titleLabel.Size = UDim2.new(1, -60, 1, 0); titleLabel.Position = UDim2.new(0, 12, 0, 0)
-titleLabel.BackgroundTransparency = 1; titleLabel.Text = "NEXUS LAGGER"
-titleLabel.TextColor3 = COLORS.accent; titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 12; titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-local closeBtn = Instance.new("TextButton", titleBar)
-closeBtn.Size = UDim2.new(0, 20, 0, 20); closeBtn.Position = UDim2.new(1, -28, 0, 6)
-closeBtn.BackgroundColor3 = COLORS.accentDim; closeBtn.Text = "x"
-closeBtn.TextColor3 = COLORS.white; closeBtn.Font = Enum.Font.GothamBold
-closeBtn.TextSize = 12; closeBtn.AutoButtonColor = false; closeBtn.BorderSizePixel = 0
-Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(1, 0)
-local minBtn = Instance.new("TextButton", titleBar)
-minBtn.Size = UDim2.new(0, 20, 0, 20); minBtn.Position = UDim2.new(1, -54, 0, 6)
-minBtn.BackgroundColor3 = COLORS.input; minBtn.Text = "-"
-minBtn.TextColor3 = COLORS.textDim; minBtn.Font = Enum.Font.GothamBold
-minBtn.TextSize = 14; minBtn.AutoButtonColor = false; minBtn.BorderSizePixel = 0
-Instance.new("UICorner", minBtn).CornerRadius = UDim.new(1, 0)
-local body = Instance.new("Frame", f)
-body.Size = UDim2.new(1, -16, 1, -40); body.Position = UDim2.new(0, 8, 0, 36)
-body.BackgroundTransparency = 1
-local toggleRow = Instance.new("Frame", body)
-toggleRow.Size = UDim2.new(1, 0, 0, 40); toggleRow.BackgroundColor3 = COLORS.row
-toggleRow.BorderSizePixel = 0
-Instance.new("UICorner", toggleRow).CornerRadius = UDim.new(0, 8)
-local togStroke = Instance.new("UIStroke", toggleRow)
-togStroke.Color = _G.NexusLaggerActive and COLORS.accent or COLORS.stroke
-togStroke.Thickness = 1
-local kbBtn = Instance.new("TextButton", toggleRow)
-kbBtn.Size = UDim2.new(0, 34, 0, 26); kbBtn.Position = UDim2.new(0, 8, 0.5, -13)
-kbBtn.BackgroundColor3 = COLORS.input
-kbBtn.Text = _G.NexusGetKeyDisplayName(_G.NexusLaggerKeybind); kbBtn.TextColor3 = COLORS.white
-kbBtn.Font = Enum.Font.GothamBold; kbBtn.TextSize = 11; kbBtn.AutoButtonColor = false
-kbBtn.BorderSizePixel = 0
-Instance.new("UICorner", kbBtn).CornerRadius = UDim.new(0, 5)
-local kbStroke = Instance.new("UIStroke", kbBtn)
-kbStroke.Color = COLORS.stroke
-kbStroke.Thickness = 1
-kbStroke.Transparency = 0.5
-local statusLabel = Instance.new("TextLabel", toggleRow)
-statusLabel.Size = UDim2.new(0.5, 0, 1, 0); statusLabel.Position = UDim2.new(0, 50, 0, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = _G.NexusLaggerActive and "LAGGER: ON" or "LAGGER: OFF"
-statusLabel.TextColor3 = _G.NexusLaggerActive and COLORS.accent or COLORS.textDim
-statusLabel.Font = Enum.Font.GothamBold; statusLabel.TextSize = 12
-statusLabel.TextXAlignment = Enum.TextXAlignment.Left
-local switchBg = Instance.new("TextButton", toggleRow)
-switchBg.Size = UDim2.new(0, 36, 0, 19); switchBg.Position = UDim2.new(1, -46, 0.5, -9.5)
-switchBg.BackgroundColor3 = _G.NexusLaggerActive and Color3.fromRGB(40, 40, 48) or COLORS.off
-switchBg.Text = ""
-switchBg.AutoButtonColor = false; switchBg.BorderSizePixel = 0
-local switchBgCorner = Instance.new("UICorner", switchBg)
-switchBgCorner.CornerRadius = UDim.new(1, 0)
-local switchDot = Instance.new("Frame", switchBg)
-switchDot.Size = UDim2.new(0, 13, 0, 13)
-switchDot.Position = _G.NexusLaggerActive and UDim2.new(1, -16, 0.5, -6.5) or UDim2.new(0, 3, 0.5, -6.5)
-switchDot.BackgroundColor3 = _G.NexusLaggerActive and COLORS.accent or COLORS.textDim
-switchDot.BorderSizePixel = 0
-local switchDotCorner = Instance.new("UICorner", switchDot)
-switchDotCorner.CornerRadius = UDim.new(1, 0)
-local modeRow = Instance.new("Frame", body)
-modeRow.Size = UDim2.new(1, 0, 0, 40); modeRow.Position = UDim2.new(0, 0, 0, 44)
-modeRow.BackgroundColor3 = COLORS.row; modeRow.BorderSizePixel = 0
-Instance.new("UICorner", modeRow).CornerRadius = UDim.new(0, 8)
-local modeStroke = Instance.new("UIStroke", modeRow); modeStroke.Color = COLORS.stroke; modeStroke.Thickness = 1
-local modeNames = {"LOW", "MID", "HIGH", "ULTRA"}
-local btnW = 52
-local gap = 6
-local totalW = #modeNames * btnW + (#modeNames - 1) * gap
-local startX = math.floor((270 - 16 - totalW) / 2)
-modeButtons = {}
-for i, modeName in ipairs(modeNames) do
-local btn = Instance.new("TextButton", modeRow)
-btn.Size = UDim2.new(0, btnW, 0, 26)
-btn.Position = UDim2.new(0, startX + (i - 1) * (btnW + gap), 0.5, -13)
-local isSelected = ((_G.NexusLaggerMode or "HIGH") == modeName)
-btn.BackgroundColor3 = isSelected and Color3.fromRGB(40, 40, 50) or COLORS.input
-btn.BorderSizePixel = 0; btn.Text = ""
-btn.AutoButtonColor = false
-Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 5)
-local btnStroke = Instance.new("UIStroke", btn)
-btnStroke.Color = isSelected and COLORS.accent or COLORS.stroke
-btnStroke.Thickness = 1; btnStroke.Transparency = 0.3
-local lbl = Instance.new("TextLabel", btn)
-lbl.Name = "ModeLabel"
-lbl.Size = UDim2.new(1, 0, 1, 0); lbl.BackgroundTransparency = 1
-lbl.Text = modeName
-lbl.TextColor3 = isSelected and COLORS.white or COLORS.textDim
-lbl.Font = Enum.Font.GothamBold; lbl.TextSize = 9
-modeButtons[modeName] = btn
-end
-local function resolveRemote(path)
-if not path or path == "" then return nil end
-local obj = game
-local cleaned = path:gsub("^game%.", "")
-for segment in cleaned:gmatch("[^%.]+") do
-if obj then obj = obj[segment] else return nil end
-end
-return obj
-end
-local isMobile2 = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
-local NIVELES = {
-	LOW   = { poder = 23 },
-	MID   = { poder = 32 },
-	HIGH  = { poder = 70 },
-	ULTRA = { poder = 90 }
-}
-local function buildBomb(poder)
-	local main, spam = {}, {{}}
-	local z = spam[1]
-	for i = 1, 25 do
-		local t = {}
-		table.insert(z, t)
-		z = t
-	end
-	local max = math.min(12000, poder * 50)
-	for i = 1, max do
-		table.insert(main, spam)
-	end
-	return main
-end
-local payloadCache = nil
-local payloadPoder = nil
-local function getPayload(poder)
-	if payloadCache and payloadPoder == poder then return payloadCache end
-	payloadPoder = poder
-	payloadCache = buildBomb(poder)
-	return payloadCache
-end
-local function startLaggerLoop()
-	if not _G.NexusLaggerActive then return end
-	local remote = resolveRemote("RobloxReplicatedStorage.SetPlayerBlockList")
-	if not remote then return end
-	local mode = _G.NexusLaggerMode or "HIGH"
-	local nivel = NIVELES[mode] or NIVELES.HIGH
-	local bomb = getPayload(nivel.poder)
-	pcall(function()
-		NetworkClient:SetOutgoingKBPSLimit(80000)
-	end)
-	while _G.NexusLaggerActive do
-		pcall(function()
-			remote:FireServer(bomb)
-		end)
-		task.wait(0.18)
-	end
-end
-local function setLaggerState(on)
-_G.NexusLaggerActive = on
-local modeName = _G.NexusLaggerMode or "HIGH"
-statusLabel.Text = on and ("LAGGER: ON ["..modeName.."]") or "LAGGER: OFF"
-statusLabel.TextColor3 = on and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(120, 120, 130)
-togStroke.Color = on and COLORS.accent or COLORS.stroke
-TweenService:Create(switchDot, TweenInfo.new(0.2, Enum.EasingStyle.Quad),
-{Position = on and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 3, 0.5, -7),
-BackgroundColor3 = on and Color3.fromRGB(160, 160, 175) or Color3.fromRGB(70, 70, 80)}):Play()
-TweenService:Create(switchBg, TweenInfo.new(0.2),
-{BackgroundColor3 = on and Color3.fromRGB(40, 40, 50) or Color3.fromRGB(35, 35, 42)}):Play()
-if on then
-_G.NexusLaggerThread = task.spawn(startLaggerLoop)
-else
-	payloadCache = nil; payloadPoder = nil
-	_G.NexusLaggerThread = nil
-end
-end
-local function updateMode(newMode)
-_G.NexusLaggerMode = newMode
-for name, btn in pairs(modeButtons) do
-local selected = (name == newMode)
-btn.BackgroundColor3 = selected and Color3.fromRGB(40, 40, 50) or COLORS.input
-local st = btn:FindFirstChildOfClass("UIStroke")
-if st then st.Color = selected and COLORS.accent or COLORS.stroke end
-local lbl = btn:FindFirstChild("ModeLabel")
-if lbl then lbl.TextColor3 = selected and COLORS.white or COLORS.textDim end
-end
-if _G.NexusLaggerActive then
-payloadCache = nil; payloadPoder = nil
-setLaggerState(false); task.spawn(function() task.wait(0.1); setLaggerState(true) end)
-end
-end
-for modeName, btn in pairs(modeButtons) do
-btn.MouseButton1Click:Connect(function() updateMode(modeName) end)
-end
-switchBg.MouseButton1Click:Connect(function()
-if _G.NexusLaggerActive then setLaggerState(false) else setLaggerState(true) end
-end)
-local listeningFor = false
-local listenStart = 0
-kbBtn.MouseButton1Click:Connect(function()
-if listeningFor then
-listeningFor = false; kbBtn.Text = _G.NexusGetKeyDisplayName(_G.NexusLaggerKeybind)
-kbBtn.BackgroundColor3 = COLORS.input; return
-end
-listeningFor = true; listenStart = tick(); kbBtn.Text = "..."
-kbBtn.BackgroundColor3 = COLORS.accent
-end)
-local isMinimized = false
-local function toggleMinimize()
-isMinimized = not isMinimized
-TweenService:Create(f, TweenInfo.new(0.25, Enum.EasingStyle.Quart, Enum.EasingDirection.Out),
-{Size = isMinimized and UDim2.new(0, PW, 0, 34) or UDim2.new(0, PW, 0, PH)}):Play()
-body.Visible = not isMinimized
-end
-closeBtn.MouseButton1Click:Connect(function()
-if _G.NexusLaggerActive then setLaggerState(false) end
-TweenService:Create(f, TweenInfo.new(0.2, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Size = UDim2.new(0, PW, 0, 0)}):Play()
-task.wait(0.22)
-if sg and sg.Parent then sg:Destroy() end
-_G.NexusLaggerGui = nil
-if _G.NexusSetLaggerOpenVisual then _G.NexusSetLaggerOpenVisual(false) end
-if saveNexusConfig then saveNexusConfig() end
-end)
-minBtn.MouseButton1Click:Connect(toggleMinimize)
-local dragging, dragInput, dragStart, startPos = false, nil, nil, nil
-titleBar.InputBegan:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-dragging = true; dragStart = input.Position; startPos = f.Position
-input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
-end
-end)
-titleBar.InputChanged:Connect(function(input)
-if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-end)
-UserInputService.InputChanged:Connect(function(input)
-if input == dragInput and dragging then
-local d = input.Position - dragStart
-f.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + d.X, startPos.Y.Scale, startPos.Y.Offset + d.Y)
-end
-end)
-UserInputService.InputBegan:Connect(function(input, processed)
-if processed then return end
-if listeningFor then
-local isGp = _G.NexusIsGamepadInput(input)
-if isGp and tick() - listenStart < 0.15 then return end
-if _G.NexusIsBindableInput(input) then
-_G.NexusLaggerKeybind = input.KeyCode; kbBtn.Text = _G.NexusGetKeyDisplayName(input.KeyCode)
-kbBtn.BackgroundColor3 = COLORS.input; listeningFor = false
-saveNexusConfig()
-elseif input.KeyCode == Enum.KeyCode.Unknown and not isGp then
-listeningFor = false; kbBtn.Text = _G.NexusGetKeyDisplayName(_G.NexusLaggerKeybind)
-kbBtn.BackgroundColor3 = COLORS.input
-end
-elseif input.KeyCode == _G.NexusLaggerKeybind then
-if _G.NexusLaggerActive then setLaggerState(false) else setLaggerState(true) end
-end
-end)
-TweenService:Create(f, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(0, PW, 0, PH)}):Play()
-end
-_G.NexusCloseLaggerPanel = function()
-if _G.NexusLaggerActive then
-_G.NexusLaggerActive = false
-end
-if _G.NexusLaggerGui then pcall(function() _G.NexusLaggerGui:Destroy() end) end
-_G.NexusLaggerGui = nil
-if _G.NexusSetLaggerOpenVisual then _G.NexusSetLaggerOpenVisual(false) end
-if saveNexusConfig then saveNexusConfig() end
 end
 end
 _G.__NexusDuelsSetupSettingsUI = function()
@@ -10076,64 +9734,6 @@ bb.Activated:Connect(function() pickMobileShape("box") end)
 setShapeRowVisual(_G.NexusMobileButtonShape or "box")
 end
 
-section(Settings, "ANTI DROP", 12)
-;(function()
-local row, setVisual = _G.NexusActionToggleRow(Settings, "Anti Drop", antiDropEnabled == true, 13)
-_G.NexusSetAntiDropVisual = setVisual
-local btn = row and row:FindFirstChild("ToggleButton")
-if btn then
-btn.Activated:Connect(function()
-local turningOn = not (antiDropEnabled == true)
-if turningOn then pcall(_G.NexusEnableAntiDrop) else pcall(_G.NexusDisableAntiDrop) end
-if setVisual then setVisual(antiDropEnabled == true) end
-saveNexusConfig()
-end)
-end
-end)()
-section(Settings, "NEXUS LAGGER", 14)
-do
-local row = baseRow(Settings, "Lagger Panel", 15)
-local openBtn = Instance.new("TextButton")
-openBtn.Name = "OpenLagger"
-openBtn.BackgroundColor3 = COLORS.input
-openBtn.BackgroundTransparency = 0.1
-openBtn.Text = "OPEN"
-openBtn.TextColor3 = COLORS.textDim
-openBtn.TextSize = 10
-openBtn.Font = Enum.Font.GothamBold
-openBtn.AutoButtonColor = false
-openBtn.BorderSizePixel = 0
-openBtn.Size = UDim2.new(0, 56, 0, 22)
-openBtn.Position = UDim2.new(1, -66, 0.5, -11)
-openBtn.ZIndex = 7
-openBtn.Parent = row
-Instance.new("UICorner", openBtn).CornerRadius = UDim.new(0, 5)
-local obSt = Instance.new("UIStroke", openBtn)
-obSt.Color = COLORS.stroke; obSt.Thickness = 1; obSt.Transparency = 0.5
-local function setLaggerOpenVisual(open)
-openBtn.Text = open and "CLOSE" or "OPEN"
-openBtn.TextColor3 = open and COLORS.accent or COLORS.textDim
-openBtn.BackgroundColor3 = open and COLORS.accentDim or COLORS.input
-end
-_G.NexusSetLaggerOpenVisual = setLaggerOpenVisual
-openBtn.MouseEnter:Connect(function()
-TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = COLORS.row2, TextColor3 = COLORS.white}):Play()
-TweenService:Create(obSt, TweenInfo.new(0.15), {Color = COLORS.accentDim}):Play()
-end)
-openBtn.MouseLeave:Connect(function()
-TweenService:Create(openBtn, TweenInfo.new(0.15), {BackgroundColor3 = COLORS.input, TextColor3 = COLORS.textDim}):Play()
-TweenService:Create(obSt, TweenInfo.new(0.15), {Color = COLORS.stroke}):Play()
-end)
-openBtn.MouseButton1Click:Connect(function()
-if _G.NexusLaggerGui then
-_G.NexusCloseLaggerPanel()
-else
-if _G.NexusCreateLaggerPanel then _G.NexusCreateLaggerPanel() end
-end
-setLaggerOpenVisual(_G.NexusLaggerGui ~= nil)
-saveNexusConfig()
-end)
-end
 stepperRow(Settings, "GUI Scale", nexusGuiScaleValue, 3, function(v)
 nexusGuiScaleValue = v
 local scale = _G.NexusMainUIScaleRef or Main:FindFirstChild("NexusMainUIScale")
@@ -10901,7 +10501,7 @@ currentAccessoryPack = "Off"
 skyTheme = "Off"; currentBackground = 1
 autoLeftEnabled = false; autoRightEnabled = false
 _G.NexusGuiLocked = false; _G.NexusHideMobileButtons = false; _G.NexusMobileButtonScale = 0.75
-bodyLockEnabled = false; bodyLockRadius = 60; pcall(stopBodyLock)
+bodyLockEnabled = false; bodyLockRadius = 20; pcall(stopBodyLock)
 if _nexusAutoFitScale then _nexusAutoFitScale() end
 _G.NexusManualScale = false
 applyNexusProgressBarScale()
@@ -11717,8 +11317,7 @@ if _G.NexusSetSaturatedColorsVisual then _G.NexusSetSaturatedColorsVisual(_G.Nex
 if _G.NexusApplySaturatedColors then _G.NexusApplySaturatedColors(_G.NexusSaturatedColorsEnabled) end
 end)
 pcall(function()
-if _G.NexusSetAntiDropVisual then _G.NexusSetAntiDropVisual(antiDropEnabled == true) end
-if antiDropEnabled then if _G.NexusEnableAntiDrop then pcall(_G.NexusEnableAntiDrop) end else if _G.NexusDisableAntiDrop then pcall(_G.NexusDisableAntiDrop) end end
+if _G.NexusEnableAntiDrop then pcall(_G.NexusEnableAntiDrop) end
 end)
 pcall(function()
 if setAntiDieVisual then setAntiDieVisual(_G.NexusAntiDieOn == true) end
