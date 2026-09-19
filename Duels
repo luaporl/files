@@ -7900,8 +7900,9 @@ _antiDropMt, _antiDropOldIdx, _antiDropOldNewIdx = nil, nil, nil
 return
 end
 _antiDropActive = true
-antiDropEnabled = true
+	antiDropEnabled = true
 end
+pcall(_G.NexusEnableAntiDrop)
 function _G.NexusDisableAntiDrop()
 if not _antiDropActive then return end
 local mt = _antiDropMt
