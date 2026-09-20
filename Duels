@@ -979,8 +979,8 @@ function _startInfJumpHoldMode()
 		if not root or not hum then return end
 		local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
 		local vel = root.AssemblyLinearVelocity
-		if isJumpHeld and vel.Y < 35 then
-			_applyImpulseVel(root, Vector3.new(vel.X, 55, vel.Z))
+		if isJumpHeld and vel.Y < 30 then
+			_applyImpulseVel(root, Vector3.new(vel.X, 45, vel.Z))
 		end
 		vel = root.AssemblyLinearVelocity
 		if vel.Y < -120 then
