@@ -63,10 +63,10 @@ for _, name in ipairs({"NexusDuelsAdaptReconstruct", "AdaptHubPolished", "CyberH
 local old = PlayerGui:FindFirstChild(name)
 if old then old:Destroy() end
 end
-local NS = 59.5
-local CS = 28.8
-local LAGGER_SPEED = 29
-local LAGGER_CARRY_SPEED = 15
+local NS = 60
+local CS = 30
+local LAGGER_SPEED = 15
+local LAGGER_CARRY_SPEED = 24.5
 currentSpeedMode = "Normal"
 autoCarrySpeedEnabled = false
 setAutoCarrySpeedVisual = nil
@@ -234,17 +234,13 @@ local function doAutoTPDown(force)
 local char=LP.Character;if not char then return end;local hrp=char:FindFirstChild("HumanoidRootPart");if not hrp then return end
 local hum2=char:FindFirstChildOfClass("Humanoid");if not hum2 then return end
 if not force then
+if not (hasBrainrotInHand and hasBrainrotInHand()) then return end
 if hum2.FloorMaterial~=Enum.Material.Air then return end
 if not(hrp.Position.Y>=(tonumber(autoTPHeight) or 20)) then return end
 end
--- Exact Vynx V3 TP-down: snap to Y -7 keeping yaw, then hard-zero every velocity
 local yaw=select(2,hrp.CFrame:ToEulerAnglesYXZ())
 hrp.CFrame=CFrame.new(hrp.Position.X,-7.00,hrp.Position.Z)*CFrame.Angles(0,yaw,0)
-hrp.AssemblyLinearVelocity=Vector3.zero
-hrp.AssemblyAngularVelocity=Vector3.zero
-pcall(function() hrp.Velocity=Vector3.zero end)
-pcall(function() hrp.RotVelocity=Vector3.zero end)
-if _G.NexusClearLinVel then _G.NexusClearLinVel() end
+hrp.Velocity=Vector3.zero
 end
 local function _clearAutoTPConnection()
 if autoTPConn then
@@ -957,17 +953,6 @@ end
 ;(function()
 local _infJumpHoldConn = nil
 
-local function _applyImpulseVel(part, targetVel)
-	if not part or not part.Parent then return end
-	pcall(function()
-		local mass = part.AssemblyMass
-		if not mass or mass ~= mass or mass <= 0 then mass = 1 end
-		local current = part.AssemblyLinearVelocity
-		local delta = targetVel - current
-		part:ApplyImpulse(delta * mass)
-	end)
-end
-
 function _startInfJumpHoldMode()
 	if _infJumpHoldConn then _infJumpHoldConn:Disconnect() end
 	_infJumpHoldConn = RunService.Heartbeat:Connect(function()
@@ -978,13 +963,11 @@ function _startInfJumpHoldMode()
 		local hum = char:FindFirstChildOfClass("Humanoid")
 		if not root or not hum then return end
 		local isJumpHeld = UserInputService:IsKeyDown(Enum.KeyCode.Space) or (hum.Jump == true) or _G.NexusJumpHeld == true
-		local vel = root.AssemblyLinearVelocity
-		if isJumpHeld and vel.Y < 30 then
-			_applyImpulseVel(root, Vector3.new(vel.X, 45, vel.Z))
+		if isJumpHeld and root.Velocity.Y < 35 then
+			root.Velocity = Vector3.new(root.Velocity.X, 55, root.Velocity.Z)
 		end
-		vel = root.AssemblyLinearVelocity
-		if vel.Y < -120 then
-			_applyImpulseVel(root, Vector3.new(vel.X, -120, vel.Z))
+		if root.Velocity.Y < -120 then
+			root.Velocity = Vector3.new(root.Velocity.X, -120, root.Velocity.Z)
 		end
 	end)
 end
@@ -3785,15 +3768,90 @@ saveNexusConfig()
 end
 end)
 local lastMoveDir = Vector3.new(0, 0, 0)
-local function getCurrentSpeedValue()
-if currentSpeedMode == "Carry" then
-return CS
-elseif currentSpeedMode == "Lagger" then
-return LAGGER_SPEED
-elseif currentSpeedMode == "Lagger Carry" then
-return LAGGER_CARRY_SPEED
+local function hasBrainrotInHand()
+    local char = LP.Character
+    if not char then return false end
+    for _, item in ipairs(char:GetChildren()) do
+        if item:IsA("Tool") then
+            local name = item.Name:lower()
+            if name:find("bat", 1, true)
+                or name:find("slap", 1, true)
+                or name:find("sword", 1, true)
+                or name:find("gun", 1, true)
+                or name:find("knife", 1, true)
+                or name:find("blade", 1, true)
+            then
+            else
+                if name:find("brainrot", 1, true)
+                    or name:find("skibidi", 1, true)
+                    or name:find("toilet", 1, true)
+                    or name:find("animal", 1, true)
+                    or name:find("pet", 1, true)
+                    or name:find("meme", 1, true)
+                    or name:find("steal", 1, true)
+                    or item:GetAttribute("Brainrot")
+                    or item:GetAttribute("Animal")
+                then
+                    return true
+                end
+                local ok, stealing = pcall(function()
+                    return LP:GetAttribute("Stealing") or char:GetAttribute("Stealing")
+                end)
+                if ok and stealing then
+                    return true
+                end
+            end
+        end
+    end
+    return false
 end
-return NS
+local function isStealState()
+    local char = LP.Character
+    if not char then return false end
+    if hasBrainrotInHand() then return true end
+    local h = char:FindFirstChildOfClass("Humanoid")
+    if h and h.WalkSpeed < 25 then return true end
+    local ok, val = pcall(function() return LP:GetAttribute("Stealing") end)
+    if ok and val == true then return true end
+    local ok2, val2 = pcall(function() return char:GetAttribute("Stealing") end)
+    if ok2 and val2 == true then return true end
+    return false
+end
+local function isRagdollState(hum)
+    if not hum then return true end
+    local st = hum:GetState()
+    return hum.PlatformStand
+        or st == Enum.HumanoidStateType.Physics
+        or st == Enum.HumanoidStateType.Ragdoll
+        or st == Enum.HumanoidStateType.FallingDown
+end
+local function getCurrentSpeedValue()
+	if autoSwitchEnabled and not State._autoCarryManual then
+		local isSteal = isStealState()
+		local inLagger = (currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry")
+		if inLagger then
+			return isSteal and LAGGER_CARRY_SPEED or LAGGER_SPEED
+		end
+		return isSteal and CS or NS
+	end
+	if hasBrainrotInHand() then
+		if currentSpeedMode == "Lagger" then
+			setSpeedMode("Lagger Carry")
+		end
+		if currentSpeedMode == "Lagger Carry" then
+			return LAGGER_CARRY_SPEED
+		end
+		return CS
+	end
+	if currentSpeedMode == "Lagger Carry" then
+		return LAGGER_CARRY_SPEED
+	elseif currentSpeedMode == "Lagger" then
+		return LAGGER_SPEED
+	elseif currentSpeedMode == "Carry" then
+		return CS
+	else
+		return NS
+	end
 end
 local refreshSpeedModeRows = nil
 local function setSpeedMode(mode)
@@ -4829,29 +4887,30 @@ RunService.RenderStepped:Connect(function(dt)
 	local hum = char:FindFirstChildOfClass("Humanoid")
 	local root = char:FindFirstChild("HumanoidRootPart")
 	if not hum or not root or hum.Health <= 0 then destroySpeedObjects() return end
-	local st = hum:GetState()
-	if hum.PlatformStand or st == Enum.HumanoidStateType.Physics or st == Enum.HumanoidStateType.Ragdoll or st == Enum.HumanoidStateType.FallingDown then
+	if isRagdollState(hum) then
 		S.lastMoveDir = Vector3.zero
 		destroySpeedObjects()
 		return
 	end
-	local spd = getCurrentSpeedValue()
-	local md = hum.MoveDirection
-	local dir = Vector3.zero
-	if md.Magnitude > 0 then
-		S.lastMoveDir = md
-		dir = md
-	elseif antiRagdollEnabled and S.lastMoveDir.Magnitude > 0 then
-		local anyHeld = false
-		for key in pairs(MOVE_KEYS) do
-			if UserInputService:IsKeyDown(key) then anyHeld = true break end
+	if not autoLeftEnabled and not autoRightEnabled then
+		local spd = getCurrentSpeedValue()
+		local md = hum.MoveDirection
+		local dir = Vector3.zero
+		if md.Magnitude > 0 then
+			S.lastMoveDir = md
+			dir = md
+		elseif antiRagdollEnabled and S.lastMoveDir.Magnitude > 0 then
+			local anyHeld = false
+			for key in pairs(MOVE_KEYS) do
+				if UserInputService:IsKeyDown(key) then anyHeld = true break end
+			end
+			if anyHeld then dir = S.lastMoveDir end
 		end
-		if anyHeld then dir = S.lastMoveDir end
-	end
-	if dir.Magnitude > 0 then
-		applySpeedMethod(root, hum, dir, spd, dt)
-	else
-		destroySpeedObjects()
+		if dir.Magnitude > 0 then
+			applySpeedMethod(root, hum, dir, spd, dt)
+		else
+			destroySpeedObjects()
+		end
 	end
 	if overheadSpeedLabel then
 		overheadSpeedLabel.Text = string.format("Speed: %.1f", getCurrentSpeedValue())
@@ -7838,6 +7897,7 @@ end
 ;(function()
 local _antiDropMt, _antiDropOldIdx, _antiDropOldNewIdx, _antiDropActive = nil, nil, nil, false
 local _antiDropSpoofVel = Vector3.zero
+local _ANTI_DROP_Y_THRESHOLD = -30
 local function _antiDropSupported()
 return type(getrawmetatable) == "function"
 and type(checkcaller) == "function"
@@ -7867,8 +7927,12 @@ return _antiDropOldIdx(self, key)
 end)
 mt.__newindex = newcclosure(function(self, key, value)
 if not checkcaller() and _antiDropIsLocalHrp(self, key) then
+if typeof(value) == "Vector3" and value.Y < _ANTI_DROP_Y_THRESHOLD then
 _antiDropSpoofVel = value
 return
+end
+_antiDropSpoofVel = value
+return _antiDropOldNewIdx(self, key, value)
 end
 return _antiDropOldNewIdx(self, key, value)
 end)
