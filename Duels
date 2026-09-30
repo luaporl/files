@@ -28,7 +28,7 @@ pcall(function() if stopAntiRagdoll then stopAntiRagdoll() end end)
 pcall(function() if stopBodyLock then stopBodyLock() end end)
 pcall(function() if disableAntiLag then disableAntiLag() end end)
 pcall(function() if disableGalaxyGravity then disableGalaxyGravity() end end)
-for _, name in ipairs({"NexusDuelsAdaptReconstruct","AdaptHubPolished","CyberHub","NexusDuelsToo","NexusMobileButtons","NexusMusicGui","NexusDebug"}) do
+for _, name in ipairs({"NexusDuelsAdaptReconstruct","NexusDuelsToo","NexusMobileButtons","NexusMusicGui","NexusDebug","NexusHud"}) do
 local obj = PlayerGui and PlayerGui:FindFirstChild(name)
 if obj then pcall(function() obj:Destroy() end) end
 end
@@ -59,7 +59,7 @@ RunService.Heartbeat:Connect(function()
     _G._cc.root = c and c:FindFirstChild("HumanoidRootPart")
     _G._cc.hum = c and c:FindFirstChildOfClass("Humanoid")
 end)
-for _, name in ipairs({"NexusDuelsAdaptReconstruct", "AdaptHubPolished", "CyberHub", "NexusDuelsToo", "NexusMobileButtons", "NexusMobileButtons"}) do
+for _, name in ipairs({"NexusDuelsAdaptReconstruct", "NexusDuelsToo", "NexusMobileButtons", "NexusMusicGui"}) do
 local old = PlayerGui:FindFirstChild(name)
 if old then old:Destroy() end
 end
@@ -209,7 +209,7 @@ customSongs = {}
 autoLeftEnabled = false
 autoRightEnabled = false
 autoLREnabled = false
-autoLRSide = "LEFT" -- LEFT or RIGHT (Anti-Sammy Autoplay SEMI side)
+autoLRSide = "LEFT" -- LEFT or RIGHT
 -- autoPlayMode removed
 _G.NexusFreezeConns = _G.NexusFreezeConns or {}
 -- Anti-anti-desync: predictive PhysicsRep stick (Brainrot only) — see block ~2224
@@ -495,7 +495,7 @@ local enableUnwalk, disableUnwalk
 local resetAnimations, applyAnimationPack
 local AnimationPackList = {"None", "Adidas Sports", "Adidas Community", "Adidas Aura", "Wicked Popular", "Elder", "Zombie", "Mage", "Catwalk Glam", "Astronaut", 'Wicked "Dancing Through Life"', "Werewolf", "Superhero", "Toy", "No Boundaries", "NFL", "Amazon Unboxed", "Vampire", "Ninja", "Robot", "Levitation", "Stylish", "Bubbly", "Cartoon"}
 local AnimationPackIndex = 1
--- ORVYN HUB animation pack engine (ported from ORVYN_HUB.lua; do..end keeps its
+-- Nexus animation pack engine (do..end keeps its
 -- helpers out of the Luau top-level register count)
 do
 local savedAnimate = nil
@@ -1110,7 +1110,7 @@ end
 end)()
 _G.NexusJumpHeld = false
 do
--- ANTI BAT (exact Ambitious logic: root.Velocity spike + restore)
+-- ANTI BAT (Nexus: root.Velocity spike + restore)
 local antibatDesyncConn
 local antibatSuspended = false
 local antibatSpeed = 10000
@@ -1232,7 +1232,7 @@ task.spawn(function()
 	end)
 end)
 local currentBackground = 1
--- Background system assets (Void.Vs port): index 1 = Void background #2
+-- Background system assets (Nexus): index 1 = background #2
 local NEXUS_BACKGROUND_URLS = {
 [1] = nil,
 [2] = "https://files.catbox.moe/v4ftdn.png",
@@ -1682,7 +1682,7 @@ stretchMode = (data.stretchMode == "X3") and "X3" or ((data.stretchMode == "X2")
 _G.NexusStretchMode = stretchMode
 if data.currentAccessoryPack and data.currentAccessoryPack ~= "Off" then
 	currentAccessoryPack = data.currentAccessoryPack
-	-- migrate old Bleed names -> NX
+	-- migrate old gallery names -> NX
 	local bleedMap = {["AV4"]="AV4",["AV6"]="AV6",["NX1"]="AV4",["NX2"]="NX2",["NX3"]="NX3",["NX4"]="AV6",["NX5"]="Off",["NX6"]="NX6",["NX7"]="NX7",["NX8"]="NX8"}
 	if bleedMap[currentAccessoryPack] then currentAccessoryPack = bleedMap[currentAccessoryPack] end
 	if currentAccessoryPack == "FX3 Black" then
@@ -1747,7 +1747,7 @@ end)
 LP.CharacterAdded:Connect(function(char)
 task.wait(0.65)
 applySavedAnimationPackToCharacter(char)
--- Restore gallery pack (Bleed / FX3) on every respawn
+-- Restore gallery pack (NX / FX3) on every respawn
 task.spawn(function()
 	task.wait(0.35)
 	local pack = currentAccessoryPack
@@ -1826,7 +1826,7 @@ _G.NexusCounterState.medLastUsed = tick()
 _G.NexusCounterState.medDebounce = false
 end
 function _G.NexusOnMedusaAnchorChanged(part)
--- Exact Ambitious Med Counter trigger
+-- Nexus Med Counter trigger
 return part:GetPropertyChangedSignal("Anchored"):Connect(function()
 if part.Anchored and part.Transparency == 1 then
 if medCounterEnabled then
@@ -2396,7 +2396,7 @@ end
 end)
 end
 
--- Auto Off Aimbot / TP Bat when enemy ragdolls after you hit them (Ambitious BallSocket detector)
+-- Auto Off Aimbot / TP Bat when enemy ragdolls after you hit them (Nexus BallSocket detector)
 do
   local autoOffPlayerConns = {}
   local autoOffCharConns = {}
@@ -2682,7 +2682,7 @@ if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 _G.NexusNormalAimbotStart = _G.NexusStartNormalAimbot
 _G.NexusNormalAimbotStop = _G.NexusStopNormalAimbot
-do -- V2 Aimbot = exact KyzDuels normal bat aimbot
+do -- V2 Aimbot = Nexus normal bat aimbot
 _G.NexusNormalAimbotV2 = {conn = nil, target = nil, swingCd = false}
 function _G.NexusStartNormalAimbotV2()
 	if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
@@ -2824,7 +2824,7 @@ function _G.NexusStopNormalAimbotV2()
 end
 end
 
-do -- V3 Aimbot = exact Empire Duels normal bat aimbot
+do -- V3 Aimbot = Nexus normal bat aimbot
 _G.NexusNormalAimbotV3 = {conn = nil, target = nil, lastScan = 0}
 function _G.NexusStartNormalAimbotV3()
 	if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
@@ -3122,7 +3122,7 @@ local function _bypassAntiBatDefend(c, root, h)
     return knockbackDetected
 end
 
--- Bypass Aimbot = exact Ambitious Bat Aimbot V1 chase mode BYPASS
+-- Bypass Aimbot = Nexus Bat Aimbot V1 chase mode BYPASS
 function _G.NexusStartBypassAimbot()
     if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
     if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
@@ -3175,7 +3175,7 @@ function _G.NexusStartBypassAimbot()
         end
         h.AutoRotate = false
 
-        -- ===== Ambitious Bat Aimbot V1 BYPASS chase (exact) =====
+        -- ===== Nexus Bat Aimbot V1 BYPASS chase =====
         local myPos = root.Position
         local targetPos = target.Position
         local direction = targetPos - myPos
@@ -3211,7 +3211,7 @@ function _G.NexusStartBypassAimbot()
             root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(Vector3.new(rx * 42, ry * 42, rz * 42))
         end
 
-        -- Swing from activation (no distance gate) — same as Ambitious Bypass V1
+        -- Swing from activation (no distance gate) — Nexus Bypass V1
         if autoSwingEnabled and bat and not ba.swingCooldown then
             ba.swingCooldown = true
             pcall(function() bat:Activate() end)
@@ -3366,7 +3366,7 @@ end
 end)
 
 -- ============================================================
--- TP BAT (Bypass Aimbot) — from Cursed Hub
+-- TP BAT (Bypass Aimbot) — Nexus
 -- Teleports behind closest enemy and swings bat.
 -- Modes: Regular (orbit), OP, V3, OP V4
 -- ============================================================
@@ -3378,7 +3378,7 @@ _G.NexusTpBatSilentAim = _G.NexusTpBatSilentAim or false
 _G.NexusTpBatOrbitSpeed = _G.NexusTpBatOrbitSpeed or 25
 _G.NexusTpBatOrbitRadius = _G.NexusTpBatOrbitRadius or 2.5
 
-local XLU0_TP_BAT_NAMES = {
+local NEXUS_TP_BAT_NAMES = {
     "Bat","Slap","Iron Slap","Gold Slap","Diamond Slap",
     "Emerald Slap","Ruby Slap","Dark Matter Slap","Flame Slap",
     "Nuclear Slap","Galaxy Slap","Glitched Slap"
@@ -3387,7 +3387,7 @@ local XLU0_TP_BAT_NAMES = {
 local function _nexusTpBatGetBat()
     local char = LP.Character
     if not char then return nil end
-    for _, name in ipairs(XLU0_TP_BAT_NAMES) do
+    for _, name in ipairs(NEXUS_TP_BAT_NAMES) do
         local tool = char:FindFirstChild(name)
         if tool and tool:IsA("Tool") then return tool end
     end
@@ -3396,7 +3396,7 @@ local function _nexusTpBatGetBat()
     end
     local bp = LP:FindFirstChild("Backpack")
     if bp then
-        for _, name in ipairs(XLU0_TP_BAT_NAMES) do
+        for _, name in ipairs(NEXUS_TP_BAT_NAMES) do
             local tool = bp:FindFirstChild(name)
             if tool and tool:IsA("Tool") then
                 local hum = char:FindFirstChildOfClass("Humanoid")
@@ -4339,7 +4339,7 @@ end
 end
 _G.__NexusSetupSemiAutoSteal()
 
--- ===== RADIUS CIRCLE (Ambitious-style) =====
+-- ===== RADIUS CIRCLE (Nexus) =====
 do
   local rcPart, rcConn = nil, nil
   local function rcDestroy()
@@ -4399,7 +4399,7 @@ do
   if _G.NexusRadiusCircleEnabled then task.defer(function() _G.NexusSetRadiusCircle(true) end) end
 end
 
--- ===== SEMI V2 (Ambitious-inspired dual-radius) =====
+-- ===== SEMI V2 (Nexus dual-radius) =====
 _G.__NexusSetupSemiV2AutoSteal = function()
   _G.NexusSemiV2Steal = _G.NexusSemiV2Steal or {}
   local B = _G.NexusSemiV2Steal
@@ -4514,7 +4514,7 @@ if _G.NexusNormalAutoStealStop then pcall(_G.NexusNormalAutoStealStop) end
 if _G.NexusSemiV2AutoStealStop then pcall(_G.NexusSemiV2AutoStealStop) end
 if _G.NexusSemiAutoStealSync then pcall(_G.NexusSemiAutoStealSync) end
 end
--- Ragdoll Steal = Synchronize After Hit (Ambitious) with +0.02s delay
+-- Ragdoll Steal = Synchronize After Hit (Nexus) with +0.02s delay
 -- On ragdoll rising edge: stop steal loop, wait 1.47s (2.47s medusa), restart if still enabled
 _G._NexusRagdollSteal = _G._NexusRagdollSteal or {
 	enabled = false,
@@ -4546,7 +4546,7 @@ end
 local function _doNexusRagdollSteal()
 	_nexusStopStealLoops()
 	local myGen = _G._NexusRagdollSteal.gen
-	-- Ambitious: 1.45 / 2.45  →  Nexus: +0.02 → 1.47 / 2.47
+	-- Nexus timings: 1.47 / 2.47
 	local syncDelay = _nexusIsMedusaHit() and 2.47 or 1.47
 	task.delay(syncDelay, function()
 		if myGen ~= _G._NexusRagdollSteal.gen then return end
@@ -4571,7 +4571,7 @@ local function _startNexusRagdollStealWatcher()
 		local hum = char:FindFirstChildOfClass("Humanoid")
 		if not hum or hum.Health <= 0 then return end
 		local state = hum:GetState()
-		-- Physics + Ragdoll only (same as Ambitious; FallingDown excluded)
+		-- Physics + Ragdoll only (FallingDown excluded)
 		local isRagdolled = (state == Enum.HumanoidStateType.Physics
 			or state == Enum.HumanoidStateType.Ragdoll)
 		if isRagdolled and not _G._NexusRagdollSteal.wasRagdoll then
@@ -4983,7 +4983,7 @@ end
 saveNexusConfig()
 end
 _G.NexusAutoPathState = _G.NexusAutoPathState or {leftConn=nil,rightConn=nil,leftPhase=1,rightPhase=1,leftSwingTimer=0,rightSwingTimer=0}
--- Exact KyzDuels Auto Left / Auto Right waypoints
+-- Nexus Auto Left / Auto Right waypoints
 _G.NexusAutoPathPoints = {
 	L1 = Vector3.new(-476.47, -6.28, 92.73),
 	L2 = Vector3.new(-483.12, -4.95, 94.81),
@@ -5051,7 +5051,7 @@ local function _nexusIsRagdollState(hum)
 		or st == Enum.HumanoidStateType.FallingDown
 end
 
--- Exact Kyz drivePathVelocity: AssemblyLinearVelocity + Move + WalkSpeed + move proxy
+-- Nexus drivePathVelocity: AssemblyLinearVelocity + Move + WalkSpeed + move proxy
 local function _nexusDrivePathVelocity(hrp, hum, mv, spd)
 	local vy = hrp.AssemblyLinearVelocity.Y
 	local vel = Vector3.new(mv.X * spd, vy, mv.Z * spd)
@@ -5152,9 +5152,9 @@ function _G.NexusSetAutoRight(on, skipSave)
 	if not skipSave then saveNexusConfig() end
 end
 
--- Exact Kyz startAutoLeft: 2 phases, 1.5 stud threshold, drivePathVelocity
+-- Nexus startAutoLeft: 2 phases, 1.5 stud threshold, drivePathVelocity
 
--- Auto L/R = Anti-Sammy Autoplay SEMI (phase 1→2 then stop on selected side)
+-- Auto L/R = Nexus Autoplay SEMI (phase 1→2 then stop on selected side)
 -- Auto L/R speed: force Normal (or Lagger) while pathing, restore Carry after
 _G.NexusAutoLRSavedSpeedMode = _G.NexusAutoLRSavedSpeedMode or nil
 local function _nexusAutoLRBeginSpeed()
@@ -5191,7 +5191,7 @@ function _G.NexusStopAutoLR()
 	_nexusAutoLRRestoreSpeed()
 end
 
--- Auto-detect LEFT/RIGHT from player position (nearest path start), like Ambitious AutoPlay SEMI
+-- Auto-detect LEFT/RIGHT from player position (nearest path start)
 function _G.NexusAutoLRDetectSide()
 	local P = _G.NexusAutoPathPoints
 	if not P then return autoLRSide or "LEFT" end
@@ -5480,7 +5480,7 @@ discordLbl.TextXAlignment = Enum.TextXAlignment.Center
 discordLbl.ZIndex = 10
 discordLbl.Parent = overheadGui
 local discordGrad = Instance.new("UIGradient")
-discordGrad.Name = "EmpireAnimGrad"
+discordGrad.Name = "NexusAnimGrad"
 discordGrad.Color = ColorSequence.new({
 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
 ColorSequenceKeypoint.new(0.25, Color3.fromRGB(180, 180, 180)),
@@ -5504,7 +5504,7 @@ overheadSpeedLabel.TextXAlignment = Enum.TextXAlignment.Center
 overheadSpeedLabel.ZIndex = 10
 overheadSpeedLabel.Parent = overheadGui
 local speedGrad = Instance.new("UIGradient")
-speedGrad.Name = "EmpireAnimGrad"
+speedGrad.Name = "NexusAnimGrad"
 speedGrad.Color = ColorSequence.new({
 ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
 ColorSequenceKeypoint.new(0.25, Color3.fromRGB(180, 180, 180)),
@@ -5628,9 +5628,9 @@ end
 _G.NexusEnsureLinearVelocity = function(hrp) end
 
 -- ============================================================
--- SPEED ENGINE — exact port of the linked Vynx V3 movement core.
+-- SPEED ENGINE — Nexus movement core.
 -- The Humanoid move direction is pushed every RenderStep through the
--- selected method (default "Velocity" = the impulse method Vynx V3 uses).
+-- selected method (default "Velocity" = impulse method).
 -- ============================================================
 ;(function()
 local MOVE_KEYS = {
@@ -5835,7 +5835,7 @@ end
 end
 
 function _G.NexusSetSpeedMethod(name)
--- Speed technique is intentionally fixed to Vynx V3's default Velocity method.
+-- Speed technique is fixed to Nexus default Velocity method.
 S.method = "Velocity"
 _G.NexusSpeedMethod = "Velocity"
 destroySpeedObjects()
@@ -6277,7 +6277,7 @@ local TitleImage=Instance.new("ImageLabel",Header); TitleImage.Name="VoidTitle";
 task.spawn(function() local a=getImageAsset("https://files.catbox.moe/s2rbw9.png","NexusLogo_s2rbw9.png"); if a then TitleImage.Image=a end end)
 local Close=Instance.new("TextButton",Header); Close.Size=UDim2.new(0,32,0,32); Close.Position=UDim2.new(1,-38,0.5,-16); Close.BackgroundColor3=COLORS.input; Close.Text="-"; Close.TextColor3=COLORS.textDim; Close.Font=Enum.Font.GothamBold; Close.TextSize=18; Close.AutoButtonColor=false; Close.ZIndex=10; corner(Close,8); stroke(Close,COLORS.strokeSoft,1,0.25)
 local Content=Instance.new("ScrollingFrame",Main); Content.Name="Content"; Content.BackgroundTransparency=1; Content.BorderSizePixel=0; Content.Position=UDim2.new(0,0,0,100); Content.Size=UDim2.new(1,0,1,-100); Content.ZIndex=3; Content.ScrollBarThickness=0; Content.ScrollBarImageTransparency=1; Content.CanvasSize=UDim2.new(0,0,0,0); Content.AutomaticCanvasSize=Enum.AutomaticSize.Y; Content.ScrollingDirection=Enum.ScrollingDirection.Y; Content.ClipsDescendants=true
-do -- background image layer (Void.Vs-style BackgroundImage)
+do -- background image layer (Nexus BackgroundImage)
 local bgImage=Instance.new("ImageLabel",Main)
 bgImage.Name="BackgroundImage"
 bgImage.Size=UDim2.new(1,0,1,0)
@@ -6292,7 +6292,7 @@ bgImage.ZIndex=1
 Instance.new("UICorner",bgImage).CornerRadius=UDim.new(0,14)
 BackgroundIDs.__bgImage=bgImage
 end
-do -- Void.Vs-style CanvasGroup idle transparency (matches Void.Vs ChromeFade system)
+do -- Nexus CanvasGroup idle transparency (ChromeFade system)
 local ChromeFade=Instance.new("CanvasGroup")
 ChromeFade.Name="ChromeFade"
 ChromeFade.Size=UDim2.new(1,0,1,0)
@@ -6374,7 +6374,7 @@ local pl=Instance.new("UIListLayout",page); pl.SortOrder=Enum.SortOrder.LayoutOr
 pages[name]=page
 return page
 end
-do -- Cursed Hub-style tab bar (MOVEMENT / COMBAT / KEYBINDS / VISUALS / SETTINGS)
+do -- Nexus tab bar (MOVEMENT / COMBAT / KEYBINDS / VISUALS / SETTINGS)
 local tabsFrame=Instance.new("Frame",Main)
 tabsFrame.Name="TabBar"
 tabsFrame.Position=UDim2.new(0,6,0,62)
@@ -6452,7 +6452,7 @@ label.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
 label.Parent = parent
 return label
 end
--- Animated expand (Ambitious-style open/close + arrow glyph crossfade)
+-- Animated expand (Nexus open/close + arrow glyph crossfade)
 _G.NexusArrowGlyph = function(arrow)
 	if not arrow then return nil, nil end
 	local up = arrow:FindFirstChild("GlyphUp")
@@ -7570,7 +7570,7 @@ end
 carrySpeedBox.Text = tostring(CS)
 end)
 modeDisplayRow(Movement, 4, "Normal")
--- Speed Method chooser removed: Nexus uses the exact Vynx V3 default "Velocity" technique.
+-- Speed Method chooser removed: Nexus uses default "Velocity" technique.
 section(Movement, "LAGGER SPEED", 5)
 _, laggerSpeedBox = textboxRow(Movement, "Lagger Speed", tostring(LAGGER_SPEED), 6)
 laggerSpeedBox.FocusLost:Connect(function()
@@ -9376,7 +9376,7 @@ end
 do
 	local SOUND_CATALOG = {
 		Bat    = {id = "rbxassetid://5713085119", skip = 0.2}, -- keep current bat
-		Medusa = {id = "rbxassetid://129030117458818", skip = 0}, -- Ominous Skull (Kyz)
+		Medusa = {id = "rbxassetid://129030117458818", skip = 0}, -- Ominous Skull (Nexus)
 	}
 	local hooked = setmetatable({}, {__mode = "k"})
 	local tracked = setmetatable({}, {__mode = "k"})
@@ -9492,7 +9492,7 @@ do
 end
 end
 
--- Stretch Resolution (Ambitious-style X1 / X1.5 / X2)
+-- Stretch Resolution (Nexus X1 / X1.5 / X2)
 local stretchRezConn = nil
 local stretchPresets = {
 	["X1.5"] = CFrame.new(0, 0, 0, 1, 0, 0, 0, 0.82, 0, 0, 0, 1),
@@ -9845,7 +9845,7 @@ elseif obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Beam") or obj:
 end
 end)
 end
--- Anti Lag = Nuke + Mid Sun (ported from the linked script): aggressive world
+-- Anti Lag = Nuke + Mid Sun (Nexus): aggressive world
 -- derender (Nuke) plus the bright warm daylight look (Mid Sun). Characters,
 -- plots/podiums, bases and the Saturated Colors effect are all protected.
 local _alDefLightSave = nil
@@ -9972,7 +9972,7 @@ nexusNukeStripObject(obj)
 end)
 end
 -- ============================================================
--- ANTI DROP (ported from "404 | ANTI DROP"): stops the carried
+-- ANTI DROP (Nexus): stops the carried
 -- brainrot from being dropped.  It spoofs the velocity the GAME
 -- reads/writes on our own HumanoidRootPart by hooking the game
 -- metatable.  The hook only applies to non-caller code, so every
@@ -10187,7 +10187,7 @@ _G.NexusGalaxyGravityEnabled = false
 if _G.NexusGalaxyGravityConn then _G.NexusGalaxyGravityConn:Disconnect(); _G.NexusGalaxyGravityConn = nil end
 if _G.NexusGalaxyGravityBV then pcall(function() _G.NexusGalaxyGravityBV:Destroy() end); _G.NexusGalaxyGravityBV = nil end
 end
--- Saturated Colors (ported from linked file): a ColorCorrectionEffect that
+-- Saturated Colors (Nexus): a ColorCorrectionEffect that
 -- boosts saturation / contrast / brightness. Toggled from the VISUALS tab.
 function _G.NexusApplySaturatedColors(on)
 on = on == true
@@ -11056,7 +11056,7 @@ do
 	}
 	local SOUNDS = {
 		Bat = { id = "rbxassetid://5713085119", skip = 0.2 },
-		Medusa = { id = "rbxassetid://129030117458818", skip = 0 }, -- Ominous Skull (Kyz)
+		Medusa = { id = "rbxassetid://129030117458818", skip = 0 }, -- Ominous Skull (Nexus)
 	}
 
 	local function isBatTool(tool)
@@ -11319,7 +11319,7 @@ do
 	end
 
 
-	-- Skull Medusa = Ominous Skull (exact KyzDuels MEDUSA_CUSTOMS ominous)
+	-- Skull Medusa = Ominous Skull (Nexus)
 	do
 		local OMINOUS = {
 			key = "ominous",
@@ -11378,7 +11378,7 @@ do
 			return nil
 		end
 
-		-- Exact Kyz _medusaCustomResolveTemplate logic
+		-- Nexus medusa custom resolve template logic
 		local function resolveTemplate(force)
 			if not force and state.resolved and state.template and state.resolvedId == OMINOUS.id then
 				return true
@@ -11776,7 +11776,7 @@ do
 		end)
 	end
 
-	-- Rainbow Bat + Medusa (exact KyzDuels Bat and Meduse Rainbow logic)
+	-- Rainbow Bat + Medusa (Nexus)
 	do
 		local _batMedusaRain = {
 			enabled = false,
@@ -12265,7 +12265,7 @@ function nexusClearAllAccessories(char)
 	end
 end
 
-function applyBleedOutfit(packName)
+function applyNexusGalleryOutfit(packName)
 	local config = NEXUS_BLEED_PACKS[packName]
 	if not config then return false end
 	local char = LP.Character
@@ -12491,7 +12491,7 @@ function _G.NexusApplyAccessoryPack(packName)
 	end
 	nexusClearAllOutfit(char)
 	nexusClearAllAccessories(char)
-	applyBleedOutfit(packName)
+	applyNexusGalleryOutfit(packName)
 	-- re-apply custom shirt/pants if user has them set
 	if (customShirt and customShirt ~= "None") or (customPants and customPants ~= "None") then
 		task.defer(function()
@@ -12516,7 +12516,7 @@ end
 
 -- >>> BRAINROT TRANSPARENCY BEGIN
 (function()
--- Same idea as Ambitious "Brainrot X-Ray":
+-- Nexus Brainrot X-Ray:
 -- brainrot models are identified from ReplicatedStorage.Datas.Animals,
 -- then only their visible parts/decals/textures are made semi-transparent.
 -- Original transparency is saved and restored exactly when disabled.
@@ -12559,7 +12559,7 @@ _G._NexusBrainrotTransparency.applyOne = function(o)
 	local orig = BR.saved[o]
 	if orig == nil then
 		orig = o.Transparency
-		-- Treat already semi-transparent hitboxes as invisible, matching Ambitious.
+		-- Treat already semi-transparent hitboxes as invisible.
 		if orig > 0.5 and orig < 0.99 and o:IsA("BasePart") and BR.isHitbox(o) then
 			orig = 1
 		end
@@ -13129,7 +13129,7 @@ end)
 end
 end
 do
-	-- Stretched Resolution: toggle + arrow expand with X1.5 / X2 / X3 (Ambitious-style)
+	-- Stretched Resolution: toggle + arrow expand with X1.5 / X2 / X3
 	local STRETCH_PICKS = {"X1.5", "X2", "X3"}
 	local row, setVisual = toggleRow(Utility, "Stretched Resolution", _G.NexusStretchRezEnabled, 28.8)
 	_G.NexusSetStretchRezVisual = setVisual
@@ -13214,7 +13214,7 @@ do
 		end)
 	end
 
-	-- Arrow expand (like Ambitious)
+	-- Arrow expand
 	local sArrow = Instance.new("TextButton")
 	sArrow.Name = "StretchRezArrow"
 	sArrow.BackgroundColor3 = COLORS.input
@@ -16064,7 +16064,7 @@ sc.Parent = holder
 end
 end
 pcall(function()
-local gui = PlayerGui:FindFirstChild("NexusDuelsToo") or PlayerGui:FindFirstChild("AdaptHubPolished") or PlayerGui:FindFirstChild("CyberHub")
+local gui = PlayerGui:FindFirstChild("NexusDuelsToo") or PlayerGui:FindFirstChild("NexusHud")
 local root = gui or PlayerGui
 for _, obj in ipairs(root:GetDescendants()) do
 if obj.Name == "Mobile Buttons Size" then
