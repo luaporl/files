@@ -5279,13 +5279,13 @@ end
 _G.NexusAutoPathState = _G.NexusAutoPathState or {leftConn=nil,rightConn=nil,leftPhase=1,rightPhase=1,leftSwingTimer=0,rightSwingTimer=0}
 -- Nexus Auto Left / Auto Right waypoints
 _G.NexusAutoPathPoints = {
-	-- VX7 AutoPlay SEMI (half) waypoints
-	L1 = Vector3.new(-476.48, -6.28, 92.73),
-	L2 = Vector3.new(-483.12, -4.95, 94.8),
-	LFace = Vector3.new(-483.12, -4.95, 94.8),
+	-- Adapt Volt Auto Left / Auto Right waypoints
+	L1 = Vector3.new(-476.48, -6.28, 94.87),
+	L2 = Vector3.new(-483.12, -4.95, 94.81),
+	LFace = Vector3.new(-482.25, -4.96, 92.09),
 	R1 = Vector3.new(-476.16, -6.52, 25.62),
 	R2 = Vector3.new(-483.06, -5.03, 25.48),
-	RFace = Vector3.new(-483.06, -5.03, 25.48),
+	RFace = Vector3.new(-482.06, -6.93, 35.47),
 }
 
 local _nexusMoveProxy = nil
@@ -5348,17 +5348,15 @@ end
 
 -- Nexus drivePathVelocity: AssemblyLinearVelocity + Move + WalkSpeed + move proxy
 local function _nexusDrivePathVelocity(hrp, hum, mv, spd)
+	-- Adapt Volt style: Humanoid:Move + horizontal AssemblyLinearVelocity
+	if not hrp or not hum or not mv then return end
+	if mv.Magnitude < 0.05 then return end
+	local unit = mv.Unit
 	local vy = hrp.AssemblyLinearVelocity.Y
-	local vel = Vector3.new(mv.X * spd, vy, mv.Z * spd)
-	hrp.AssemblyLinearVelocity = vel
-	local proxy = _nexusEnsureMoveProxy()
-	if proxy then
-		proxy.AssemblyLinearVelocity = vel
-	end
 	pcall(function()
-		hum.WalkSpeed = spd
-		hum:Move(mv, false)
+		hum:Move(unit, false)
 	end)
+	hrp.AssemblyLinearVelocity = Vector3.new(unit.X * spd, vy, unit.Z * spd)
 end
 
 function _G.NexusStopAutoLeft()
@@ -5542,7 +5540,7 @@ function _G.NexusToggleAutoLR()
 end
 
 function _G.NexusStartAutoLeft()
-	-- Kyz AutoPlay SEMI LEFT: L1 -> L2 (arrival 1.5), face LFace, then stop
+	-- Adapt Volt Auto Left: L1 -> L2, arrival < 1.5 (Y ignored), Move+Velocity drive
 	local S = _G.NexusAutoPathState
 	if not S then
 		_G.NexusAutoPathState = { leftConn = nil, rightConn = nil, leftPhase = 1, rightPhase = 1 }
@@ -5554,6 +5552,10 @@ function _G.NexusStartAutoLeft()
 	S.leftSwingTimer = 0
 	autoLeftEnabled = true
 	autoRightEnabled = false
+	autoLREnabled = false
+
+	-- force normal (or lagger) speed like Adapt fn46(false)
+	if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
 
 	S.leftConn = RunService.Heartbeat:Connect(function()
 		if not autoLeftEnabled then return end
@@ -5566,21 +5568,26 @@ function _G.NexusStartAutoLeft()
 			pcall(function() hum:Move(Vector3.zero, false) end)
 			return
 		end
+
+		-- keep non-carry while pathing
+		if currentSpeedMode == "Carry" or currentSpeedMode == "Lagger Carry" then
+			if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
+		end
+
 		local P = _G.NexusAutoPathPoints
 		local spd = (_G.NexusAutoPathSpeed and _G.NexusAutoPathSpeed()) or 59
 		if type(spd) ~= "number" or spd ~= spd then spd = 59 end
 		spd = math.clamp(spd, 16, 200)
 
+		local function arrived(point)
+			local pos = hrp.Position
+			return (Vector3.new(point.X, pos.Y, point.Z) - pos).Magnitude < 1.5
+		end
+
 		local function toward(point)
 			local flat = Vector3.new(point.X - hrp.Position.X, 0, point.Z - hrp.Position.Z)
-			local dist = flat.Magnitude
-			if dist < 1.5 then
-				return true, nil
-			end
-			if flat.Magnitude > 0.001 then
-				return false, flat.Unit
-			end
-			return false, nil
+			if flat.Magnitude < 0.1 then return nil end
+			return flat.Unit
 		end
 
 		if autoSwingEnabled then
@@ -5599,41 +5606,33 @@ function _G.NexusStartAutoLeft()
 		end
 
 		if S.leftPhase == 1 then
-			local done, mv = toward(P.L1)
-			if done then
+			if arrived(P.L1) then
 				S.leftPhase = 2
-				local _, mv2 = toward(P.L2)
-				if mv2 then _nexusDrivePathVelocity(hrp, hum, mv2, spd) end
 				return
 			end
+			local mv = toward(P.L1)
 			if mv then _nexusDrivePathVelocity(hrp, hum, mv, spd) end
-		elseif S.leftPhase == 2 then
-			local done, mv = toward(P.L2)
-			if done then
+		else
+			if arrived(P.L2) then
 				pcall(function() hum:Move(Vector3.zero, false) end)
 				local v = hrp.AssemblyLinearVelocity
 				hrp.AssemblyLinearVelocity = Vector3.new(0, v.Y, 0)
-				if P.LFace and (P.LFace - hrp.Position).Magnitude > 0.01 then
-					hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(P.LFace.X, hrp.Position.Y, P.LFace.Z))
-				end
 				autoLeftEnabled = false
-				autoLREnabled = false
 				if S.leftConn then S.leftConn:Disconnect(); S.leftConn = nil end
 				S.leftPhase = 1
-				if _nexusDestroyMoveProxy then _nexusDestroyMoveProxy() end
 				if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
-				if _G.NexusSetAutoLRVisual then _G.NexusSetAutoLRVisual(false) end
 				if _G.NexusAutoLRRestoreSpeed then _G.NexusAutoLRRestoreSpeed() end
 				saveNexusConfig()
 				return
 			end
+			local mv = toward(P.L2)
 			if mv then _nexusDrivePathVelocity(hrp, hum, mv, spd) end
 		end
 	end)
 end
 
 function _G.NexusStartAutoRight()
-	-- Kyz AutoPlay SEMI RIGHT: R1 -> R2 (arrival 1.5), face RFace, then stop
+	-- Adapt Volt Auto Right: R1 -> R2, arrival < 1.5 (Y ignored), Move+Velocity drive
 	local S = _G.NexusAutoPathState
 	if not S then
 		_G.NexusAutoPathState = { leftConn = nil, rightConn = nil, leftPhase = 1, rightPhase = 1 }
@@ -5645,6 +5644,9 @@ function _G.NexusStartAutoRight()
 	S.rightSwingTimer = 0
 	autoRightEnabled = true
 	autoLeftEnabled = false
+	autoLREnabled = false
+
+	if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
 
 	S.rightConn = RunService.Heartbeat:Connect(function()
 		if not autoRightEnabled then return end
@@ -5657,21 +5659,25 @@ function _G.NexusStartAutoRight()
 			pcall(function() hum:Move(Vector3.zero, false) end)
 			return
 		end
+
+		if currentSpeedMode == "Carry" or currentSpeedMode == "Lagger Carry" then
+			if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
+		end
+
 		local P = _G.NexusAutoPathPoints
 		local spd = (_G.NexusAutoPathSpeed and _G.NexusAutoPathSpeed()) or 59
 		if type(spd) ~= "number" or spd ~= spd then spd = 59 end
 		spd = math.clamp(spd, 16, 200)
 
+		local function arrived(point)
+			local pos = hrp.Position
+			return (Vector3.new(point.X, pos.Y, point.Z) - pos).Magnitude < 1.5
+		end
+
 		local function toward(point)
 			local flat = Vector3.new(point.X - hrp.Position.X, 0, point.Z - hrp.Position.Z)
-			local dist = flat.Magnitude
-			if dist < 1.5 then
-				return true, nil
-			end
-			if flat.Magnitude > 0.001 then
-				return false, flat.Unit
-			end
-			return false, nil
+			if flat.Magnitude < 0.1 then return nil end
+			return flat.Unit
 		end
 
 		if autoSwingEnabled then
@@ -5690,38 +5696,31 @@ function _G.NexusStartAutoRight()
 		end
 
 		if S.rightPhase == 1 then
-			local done, mv = toward(P.R1)
-			if done then
+			if arrived(P.R1) then
 				S.rightPhase = 2
-				local _, mv2 = toward(P.R2)
-				if mv2 then _nexusDrivePathVelocity(hrp, hum, mv2, spd) end
 				return
 			end
+			local mv = toward(P.R1)
 			if mv then _nexusDrivePathVelocity(hrp, hum, mv, spd) end
-		elseif S.rightPhase == 2 then
-			local done, mv = toward(P.R2)
-			if done then
+		else
+			if arrived(P.R2) then
 				pcall(function() hum:Move(Vector3.zero, false) end)
 				local v = hrp.AssemblyLinearVelocity
 				hrp.AssemblyLinearVelocity = Vector3.new(0, v.Y, 0)
-				if P.RFace and (P.RFace - hrp.Position).Magnitude > 0.01 then
-					hrp.CFrame = CFrame.new(hrp.Position, Vector3.new(P.RFace.X, hrp.Position.Y, P.RFace.Z))
-				end
 				autoRightEnabled = false
-				autoLREnabled = false
 				if S.rightConn then S.rightConn:Disconnect(); S.rightConn = nil end
 				S.rightPhase = 1
-				if _nexusDestroyMoveProxy then _nexusDestroyMoveProxy() end
 				if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
-				if _G.NexusSetAutoLRVisual then _G.NexusSetAutoLRVisual(false) end
 				if _G.NexusAutoLRRestoreSpeed then _G.NexusAutoLRRestoreSpeed() end
 				saveNexusConfig()
 				return
 			end
+			local mv = toward(P.R2)
 			if mv then _nexusDrivePathVelocity(hrp, hum, mv, spd) end
 		end
 	end)
 end
+
 
 LP.CharacterAdded:Connect(function()
 task.wait(0.5)
