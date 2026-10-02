@@ -16,6 +16,7 @@ _G.NexusCleanupAll = function()
 pcall(function() if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end end)
 pcall(function() if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end end)
 pcall(function() if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end end)
+pcall(function() if _G.NexusStopNormalAimbotV4 then _G.NexusStopNormalAimbotV4() end end)
 pcall(function() if _G.NexusStopTpBat then _G.NexusStopTpBat() end end)
 pcall(function() if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end end)
 pcall(function() if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end end)
@@ -220,7 +221,8 @@ LaggerToggle = Enum.KeyCode.R,
 DropBrainrot = Enum.KeyCode.X,
 Aimbot = Enum.KeyCode.E,
 TpBat = Enum.KeyCode.V,
-AutoLR = Enum.KeyCode.Z,
+AutoLeft = Enum.KeyCode.Z,
+AutoRight = Enum.KeyCode.C,
 AutoDodge = Enum.KeyCode.H,
 InstaReset = Enum.KeyCode.G,
 Antibat = Enum.KeyCode.N,
@@ -233,7 +235,8 @@ LaggerToggle = DEFAULT_SPEED_KEYBINDS.LaggerToggle,
 DropBrainrot = DEFAULT_SPEED_KEYBINDS.DropBrainrot,
 Aimbot = DEFAULT_SPEED_KEYBINDS.Aimbot,
 TpBat = DEFAULT_SPEED_KEYBINDS.TpBat,
-AutoLR = DEFAULT_SPEED_KEYBINDS.AutoLR,
+AutoLeft = DEFAULT_SPEED_KEYBINDS.AutoLeft,
+AutoRight = DEFAULT_SPEED_KEYBINDS.AutoRight,
 AutoDodge = DEFAULT_SPEED_KEYBINDS.AutoDodge,
 InstaReset = DEFAULT_SPEED_KEYBINDS.InstaReset,
 Antibat = DEFAULT_SPEED_KEYBINDS.Antibat,
@@ -1640,7 +1643,7 @@ medusaStealEnabled = false
 if type(data.nexusStealRadii) == "table" and data.nexusStealRadii.Normal and data.nexusStealRadii.Semi then _G.NexusStealRadii = data.nexusStealRadii end
 stealTriggerMode = data.stealTriggerMode or "Tryhard"
 selectedAimbotMode = data.selectedAimbotMode or "Normal"
-if data.aimbotVersion == "V1" or data.aimbotVersion == "V2" or data.aimbotVersion == "V3" then aimbotVersion = data.aimbotVersion end
+if data.aimbotVersion == "V1" or data.aimbotVersion == "V2" or data.aimbotVersion == "V3" or data.aimbotVersion == "V4" then aimbotVersion = data.aimbotVersion end
 AIMBOT_SPEED = tonumber(data.AIMBOT_SPEED) or AIMBOT_SPEED
 AIMBOT_VERT_SPEED = tonumber(data.AIMBOT_VERT_SPEED) or AIMBOT_VERT_SPEED
 LAGGER_AIMBOT_SPEED = tonumber(data.LAGGER_AIMBOT_SPEED) or LAGGER_AIMBOT_SPEED
@@ -1712,7 +1715,7 @@ end
 end
 autoLeftEnabled = data.autoLeftEnabled == true
 autoRightEnabled = data.autoRightEnabled == true
-autoLREnabled = data.autoLREnabled == true
+autoLREnabled = false -- Auto L/R removed; use Auto Left / Auto Right
 if data.autoLRSide == "LEFT" or data.autoLRSide == "RIGHT" then autoLRSide = data.autoLRSide end
 _G.NexusStretchRezEnabled = data.stretchRezEnabled == true
 stretchMode = (data.stretchMode == "X3") and "X3" or ((data.stretchMode == "X2") and "X2" or "X1.5")
@@ -2397,6 +2400,7 @@ local stopped = false
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot(); stopped = true end
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2(); stopped = true end
 if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3(); stopped = true end
+if _G.NexusNormalAimbotOn and _G.NexusStopNormalAimbotV4 then _G.NexusStopNormalAimbotV4(); stopped = true end
 if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat(); stopped = true end
 if autoLeftEnabled then
 autoLeftEnabled = false
@@ -2621,6 +2625,9 @@ function _G.NexusStartNormalAimbot()
 	if _G.NexusNormalAimbotV3 and _G.NexusNormalAimbotV3.conn then
 		pcall(function() _G.NexusStopNormalAimbotV3() end)
 	end
+	if _G.NexusNormalAimbotV4 and _G.NexusNormalAimbotV4.conn then
+		pcall(function() _G.NexusStopNormalAimbotV4() end)
+	end
 	if _G.NexusStopBypassAimbot then
 		pcall(function() _G.NexusStopBypassAimbot() end)
 	end
@@ -2788,6 +2795,9 @@ function _G.NexusStartNormalAimbotV2()
 	if _G.NexusNormalAimbotV3 and _G.NexusNormalAimbotV3.conn then
 		pcall(function() _G.NexusStopNormalAimbotV3() end)
 	end
+	if _G.NexusNormalAimbotV4 and _G.NexusNormalAimbotV4.conn then
+		pcall(function() _G.NexusStopNormalAimbotV4() end)
+	end
 	_G.NexusNormalAimbotOn = true
 	local state = _G.NexusNormalAimbotV2
 	if state.conn then state.conn:Disconnect(); state.conn = nil end
@@ -2937,6 +2947,9 @@ function _G.NexusStartNormalAimbotV3()
 	if _G.NexusNormalAimbotV2 and _G.NexusNormalAimbotV2.conn then
 		pcall(function() _G.NexusStopNormalAimbotV2() end)
 	end
+	if _G.NexusNormalAimbotV4 and _G.NexusNormalAimbotV4.conn then
+		pcall(function() _G.NexusStopNormalAimbotV4() end)
+	end
 
 	_G.NexusNormalAimbotOn = true
 	local state = _G.NexusNormalAimbotV3
@@ -3079,6 +3092,272 @@ function _G.NexusStopNormalAimbotV3()
 	if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
 end
 end
+
+do -- V4 Aimbot = improved predict + swing gate + tuned chase
+_G.NexusNormalAimbotV4 = _G.NexusNormalAimbotV4 or {
+	conn = nil, target = nil, stickyTarget = nil, stickyUntil = 0, lastScan = 0,
+	velHistory = {}, lastDist = nil, swingCooldown = false,
+}
+
+local V4_STICKY_TIME = 1.1
+local V4_STICKY_MAX_DIST = 95
+local V4_HEIGHT = 3.45
+local V4_Y_SPRING = 16.5
+local V4_VEL_LERP = 0.62
+local V4_ANG = 34
+local V4_ANG_CLAMP = 2.0
+local V4_SWING_DIST = 6.5
+local V4_SWING_HEIGHT = 4.5
+local V4_SWING_CD = 0.1
+
+function _G.NexusStartNormalAimbotV4()
+	if _G.NexusSafeModeTryStart and not _G.NexusSafeModeTryStart() then return false end
+	if _G.NexusStopAutoTPForAction then _G.NexusStopAutoTPForAction() end
+	if _G.NexusTpBatEnabled and _G.NexusStopTpBat then pcall(_G.NexusStopTpBat) end
+	autoLeftEnabled = false
+	autoRightEnabled = false
+	if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
+	if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
+	if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+	if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+	if _G.NexusNormalAimbot and _G.NexusNormalAimbot.conn then
+		pcall(function() _G.NexusStopNormalAimbot() end)
+	end
+	if _G.NexusNormalAimbotV2 and _G.NexusNormalAimbotV2.conn then
+		pcall(function() _G.NexusStopNormalAimbotV2() end)
+	end
+	if _G.NexusNormalAimbotV3 and _G.NexusNormalAimbotV3.conn then
+		pcall(function() _G.NexusStopNormalAimbotV3() end)
+	end
+	if _G.NexusStopBypassAimbot then pcall(_G.NexusStopBypassAimbot) end
+
+	_G.NexusNormalAimbotOn = true
+	local state = _G.NexusNormalAimbotV4
+	if state.conn then state.conn:Disconnect(); state.conn = nil end
+	state.target = nil
+	state.stickyTarget = nil
+	state.stickyUntil = 0
+	state.lastScan = 0
+	state.velHistory = {}
+	state.lastDist = nil
+	state.swingCooldown = false
+
+	state.conn = RunService.Heartbeat:Connect(function(dt)
+		if not _G.NexusNormalAimbotOn or aimbotVersion ~= "V4" then return end
+		if selectedAimbotMode ~= "Normal" and selectedAimbotMode ~= "Bypass" then return end
+
+		local char = LP.Character
+		if not char then return end
+		local root = char:FindFirstChild("HumanoidRootPart")
+		if not root then return end
+		local hum = char:FindFirstChildOfClass("Humanoid")
+		if not hum or hum.Health <= 0 then return end
+
+		-- skip while ragdolled
+		local st = hum:GetState()
+		if hum.PlatformStand
+			or st == Enum.HumanoidStateType.Physics
+			or st == Enum.HumanoidStateType.Ragdoll
+			or st == Enum.HumanoidStateType.FallingDown then
+			hum.AutoRotate = true
+			return
+		end
+
+		if not char:FindFirstChildOfClass("Tool") then
+			local bat = _G.NexusFindAimbotBat and _G.NexusFindAimbotBat()
+			if bat then pcall(function() hum:EquipTool(bat) end) end
+		end
+
+		local now = tick()
+		local target = state.stickyTarget
+
+		local function valid(t)
+			if not t or not t.Parent then return false end
+			local th = t.Parent:FindFirstChildOfClass("Humanoid")
+			if not th or th.Health <= 0 then return false end
+			-- drop sticky if target hard-ragdolled for long
+			local tst = th:GetState()
+			if th.PlatformStand or tst == Enum.HumanoidStateType.Physics or tst == Enum.HumanoidStateType.Ragdoll then
+				-- still valid but prefer not to re-stick forever
+			end
+			return (t.Position - root.Position).Magnitude <= V4_STICKY_MAX_DIST
+		end
+
+		if not valid(target) or now >= (state.stickyUntil or 0) then
+			if now - (state.lastScan or 0) > 0.1 then
+				state.lastScan = now
+				if _G.NexusGetClosestAimbotTarget then
+					target = select(1, _G.NexusGetClosestAimbotTarget())
+				else
+					local closest, minD = nil, math.huge
+					for _, plr in ipairs(Players:GetPlayers()) do
+						if plr ~= LP and plr.Character then
+							local tRoot = plr.Character:FindFirstChild("HumanoidRootPart")
+							local th = plr.Character:FindFirstChildOfClass("Humanoid")
+							if tRoot and th and th.Health > 0 then
+								local d = (tRoot.Position - root.Position).Magnitude
+								if d < minD then minD = d; closest = tRoot end
+							end
+						end
+					end
+					target = closest
+				end
+				state.stickyTarget = target
+				state.stickyUntil = now + V4_STICKY_TIME
+				state.velHistory = {}
+			end
+		else
+			target = state.stickyTarget
+		end
+
+		if not target then
+			state.target = nil
+			state.lastDist = nil
+			hum.AutoRotate = true
+			root.AssemblyAngularVelocity = Vector3.zero
+			return
+		end
+
+		state.target = target
+		hum.AutoRotate = false
+
+		local myPos = root.Position
+		local targetPos = target.Position
+		local targetVel = target.AssemblyLinearVelocity or Vector3.zero
+		local dist = (targetPos - myPos).Magnitude
+		local speed = targetVel.Magnitude
+
+		-- velocity history for acceleration
+		local hist = state.velHistory
+		table.insert(hist, { v = targetVel, t = now })
+		while #hist > 6 do table.remove(hist, 1) end
+		local accel = Vector3.zero
+		if #hist >= 3 then
+			local a = hist[#hist]
+			local b = hist[#hist - 2]
+			local ddt = math.max(a.t - b.t, 1/120)
+			accel = (a.v - b.v) / ddt
+		end
+
+		-- distance + speed lead + half accel term
+		local predictTime = math.clamp(dist / 190 + speed / 150, 0.06, 0.24)
+		local leadDir
+		if speed > 8 then
+			leadDir = targetVel.Unit
+		else
+			leadDir = target.CFrame.LookVector
+		end
+		local aimPos = targetPos
+			+ targetVel * predictTime
+			+ accel * (0.5 * predictTime * predictTime) * 0.35
+			+ leadDir * math.clamp(speed * 0.02, 0.15, 1.2)
+			+ Vector3.new(0, 1.0, 0)
+
+		local direction = aimPos - myPos
+		local flatDir = Vector3.new(direction.X, 0, direction.Z)
+		if flatDir.Magnitude > 0.01 then
+			flatDir = flatDir.Unit
+		else
+			flatDir = Vector3.new(0, 0, 1)
+		end
+
+		local chaseSpeed = math.clamp(tonumber(AIMBOT_SPEED) or 58, 1, 200)
+		if currentSpeedMode == "Lagger" or currentSpeedMode == "Lagger Carry" then
+			chaseSpeed = math.clamp(tonumber(LAGGER_AIMBOT_SPEED) or 40, 1, 200)
+		end
+
+		local desiredHeight = targetPos.Y + V4_HEIGHT
+		local yVel = (desiredHeight - myPos.Y) * V4_Y_SPRING + targetVel.Y * 0.75
+		if hum.FloorMaterial ~= Enum.Material.Air then
+			yVel = math.max(yVel, 12)
+		end
+		yVel = math.clamp(yVel, -70, 105)
+		local desiredVel = Vector3.new(flatDir.X * chaseSpeed, yVel, flatDir.Z * chaseSpeed)
+		root.AssemblyLinearVelocity = root.AssemblyLinearVelocity:Lerp(desiredVel, V4_VEL_LERP)
+
+		-- angular look at predicted point
+		local lookPos = targetPos + targetVel * math.clamp(speed / 150, 0.05, 0.2)
+		if (lookPos - myPos).Magnitude > 0.15 then
+			local goalCF = CFrame.lookAt(myPos, lookPos)
+			local rx, ry, rz = (root.CFrame:Inverse() * goalCF):ToEulerAnglesXYZ()
+			rx = math.clamp(rx, -V4_ANG_CLAMP, V4_ANG_CLAMP)
+			ry = math.clamp(ry, -V4_ANG_CLAMP, V4_ANG_CLAMP)
+			rz = math.clamp(rz, -V4_ANG_CLAMP, V4_ANG_CLAMP)
+			root.AssemblyAngularVelocity = root.CFrame:VectorToWorldSpace(
+				Vector3.new(rx * V4_ANG, ry * V4_ANG, rz * V4_ANG)
+			)
+		end
+
+		-- swing gate: distance + height + preferably closing in
+		local flatDist = Vector3.new(myPos.X - targetPos.X, 0, myPos.Z - targetPos.Z).Magnitude
+		local heightDiff = math.abs(myPos.Y - targetPos.Y)
+		local closing = true
+		if state.lastDist then
+			closing = flatDist <= (state.lastDist + 0.15)
+		end
+		state.lastDist = flatDist
+
+		if autoSwingEnabled ~= false
+			and flatDist <= V4_SWING_DIST
+			and heightDiff < V4_SWING_HEIGHT
+			and closing
+			and not state.swingCooldown then
+			state.swingCooldown = true
+			pcall(function()
+				local bat = char:FindFirstChildOfClass("Tool")
+				if bat then
+					local n = bat.Name:lower()
+					if not (n:find("bat") or n:find("slap")) then
+						bat = _G.NexusFindAimbotBat and _G.NexusFindAimbotBat()
+					end
+				else
+					bat = _G.NexusFindAimbotBat and _G.NexusFindAimbotBat()
+				end
+				if not bat then return end
+				if bat.Parent ~= char then
+					hum:EquipTool(bat)
+				end
+				if bat.Parent == char then
+					bat:Activate()
+				end
+			end)
+			task.delay(V4_SWING_CD, function()
+				if _G.NexusNormalAimbotV4 == state then
+					state.swingCooldown = false
+				end
+			end)
+		end
+	end)
+
+	if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+	return true
+end
+
+function _G.NexusStopNormalAimbotV4()
+	_G.NexusNormalAimbotOn = false
+	local state = _G.NexusNormalAimbotV4
+	if state and state.conn then state.conn:Disconnect(); state.conn = nil end
+	if state then
+		state.target = nil
+		state.stickyTarget = nil
+		state.stickyUntil = 0
+		state.lastScan = 0
+		state.velHistory = {}
+		state.lastDist = nil
+		state.swingCooldown = false
+	end
+	local c = LP.Character
+	local root = c and c:FindFirstChild("HumanoidRootPart")
+	if root then
+		root.AssemblyLinearVelocity = Vector3.zero
+		root.AssemblyAngularVelocity = Vector3.zero
+	end
+	local hum = c and c:FindFirstChildOfClass("Humanoid")
+	if hum then hum.AutoRotate = true end
+	if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
+end
+end
+
 
 do -- Bypass Aimbot + Anti-Bat Defense (combined offensive chase + defensive knockback cancel)
 _G.NexusBypassAimbot = {conn = nil, antiBatConn = nil, swingCooldown = false, prevAutoRotate = nil, prevVelocity = Vector3.zero, prevHealth = 100}
@@ -3363,6 +3642,8 @@ function _G.NexusToggleSelectedAimbot()
 if _G.NexusNormalAimbotOn then
 if selectedAimbotMode == "Bypass" and _G.NexusStopBypassAimbot then
 _G.NexusStopBypassAimbot()
+elseif aimbotVersion == "V4" and _G.NexusStopNormalAimbotV4 then
+_G.NexusStopNormalAimbotV4()
 elseif aimbotVersion == "V3" and _G.NexusStopNormalAimbotV3 then
 _G.NexusStopNormalAimbotV3()
 elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then
@@ -3377,6 +3658,8 @@ pcall(_G.NexusStopTpBat)
 end
 if selectedAimbotMode == "Bypass" and _G.NexusStartBypassAimbot then
 _G.NexusStartBypassAimbot()
+elseif aimbotVersion == "V4" and _G.NexusStartNormalAimbotV4 then
+_G.NexusStartNormalAimbotV4()
 elseif aimbotVersion == "V3" and _G.NexusStartNormalAimbotV3 then
 _G.NexusStartNormalAimbotV3()
 elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then
@@ -5121,22 +5404,28 @@ function _G.NexusSetAutoLeft(on, skipSave)
 		if not skipSave then saveNexusConfig() end
 		return false
 	end
+	autoLREnabled = false
 	autoLeftEnabled = on and true or false
 	if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(autoLeftEnabled) end
 	if autoLeftEnabled then
 		autoRightEnabled = false
 		if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(false) end
 		if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
-		if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-		if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
-		if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
-		if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat() end
+		if _G.NexusStopNormalAimbot then pcall(_G.NexusStopNormalAimbot) end
+		if _G.NexusStopNormalAimbotV2 then pcall(_G.NexusStopNormalAimbotV2) end
+		if _G.NexusStopNormalAimbotV3 then pcall(_G.NexusStopNormalAimbotV3) end
+		if _G.NexusStopNormalAimbotV4 then pcall(_G.NexusStopNormalAimbotV4) end
+		if _G.NexusStopBypassAimbot then pcall(_G.NexusStopBypassAimbot) end
+		if _G.NexusTpBatEnabled and _G.NexusStopTpBat then pcall(_G.NexusStopTpBat) end
 		_G.NexusNormalAimbotOn = false
+		if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
 		if _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
 	else
 		if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
+		if _G.NexusAutoLRRestoreSpeed then _G.NexusAutoLRRestoreSpeed() end
 	end
 	if not skipSave then saveNexusConfig() end
+	return true
 end
 
 function _G.NexusSetAutoRight(on, skipSave)
@@ -5146,25 +5435,29 @@ function _G.NexusSetAutoRight(on, skipSave)
 		if not skipSave then saveNexusConfig() end
 		return false
 	end
+	autoLREnabled = false
 	autoRightEnabled = on and true or false
 	if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(autoRightEnabled) end
 	if autoRightEnabled then
 		autoLeftEnabled = false
 		if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(false) end
 		if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
-		if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
-		if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
-		if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
-		if _G.NexusTpBatEnabled and _G.NexusStopTpBat then _G.NexusStopTpBat() end
+		if _G.NexusStopNormalAimbot then pcall(_G.NexusStopNormalAimbot) end
+		if _G.NexusStopNormalAimbotV2 then pcall(_G.NexusStopNormalAimbotV2) end
+		if _G.NexusStopNormalAimbotV3 then pcall(_G.NexusStopNormalAimbotV3) end
+		if _G.NexusStopNormalAimbotV4 then pcall(_G.NexusStopNormalAimbotV4) end
+		if _G.NexusStopBypassAimbot then pcall(_G.NexusStopBypassAimbot) end
+		if _G.NexusTpBatEnabled and _G.NexusStopTpBat then pcall(_G.NexusStopTpBat) end
 		_G.NexusNormalAimbotOn = false
+		if _nexusAutoLRBeginSpeed then _nexusAutoLRBeginSpeed() end
 		if _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
 	else
 		if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
+		if _G.NexusAutoLRRestoreSpeed then _G.NexusAutoLRRestoreSpeed() end
 	end
 	if not skipSave then saveNexusConfig() end
+	return true
 end
-
--- Nexus startAutoLeft: 2 phases, 1.5 stud threshold, drivePathVelocity
 
 -- Auto L/R = Nexus Autoplay SEMI (phase 1→2 then stop on selected side)
 -- Auto L/R speed: force Normal (or Lagger) while pathing, restore Carry after
@@ -5238,47 +5531,14 @@ function _G.NexusAutoLRDetectSide()
 end
 
 function _G.NexusSetAutoLR(on, skipSave)
-	on = on and true or false
-	if not on then
-		_G.NexusStopAutoLR()
-		if not skipSave then saveNexusConfig() end
-		return
-	end
-	-- can't turn Auto L/R on while holding a brainrot
-	if _G.NexusSafeModeHoldingBrainrot and _G.NexusSafeModeHoldingBrainrot() then
-		if showActionNotification then pcall(function() showActionNotification("AUTO L/R BLOCKED (HOLDING BRAINROT)") end) end
-		return
-	end
-	-- exclusive vs aimbot/tpbat
-	if _G.NexusNormalAimbotOn then
-		pcall(function() if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end end)
-		pcall(function() if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end end)
-		pcall(function() if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end end)
-	end
-	if _G.NexusTpBatEnabled and _G.NexusStopTpBat then pcall(_G.NexusStopTpBat) end
-	-- Force normal speed during path (restore carry after)
-	_nexusAutoLRBeginSpeed()
-	autoLREnabled = true
-	-- Automatic side (no manual LEFT/RIGHT chooser)
-	local side = _G.NexusAutoLRDetectSide and _G.NexusAutoLRDetectSide() or "LEFT"
-	autoLRSide = side
-	if side == "LEFT" then
-		autoRightEnabled = false
-		if _G.NexusStopAutoRight then _G.NexusStopAutoRight() end
-		autoLeftEnabled = true
-		if _G.NexusStartAutoLeft then _G.NexusStartAutoLeft() end
-	else
-		autoLeftEnabled = false
-		if _G.NexusStopAutoLeft then _G.NexusStopAutoLeft() end
-		autoRightEnabled = true
-		if _G.NexusStartAutoRight then _G.NexusStartAutoRight() end
-	end
-	if _G.NexusSetAutoLRVisual then _G.NexusSetAutoLRVisual(true) end
+	-- Auto L/R removed: use Auto Left / Auto Right instead
+	autoLREnabled = false
+	if _G.NexusStopAutoLR then _G.NexusStopAutoLR() end
 	if not skipSave then saveNexusConfig() end
 end
 
 function _G.NexusToggleAutoLR()
-	_G.NexusSetAutoLR(not autoLREnabled)
+	-- removed: use Auto Left / Auto Right
 end
 
 function _G.NexusStartAutoLeft()
@@ -5465,12 +5725,11 @@ end
 
 LP.CharacterAdded:Connect(function()
 task.wait(0.5)
-if autoLREnabled and _G.NexusSetAutoLR then
-	_G.NexusSetAutoLR(true, true)
-elseif autoLeftEnabled and _G.NexusStartAutoLeft then
-	_G.NexusStartAutoLeft()
-elseif autoRightEnabled and _G.NexusStartAutoRight then
-	_G.NexusStartAutoRight()
+autoLREnabled = false
+if autoLeftEnabled and _G.NexusSetAutoLeft then
+	_G.NexusSetAutoLeft(true, true)
+elseif autoRightEnabled and _G.NexusSetAutoRight then
+	_G.NexusSetAutoRight(true, true)
 end
 end)
 local overheadGui = nil
@@ -7876,7 +8135,50 @@ do
 	end)
 end
 
--- Auto L/R: no UI toggle (keybind + mobile only). Side auto-detected.
+-- Auto Left / Auto Right (separate)
+do
+	local rowL, setL = toggleRow(Movement, "Auto Left", autoLeftEnabled == true, 15)
+	_G.NexusSetAutoLeftVisual = function(on)
+		if setL then setL(on) end
+		if mobileButtons and mobileButtons.autoLeft then
+			pcall(function() mobileButtons.autoLeft.setActive(on == true) end)
+		end
+	end
+	local btnL = rowL and rowL:FindFirstChild("ToggleButton")
+	if btnL then
+		btnL.Activated:Connect(function()
+			local on = not autoLeftEnabled
+			if _G.NexusSetAutoLeft then
+				_G.NexusSetAutoLeft(on)
+			else
+				autoLeftEnabled = on
+			end
+			if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(autoLeftEnabled == true) end
+			saveNexusConfig()
+		end)
+	end
+
+	local rowR, setR = toggleRow(Movement, "Auto Right", autoRightEnabled == true, 16)
+	_G.NexusSetAutoRightVisual = function(on)
+		if setR then setR(on) end
+		if mobileButtons and mobileButtons.autoRight then
+			pcall(function() mobileButtons.autoRight.setActive(on == true) end)
+		end
+	end
+	local btnR = rowR and rowR:FindFirstChild("ToggleButton")
+	if btnR then
+		btnR.Activated:Connect(function()
+			local on = not autoRightEnabled
+			if _G.NexusSetAutoRight then
+				_G.NexusSetAutoRight(on)
+			else
+				autoRightEnabled = on
+			end
+			if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(autoRightEnabled == true) end
+			saveNexusConfig()
+		end)
+	end
+end
 _G.NexusSetAutoLRVisual = _G.NexusSetAutoLRVisual or function() end
 
 _, _rawSetAntibatVisual = toggleRow(Movement, "Antibat", antibatEnabled, 17)
@@ -8617,6 +8919,7 @@ do
 				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
 				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
 				if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end
+				if _G.NexusStopNormalAimbotV4 then _G.NexusStopNormalAimbotV4() end
 				if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
 				task.delay(0.05, function()
 					if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
@@ -8640,7 +8943,7 @@ do
 		avBtn.BackgroundColor3 = COLORS.input
 		avBtn.BackgroundTransparency = 0.1
 		avBtn.BorderSizePixel = 0
-		avBtn.Text = aimbotVersion == "V3" and "V3" or (aimbotVersion == "V2" and "V2" or "V1")
+		avBtn.Text = (aimbotVersion == "V4" and "V4") or (aimbotVersion == "V3" and "V3") or (aimbotVersion == "V2" and "V2") or "V1"
 		avBtn.TextColor3 = COLORS.white
 		avBtn.Font = Enum.Font.GothamBold
 		avBtn.TextSize = 10
@@ -8653,11 +8956,13 @@ do
 		avStroke.Thickness = 1
 		avStroke.Transparency = 0.5
 		avBtn.Activated:Connect(function()
-			aimbotVersion = (aimbotVersion == "V1" and "V2") or (aimbotVersion == "V2" and "V3") or "V1"
-			avBtn.Text = aimbotVersion == "V3" and "V3" or (aimbotVersion == "V2" and "V2" or "V1")
+			aimbotVersion = (aimbotVersion == "V1" and "V2") or (aimbotVersion == "V2" and "V3") or (aimbotVersion == "V3" and "V4") or "V1"
+			avBtn.Text = (aimbotVersion == "V4" and "V4") or (aimbotVersion == "V3" and "V3") or (aimbotVersion == "V2" and "V2") or "V1"
 			if _G.NexusNormalAimbotOn then
 				if _G.NexusStopNormalAimbot then _G.NexusStopNormalAimbot() end
 				if _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() end
+				if _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() end
+				if _G.NexusStopNormalAimbotV4 then _G.NexusStopNormalAimbotV4() end
 				if _G.NexusStopBypassAimbot then _G.NexusStopBypassAimbot() end
 				task.delay(0.05, function()
 					if _G.NexusToggleSelectedAimbot then _G.NexusToggleSelectedAimbot() end
@@ -9269,7 +9574,8 @@ do
 			combatAimbotKeybindLabel = aimbotKeybindRow and aimbotKeybindRow:FindFirstChild("Label")
 			if type(refreshAimbotModeLabels) == "function" then refreshAimbotModeLabels() end
 			_skb(Keybinds, "TP Bat", "TpBat", 8)
-			_skb(Keybinds, "Auto L/R", "AutoLR", 9)
+			_skb(Keybinds, "Auto Left", "AutoLeft", 9)
+			_skb(Keybinds, "Auto Right", "AutoRight", 9.5)
 			_skb(Keybinds, "Auto Dodge", "AutoDodge", 10.5)
 		end
 		if _tpkb then _tpkb(Keybinds, "TP Down", 11) end
@@ -15295,9 +15601,9 @@ if _G.NexusToggleSelectedAimbot then
 _G.NexusToggleSelectedAimbot()
 elseif _G.NexusStartNormalAimbot and _G.NexusStopNormalAimbot then
 if _G.NexusNormalAimbotOn then
-if aimbotVersion == "V3" and _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() else _G.NexusStopNormalAimbot() end
+if aimbotVersion == "V4" and _G.NexusStopNormalAimbotV4 then _G.NexusStopNormalAimbotV4() elseif aimbotVersion == "V3" and _G.NexusStopNormalAimbotV3 then _G.NexusStopNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStopNormalAimbotV2 then _G.NexusStopNormalAimbotV2() else _G.NexusStopNormalAimbot() end
 else
-if aimbotVersion == "V3" and _G.NexusStartNormalAimbotV3 then _G.NexusStartNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then _G.NexusStartNormalAimbotV2() else _G.NexusStartNormalAimbot() end
+if aimbotVersion == "V4" and _G.NexusStartNormalAimbotV4 then _G.NexusStartNormalAimbotV4() elseif aimbotVersion == "V3" and _G.NexusStartNormalAimbotV3 then _G.NexusStartNormalAimbotV3() elseif aimbotVersion == "V2" and _G.NexusStartNormalAimbotV2 then _G.NexusStartNormalAimbotV2() else _G.NexusStartNormalAimbot() end
 end
 end
 if _G.NexusRefreshAimbotVisual then _G.NexusRefreshAimbotVisual() end
@@ -15315,8 +15621,11 @@ if speedKeybinds.DropBrainrot and input.KeyCode == speedKeybinds.DropBrainrot th
 if doDrop then doDrop() else runDropBrainrot() end
 return
 end
-if speedKeybinds.AutoLR and input.KeyCode == speedKeybinds.AutoLR then
-if _G.NexusToggleAutoLR then _G.NexusToggleAutoLR() end
+if speedKeybinds.AutoLeft and input.KeyCode == speedKeybinds.AutoLeft then
+if _G.NexusSetAutoLeft then _G.NexusSetAutoLeft(not autoLeftEnabled) end
+end
+if speedKeybinds.AutoRight and input.KeyCode == speedKeybinds.AutoRight then
+if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
 return
 end
 if speedKeybinds.InstaReset and input.KeyCode == speedKeybinds.InstaReset then
@@ -16365,7 +16674,8 @@ local x1, x2, x3 = -218, -154, -90
 local y1, y2, y3, y4, y5, y6 = -150, -102, -54, -6, 42, 90
 local defaults = {
 drop         = UDim2.new(1, x2, 0.5, y1),
-autoLR       = UDim2.new(1, x3, 0.5, y1),
+autoLeft     = UDim2.new(1, x3, 0.5, y1),
+autoRight    = UDim2.new(1, x3, 0.5, y2),
 aimbot       = UDim2.new(1, x2, 0.5, y2),
 tp           = UDim2.new(1, x1, 0.5, y3),
 instaReset   = UDim2.new(1, x1, 0.5, y4),
@@ -16413,10 +16723,16 @@ task.delay(0.03, function()
 setActive(btn, (_G.NexusNormalAimbotOn == true))
 end)
 end)
-makeButton("autoLR", "AUTO" .. string.char(10) .. "L/R", defaults.autoLR, function(btn)
-if _G.NexusToggleAutoLR then _G.NexusToggleAutoLR() end
+makeButton("autoLeft", "AUTO" .. string.char(10) .. "LEFT", defaults.autoLeft, function(btn)
+if _G.NexusSetAutoLeft then _G.NexusSetAutoLeft(not autoLeftEnabled) end
 task.delay(0.03, function()
-if mobileButtons.autoLR then mobileButtons.autoLR.setActive(autoLREnabled == true) end
+if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
+end)
+end)
+makeButton("autoRight", "AUTO" .. string.char(10) .. "RIGHT", defaults.autoRight, function(btn)
+if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
+task.delay(0.03, function()
+if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
 end)
 end)
 makeButton("tp", "TP" .. string.char(10) .. "DOWN", defaults.tp, function(btn)
@@ -16490,7 +16806,8 @@ local now = tick()
 if not _G._nexusMobileBtnLastSync then _G._nexusMobileBtnLastSync = 0 end
 if now - _G._nexusMobileBtnLastSync < 0.1 then return end
 _G._nexusMobileBtnLastSync = now
-if mobileButtons.autoLR then mobileButtons.autoLR.setActive(autoLREnabled == true) end
+if mobileButtons.autoLeft then mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end
+if mobileButtons.autoRight then mobileButtons.autoRight.setActive(autoRightEnabled == true) end
 if mobileButtons.aimbot then mobileButtons.aimbot.setActive((_G.NexusNormalAimbotOn == true)) end
 if mobileButtons.carry then mobileButtons.carry.setActive(currentSpeedMode == "Carry") end
 if mobileButtons.laggerNormal then mobileButtons.laggerNormal.setActive(currentSpeedMode == "Lagger") end
