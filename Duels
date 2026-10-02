@@ -1352,10 +1352,26 @@ tpDownKeybind = keyToString(tpDownKeybind),
 end
 function applySavedKeybinds(t)
 if type(t) ~= "table" then return end
-for keyId in pairs(speedKeybinds) do
-if t[keyId] ~= nil then
-speedKeybinds[keyId] = stringToKeyCode(t[keyId])
+-- migrate old Auto L/R keybind to AutoLeft
+if t.AutoLR ~= nil and t.AutoLeft == nil then
+	t.AutoLeft = t.AutoLR
 end
+for keyId in pairs(DEFAULT_SPEED_KEYBINDS) do
+	if t[keyId] ~= nil then
+		local kc = stringToKeyCode(t[keyId])
+		if kc then
+			speedKeybinds[keyId] = kc
+		elseif tostring(t[keyId]) == "None" or t[keyId] == "" then
+			speedKeybinds[keyId] = nil
+		end
+	end
+end
+-- ensure new keys always exist if missing from old saves
+if speedKeybinds.AutoLeft == nil and DEFAULT_SPEED_KEYBINDS.AutoLeft then
+	speedKeybinds.AutoLeft = DEFAULT_SPEED_KEYBINDS.AutoLeft
+end
+if speedKeybinds.AutoRight == nil and DEFAULT_SPEED_KEYBINDS.AutoRight then
+	speedKeybinds.AutoRight = DEFAULT_SPEED_KEYBINDS.AutoRight
 end
 end
 function applyDefaultNexusKeybinds()
@@ -1590,6 +1606,9 @@ if (not savedKeys or savedKeys[keyId] == nil) and speedKeybinds[keyId] == nil th
 speedKeybinds[keyId] = defaultKey
 end
 end
+-- always ensure Auto Left / Auto Right keybinds after load
+if not speedKeybinds.AutoLeft then speedKeybinds.AutoLeft = DEFAULT_SPEED_KEYBINDS.AutoLeft end
+if not speedKeybinds.AutoRight then speedKeybinds.AutoRight = DEFAULT_SPEED_KEYBINDS.AutoRight end
 NS = tonumber(data.NS) or NS
 CS = tonumber(data.CS) or CS
 LAGGER_SPEED = tonumber(data.LAGGER_SPEED) or LAGGER_SPEED
@@ -15483,7 +15502,10 @@ if NexusUpdateGuiLockVisual then NexusUpdateGuiLockVisual() end
 if _G.NexusApplyMobileButtonsHidden then _G.NexusApplyMobileButtonsHidden() end
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
 local isControllerInput = tostring(input.UserInputType):find("Gamepad") ~= nil
-if gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and not listeningForSpeedKey and not listeningForTPDownKey then return end
+-- never block while rebinding, or for Auto Left / Auto Right action keys
+local _isAutoPathKey = (speedKeybinds.AutoLeft and input.KeyCode == speedKeybinds.AutoLeft)
+	or (speedKeybinds.AutoRight and input.KeyCode == speedKeybinds.AutoRight)
+if gameProcessed and input.UserInputType == Enum.UserInputType.Keyboard and not listeningForSpeedKey and not listeningForTPDownKey and not _isAutoPathKey then return end
 if UserInputService:GetFocusedTextBox() then return end
 if input.UserInputType ~= Enum.UserInputType.Keyboard and not isControllerInput then return end
 if input.KeyCode == Enum.KeyCode.Unknown then return end
@@ -15621,11 +15643,36 @@ if doDrop then doDrop() else runDropBrainrot() end
 return
 end
 if speedKeybinds.AutoLeft and input.KeyCode == speedKeybinds.AutoLeft then
-if _G.NexusSetAutoLeft then _G.NexusSetAutoLeft(not autoLeftEnabled) end
+	local on = not (autoLeftEnabled == true)
+	if _G.NexusSetAutoLeft then
+		_G.NexusSetAutoLeft(on)
+	elseif on and _G.NexusStartAutoLeft then
+		_G.NexusStartAutoLeft()
+	elseif (not on) and _G.NexusStopAutoLeft then
+		_G.NexusStopAutoLeft()
+		autoLeftEnabled = false
+	end
+	if _G.NexusSetAutoLeftVisual then _G.NexusSetAutoLeftVisual(autoLeftEnabled == true) end
+	if mobileButtons and mobileButtons.autoLeft then
+		pcall(function() mobileButtons.autoLeft.setActive(autoLeftEnabled == true) end)
+	end
+	return
 end
 if speedKeybinds.AutoRight and input.KeyCode == speedKeybinds.AutoRight then
-if _G.NexusSetAutoRight then _G.NexusSetAutoRight(not autoRightEnabled) end
-return
+	local on = not (autoRightEnabled == true)
+	if _G.NexusSetAutoRight then
+		_G.NexusSetAutoRight(on)
+	elseif on and _G.NexusStartAutoRight then
+		_G.NexusStartAutoRight()
+	elseif (not on) and _G.NexusStopAutoRight then
+		_G.NexusStopAutoRight()
+		autoRightEnabled = false
+	end
+	if _G.NexusSetAutoRightVisual then _G.NexusSetAutoRightVisual(autoRightEnabled == true) end
+	if mobileButtons and mobileButtons.autoRight then
+		pcall(function() mobileButtons.autoRight.setActive(autoRightEnabled == true) end)
+	end
+	return
 end
 if speedKeybinds.InstaReset and input.KeyCode == speedKeybinds.InstaReset then
 if _G.NexusInstaResetTrigger then _G.NexusInstaResetTrigger() end
